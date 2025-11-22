@@ -311,7 +311,9 @@ def ingest(course, zip_file):
 @click.option('--limit', '-l', type=int, help='Limit number of exercises to analyze (for testing)')
 @click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic']), default='anthropic',
               help='LLM provider (default: anthropic)')
-def analyze(course, limit, provider):
+@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
+              help='Output language for analysis (default: en)')
+def analyze(course, limit, provider, lang):
     """Analyze exercises with AI to discover topics and core loops."""
     console.print(f"\n[bold cyan]Analyzing exercises for {course}...[/bold cyan]\n")
 
@@ -341,9 +343,9 @@ def analyze(course, limit, provider):
             console.print(f"Found {len(exercises)} exercise fragments\n")
 
         # Initialize components
-        console.print(f"🤖 Initializing AI components (provider: {provider})...")
+        console.print(f"🤖 Initializing AI components (provider: {provider}, language: {lang})...")
         llm = LLMManager(provider=provider)
-        analyzer = ExerciseAnalyzer(llm)
+        analyzer = ExerciseAnalyzer(llm, language=lang)
 
         # For embeddings, we still need Ollama (Groq/Anthropic don't provide embeddings)
         embed_llm = LLMManager(provider="ollama") if provider in ["groq", "anthropic"] else llm

@@ -57,6 +57,7 @@ class Config:
 
     # Supported languages
     SUPPORTED_LANGUAGES = ["it", "en"]  # Italian and English
+    DEFAULT_LANGUAGE = os.getenv("EXAMINA_LANGUAGE", "en")  # Default to English
 
     @classmethod
     def ensure_dirs(cls):

@@ -31,13 +31,15 @@ class AnalysisResult:
 class ExerciseAnalyzer:
     """Analyzes exercises using LLM to discover topics and core loops."""
 
-    def __init__(self, llm_manager: Optional[LLMManager] = None):
+    def __init__(self, llm_manager: Optional[LLMManager] = None, language: str = "en"):
         """Initialize analyzer.
 
         Args:
             llm_manager: LLM manager instance
+            language: Output language for analysis ("en" or "it")
         """
         self.llm = llm_manager or LLMManager()
+        self.language = language
 
     def analyze_exercise(self, exercise_text: str, course_name: str,
                         previous_exercise: Optional[str] = None) -> AnalysisResult:
@@ -136,9 +138,17 @@ PREVIOUS EXERCISE:
 Does this exercise appear to be a continuation or sub-part of the previous one?
 """
 
-        base_prompt += """
+        # Add language instruction
+        language_instruction = {
+            "it": "IMPORTANTE: Rispondi in ITALIANO. Tutti i nomi di topic, procedure e step devono essere in italiano.",
+            "en": "IMPORTANT: Respond in ENGLISH. All topic names, procedures and steps must be in English."
+        }
+
+        base_prompt += f"""
+{language_instruction.get(self.language, language_instruction["en"])}
+
 Respond in JSON format with:
-{
+{{
   "is_valid_exercise": true/false,  // false if it's just exam instructions or headers
   "is_fragment": true/false,  // true if incomplete or part of larger exercise
   "should_merge_with_previous": true/false,  // true if continuation of previous
@@ -148,7 +158,7 @@ Respond in JSON format with:
   "difficulty": "easy|medium|hard",
   "variations": ["variation1", ...],  // specific variants used
   "confidence": 0.0-1.0  // your confidence in this analysis
-}
+}}
 
 IMPORTANT:
 - If text contains only exam rules (like "NON si può usare la calcolatrice"), mark as NOT valid exercise
