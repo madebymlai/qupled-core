@@ -7,6 +7,7 @@ import json
 import re
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
+from difflib import SequenceMatcher
 
 from models.llm_manager import LLMManager, LLMResponse
 from storage.database import Database
@@ -326,6 +327,10 @@ Respond ONLY with valid JSON, no other text.
             for topic_data in topics.values():
                 topic_data["core_loops"] = list(topic_data["core_loops"])
 
+            # Deduplicate topics and core loops
+            topics = self._deduplicate_topics(topics)
+            core_loops = self._deduplicate_core_loops(core_loops)
+
             return {
                 "topics": topics,
                 "core_loops": core_loops,
@@ -333,3 +338,126 @@ Respond ONLY with valid JSON, no other text.
                 "original_count": len(exercises),
                 "merged_count": len(merged_exercises)
             }
+
+    def _similarity(self, str1: str, str2: str) -> float:
+        """Calculate similarity between two strings (0.0 to 1.0).
+
+        Args:
+            str1: First string
+            str2: Second string
+
+        Returns:
+            Similarity score (0.0 = completely different, 1.0 = identical)
+        """
+        return SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
+
+    def _deduplicate_topics(self, topics: Dict[str, Any]) -> Dict[str, Any]:
+        """Deduplicate similar topics using string similarity.
+
+        Args:
+            topics: Dictionary of topics
+
+        Returns:
+            Deduplicated topics dictionary
+        """
+        if len(topics) <= 1:
+            return topics
+
+        threshold = Config.CORE_LOOP_SIMILARITY_THRESHOLD
+        topic_names = list(topics.keys())
+        merged_topics = {}
+        skip_topics = set()
+
+        # Track mapping from old topic names to canonical names
+        self.topic_name_mapping = {}
+
+        for i, topic1 in enumerate(topic_names):
+            if topic1 in skip_topics:
+                continue
+
+            # Start with this topic
+            canonical_topic = topic1
+            canonical_data = topics[topic1].copy()
+
+            # Map canonical topic to itself
+            self.topic_name_mapping[canonical_topic] = canonical_topic
+
+            # Check for similar topics
+            for topic2 in topic_names[i+1:]:
+                if topic2 in skip_topics:
+                    continue
+
+                similarity = self._similarity(topic1, topic2)
+                if similarity >= threshold:
+                    print(f"[DEBUG] Merging similar topics: '{topic1}' ≈ '{topic2}' (similarity: {similarity:.2f})")
+
+                    # Merge topic2 into canonical
+                    canonical_data["exercise_count"] += topics[topic2]["exercise_count"]
+                    canonical_data["core_loops"] = list(set(canonical_data["core_loops"]) | set(topics[topic2]["core_loops"]))
+                    skip_topics.add(topic2)
+
+                    # Map merged topic to canonical
+                    self.topic_name_mapping[topic2] = canonical_topic
+
+            merged_topics[canonical_topic] = canonical_data
+
+        return merged_topics
+
+    def _deduplicate_core_loops(self, core_loops: Dict[str, Any]) -> Dict[str, Any]:
+        """Deduplicate similar core loops using string similarity.
+
+        Args:
+            core_loops: Dictionary of core loops
+
+        Returns:
+            Tuple of (deduplicated core loops dictionary, ID mapping dict)
+        """
+        if len(core_loops) <= 1:
+            return core_loops
+
+        threshold = Config.CORE_LOOP_SIMILARITY_THRESHOLD
+        loop_ids = list(core_loops.keys())
+        merged_loops = {}
+        skip_loops = set()
+
+        # Track mapping from old IDs to canonical IDs
+        self.core_loop_id_mapping = {}
+
+        for i, loop1_id in enumerate(loop_ids):
+            if loop1_id in skip_loops:
+                continue
+
+            loop1 = core_loops[loop1_id]
+            canonical_id = loop1_id
+            canonical_data = loop1.copy()
+
+            # Map canonical ID to itself
+            self.core_loop_id_mapping[canonical_id] = canonical_id
+
+            # Check for similar core loops (compare names, not IDs)
+            for loop2_id in loop_ids[i+1:]:
+                if loop2_id in skip_loops:
+                    continue
+
+                loop2 = core_loops[loop2_id]
+                similarity = self._similarity(loop1["name"], loop2["name"])
+
+                if similarity >= threshold:
+                    print(f"[DEBUG] Merging similar core loops: '{loop1['name']}' ≈ '{loop2['name']}' (similarity: {similarity:.2f})")
+
+                    # Merge loop2 into canonical
+                    canonical_data["exercise_count"] += loop2["exercise_count"]
+                    canonical_data["exercises"] = list(set(canonical_data["exercises"]) | set(loop2["exercises"]))
+
+                    # Merge procedures (prefer longer/more detailed one)
+                    if len(loop2.get("procedure", [])) > len(canonical_data.get("procedure", [])):
+                        canonical_data["procedure"] = loop2["procedure"]
+
+                    skip_loops.add(loop2_id)
+
+                    # Map merged ID to canonical ID
+                    self.core_loop_id_mapping[loop2_id] = canonical_id
+
+            merged_loops[canonical_id] = canonical_data
+
+        return merged_loops

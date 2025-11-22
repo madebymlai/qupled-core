@@ -408,6 +408,9 @@ def analyze(course, limit, provider, lang):
         # Store in database
         console.print(f"\n💾 Storing analysis results...")
         with Database() as db:
+            # Get topic name mapping from analyzer (for deduplication)
+            topic_name_mapping = getattr(analyzer, 'topic_name_mapping', {})
+
             # Store topics
             for topic_name in topics.keys():
                 topic_id = db.add_topic(course_code, topic_name)
@@ -417,8 +420,13 @@ def analyze(course, limit, provider, lang):
                 # Get topic_id
                 topic_name = loop_data.get('topic')
                 if topic_name:
+                    # Map topic name to canonical name (if deduplicated)
+                    canonical_topic_name = topic_name
+                    if canonical_topic_name in topic_name_mapping:
+                        canonical_topic_name = topic_name_mapping[canonical_topic_name]
+
                     topic_rows = db.get_topics_by_course(course_code)
-                    topic_id = next((t['id'] for t in topic_rows if t['name'] == topic_name), None)
+                    topic_id = next((t['id'] for t in topic_rows if t['name'] == canonical_topic_name), None)
 
                     if topic_id:
                         db.add_core_loop(
@@ -429,13 +437,31 @@ def analyze(course, limit, provider, lang):
                             description=None
                         )
 
+            # Get core loop ID mapping from analyzer (for deduplication)
+            core_loop_id_mapping = getattr(analyzer, 'core_loop_id_mapping', {})
+
             # Update exercises with analysis
             for merged_ex in discovery_result['merged_exercises']:
                 analysis = merged_ex.get('analysis')
                 if analysis and analysis.topic:
+                    # Map topic name to canonical name (if deduplicated)
+                    canonical_topic_name = analysis.topic
+                    if canonical_topic_name in topic_name_mapping:
+                        canonical_topic_name = topic_name_mapping[canonical_topic_name]
+
                     # Get topic_id and core_loop_id
                     topic_rows = db.get_topics_by_course(course_code)
-                    topic_id = next((t['id'] for t in topic_rows if t['name'] == analysis.topic), None)
+                    topic_id = next((t['id'] for t in topic_rows if t['name'] == canonical_topic_name), None)
+
+                    # Map core_loop_id to canonical ID (if deduplicated)
+                    canonical_core_loop_id = analysis.core_loop_id
+                    if canonical_core_loop_id and canonical_core_loop_id in core_loop_id_mapping:
+                        canonical_core_loop_id = core_loop_id_mapping[canonical_core_loop_id]
+
+                    # Only update if canonical_core_loop_id exists in deduplicated core_loops
+                    if canonical_core_loop_id and canonical_core_loop_id not in core_loops:
+                        print(f"[DEBUG] Skipping exercise {first_id[:20]}... - core_loop_id '{canonical_core_loop_id}' not found in deduplicated core_loops")
+                        canonical_core_loop_id = None
 
                     # Update first exercise in merged group
                     first_id = merged_ex['merged_from'][0]
@@ -443,7 +469,7 @@ def analyze(course, limit, provider, lang):
                         UPDATE exercises
                         SET topic_id = ?, core_loop_id = ?, difficulty = ?, analyzed = 1
                         WHERE id = ?
-                    """, (topic_id, analysis.core_loop_id, analysis.difficulty, first_id))
+                    """, (topic_id, canonical_core_loop_id, analysis.difficulty, first_id))
 
             db.conn.commit()
             console.print("   ✓ Stored in database\n")
