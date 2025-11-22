@@ -485,35 +485,193 @@ def analyze(course, limit, provider, lang):
 
 @cli.command()
 @click.option('--course', '-c', required=True, help='Course code')
-@click.option('--loop', '-l', help='Specific core loop to practice')
-def learn(course, loop):
-    """Learn core loops with guided examples."""
-    console.print(f"\n[bold cyan]Learning mode for {course}...[/bold cyan]\n")
-    console.print("[yellow]⚠️  This feature is not yet implemented.[/yellow]")
-    console.print("Coming in Phase 4: AI tutor interaction.\n")
+@click.option('--loop', '-l', required=True, help='Core loop ID to learn')
+@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
+              help='Output language (default: en)')
+def learn(course, loop, lang):
+    """Learn core loops with AI tutor explanation."""
+    from core.tutor import Tutor
+    from models.llm_manager import LLMManager
+
+    console.print(f"\n[bold cyan]Learning {loop}...[/bold cyan]\n")
+
+    try:
+        # Find course
+        with Database() as db:
+            all_courses = db.get_all_courses()
+            found_course = None
+            for c in all_courses:
+                if c['code'] == course or c['acronym'] == course:
+                    found_course = c
+                    break
+
+            if not found_course:
+                console.print(f"[red]Course '{course}' not found.[/red]\n")
+                return
+
+            course_code = found_course['code']
+
+        # Initialize tutor
+        llm = LLMManager(provider="anthropic")
+        tutor = Tutor(llm, language=lang)
+
+        # Get explanation
+        console.print("🤖 Generating explanation...\n")
+        result = tutor.learn(course_code, loop)
+
+        if not result.success:
+            console.print(f"[red]Error: {result.content}[/red]\n")
+            return
+
+        # Display explanation
+        console.print(result.content)
+        console.print(f"\n[dim]Core loop: {loop} | Examples used: {result.metadata.get('examples_count', 0)}[/dim]\n")
+
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
 
 
 @cli.command()
 @click.option('--course', '-c', required=True, help='Course code')
-@click.option('--loop', '-l', help='Core loop to practice')
 @click.option('--topic', '-t', help='Topic to practice')
-def practice(course, loop, topic):
-    """Practice exercises by topic or core loop."""
+@click.option('--difficulty', '-d', type=click.Choice(['easy', 'medium', 'hard']),
+              help='Difficulty level')
+@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
+              help='Output language (default: en)')
+def practice(course, topic, difficulty, lang):
+    """Practice exercises interactively with AI feedback."""
+    from core.tutor import Tutor
+    from models.llm_manager import LLMManager
+
     console.print(f"\n[bold cyan]Practice mode for {course}...[/bold cyan]\n")
-    console.print("[yellow]⚠️  This feature is not yet implemented.[/yellow]")
-    console.print("Coming in Phase 4: AI tutor interaction.\n")
+
+    try:
+        # Find course
+        with Database() as db:
+            all_courses = db.get_all_courses()
+            found_course = None
+            for c in all_courses:
+                if c['code'] == course or c['acronym'] == course:
+                    found_course = c
+                    break
+
+            if not found_course:
+                console.print(f"[red]Course '{course}' not found.[/red]\n")
+                return
+
+            course_code = found_course['code']
+
+        # Initialize tutor
+        llm = LLMManager(provider="anthropic")
+        tutor = Tutor(llm, language=lang)
+
+        # Get practice exercise
+        console.print("📝 Fetching practice exercise...\n")
+        result = tutor.practice(course_code, topic=topic, difficulty=difficulty)
+
+        if not result.success:
+            console.print(f"[red]Error: {result.content}[/red]\n")
+            return
+
+        # Display exercise
+        console.print("[bold]Exercise:[/bold]")
+        console.print(result.content)
+        console.print()
+
+        # Get user answer
+        console.print("[dim]Type your answer (press Enter twice to finish):[/dim]")
+        answer_lines = []
+        while True:
+            line = input()
+            if line == "" and answer_lines and answer_lines[-1] == "":
+                break
+            answer_lines.append(line)
+
+        user_answer = "\n".join(answer_lines[:-1])  # Remove last empty line
+
+        if not user_answer.strip():
+            console.print("\n[yellow]No answer provided. Exiting practice mode.[/yellow]\n")
+            return
+
+        # Evaluate answer
+        console.print("\n🤖 Evaluating your answer...\n")
+        feedback = tutor.check_answer(
+            result.metadata['exercise_id'],
+            user_answer,
+            provide_hints=True
+        )
+
+        if feedback.success:
+            console.print(feedback.content)
+        else:
+            console.print(f"[red]Error: {feedback.content}[/red]")
+
+        console.print()
+
+    except KeyboardInterrupt:
+        console.print("\n\n[yellow]Practice session cancelled.[/yellow]\n")
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
 
 
 @cli.command()
 @click.option('--course', '-c', required=True, help='Course code')
-@click.option('--loop', '-l', help='Core loop')
+@click.option('--loop', '-l', required=True, help='Core loop ID')
 @click.option('--difficulty', '-d', type=click.Choice(['easy', 'medium', 'hard']),
               default='medium', help='Exercise difficulty')
-def generate(course, loop, difficulty):
+@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
+              help='Output language (default: en)')
+def generate(course, loop, difficulty, lang):
     """Generate new practice exercises with AI."""
-    console.print(f"\n[bold cyan]Generating {difficulty} exercise for {course}...[/bold cyan]\n")
-    console.print("[yellow]⚠️  This feature is not yet implemented.[/yellow]")
-    console.print("Coming in Phase 4: Exercise generation.\n")
+    from core.tutor import Tutor
+    from models.llm_manager import LLMManager
+
+    console.print(f"\n[bold cyan]Generating {difficulty} exercise for {loop}...[/bold cyan]\n")
+
+    try:
+        # Find course
+        with Database() as db:
+            all_courses = db.get_all_courses()
+            found_course = None
+            for c in all_courses:
+                if c['code'] == course or c['acronym'] == course:
+                    found_course = c
+                    break
+
+            if not found_course:
+                console.print(f"[red]Course '{course}' not found.[/red]\n")
+                return
+
+            course_code = found_course['code']
+
+        # Initialize tutor
+        llm = LLMManager(provider="anthropic")
+        tutor = Tutor(llm, language=lang)
+
+        # Generate exercise
+        console.print("🤖 Generating new exercise...\n")
+        result = tutor.generate(course_code, loop, difficulty=difficulty)
+
+        if not result.success:
+            console.print(f"[red]Error: {result.content}[/red]\n")
+            return
+
+        # Display generated exercise
+        console.print("[bold]Generated Exercise:[/bold]\n")
+        console.print(result.content)
+        console.print(f"\n[dim]Core loop: {loop} | Difficulty: {difficulty} | Based on {result.metadata.get('based_on_examples', 0)} examples[/dim]\n")
+
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
 
 
 @cli.command()
