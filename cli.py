@@ -12,6 +12,9 @@ from pathlib import Path
 
 from config import Config
 from storage.database import Database
+from storage.file_manager import FileManager
+from core.pdf_processor import PDFProcessor
+from core.exercise_splitter import ExerciseSplitter
 from study_context import study_plan
 
 console = Console()
@@ -173,9 +176,131 @@ def info(course):
               help='Path to ZIP file containing exam PDFs')
 def ingest(course, zip_file):
     """Ingest exam PDFs for a course."""
+    from tqdm import tqdm
+
     console.print(f"\n[bold cyan]Ingesting exams for {course}...[/bold cyan]\n")
-    console.print("[yellow]⚠️  This feature is not yet implemented.[/yellow]")
-    console.print("Coming in Phase 2: PDF processing and exercise extraction.\n")
+
+    try:
+        # Find course by code or acronym
+        with Database() as db:
+            all_courses = db.get_all_courses()
+            found_course = None
+            for c in all_courses:
+                if c['code'] == course or c['acronym'] == course:
+                    found_course = c
+                    break
+
+            if not found_course:
+                console.print(f"[red]Course '{course}' not found.[/red]\n")
+                console.print("Use 'examina courses' to see available courses.\n")
+                return
+
+            course_code = found_course['code']
+            console.print(f"Course: {found_course['name']} ({found_course['acronym']})\n")
+
+        # Initialize components
+        file_mgr = FileManager()
+        pdf_processor = PDFProcessor()
+        exercise_splitter = ExerciseSplitter()
+
+        # Extract PDFs from ZIP
+        console.print("📦 Extracting ZIP file...")
+        try:
+            pdf_files = file_mgr.extract_zip(zip_file, course_code)
+            console.print(f"   ✓ Found {len(pdf_files)} PDF(s)\n")
+        except Exception as e:
+            console.print(f"[red]Error extracting ZIP: {e}[/red]\n")
+            raise click.Abort()
+
+        if not pdf_files:
+            console.print("[yellow]No PDF files found in ZIP.[/yellow]\n")
+            return
+
+        # Process each PDF
+        total_exercises = 0
+        processed_pdfs = 0
+
+        for pdf_path in pdf_files:
+            console.print(f"📄 Processing {pdf_path.name}...")
+
+            # Check if scanned PDF
+            if pdf_processor.is_scanned_pdf(pdf_path):
+                console.print("   [yellow]⚠️  Scanned PDF detected - OCR not yet implemented[/yellow]")
+                console.print("   [dim]Skipping...[/dim]\n")
+                continue
+
+            try:
+                # Extract content
+                pdf_content = pdf_processor.process_pdf(pdf_path)
+                console.print(f"   ✓ Extracted {pdf_content.total_pages} pages")
+
+                # Split into exercises
+                exercises = exercise_splitter.split_pdf_content(pdf_content, course_code)
+
+                # Filter valid exercises
+                valid_exercises = [ex for ex in exercises if exercise_splitter.validate_exercise(ex)]
+                console.print(f"   ✓ Found {len(valid_exercises)} exercise(s)")
+
+                # Store exercises in database
+                with Database() as db:
+                    for exercise in valid_exercises:
+                        # Clean text
+                        cleaned_text = exercise_splitter.clean_exercise_text(exercise.text)
+
+                        # Store images if present
+                        image_paths = []
+                        if exercise.has_images:
+                            for i, img_data in enumerate(exercise.image_data):
+                                img_path = file_mgr.store_image(
+                                    img_data, course_code, exercise.id, i
+                                )
+                                image_paths.append(str(img_path))
+
+                        # Prepare exercise data
+                        exercise_data = {
+                            'id': exercise.id,
+                            'course_code': course_code,
+                            'topic_id': None,  # Will be filled in Phase 3 (AI analysis)
+                            'core_loop_id': None,  # Will be filled in Phase 3
+                            'source_pdf': pdf_path.name,
+                            'page_number': exercise.page_number,
+                            'exercise_number': exercise.exercise_number,
+                            'text': cleaned_text,
+                            'has_images': exercise.has_images,
+                            'image_paths': image_paths if image_paths else None,
+                            'latex_content': exercise.latex_content,
+                            'difficulty': None,  # Will be analyzed in Phase 3
+                            'variations': None,
+                            'solution': None,
+                            'analyzed': False,
+                            'analysis_metadata': None
+                        }
+
+                        db.add_exercise(exercise_data)
+
+                    db.conn.commit()
+
+                total_exercises += len(valid_exercises)
+                processed_pdfs += 1
+                console.print(f"   ✓ Stored in database\n")
+
+            except Exception as e:
+                console.print(f"   [red]Error: {e}[/red]\n")
+                continue
+
+        # Summary
+        console.print("[bold green]✨ Ingestion complete![/bold green]\n")
+        console.print(f"Processed: {processed_pdfs} PDF(s)")
+        console.print(f"Extracted: {total_exercises} exercise(s)")
+        console.print(f"\nNext steps:")
+        console.print(f"  • examina info --course {course} - View course status")
+        console.print(f"  • Phase 3: AI analysis to discover topics and core loops\n")
+
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
 
 
 @cli.command()
