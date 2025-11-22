@@ -26,9 +26,12 @@ class Config:
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
     # API Keys (optional fallback)
-    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+    ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "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")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+    # Anthropic Settings
+    ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")  # Sonnet 4.5
 
     # Groq Settings
     GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")  # Best rate limits on Groq free tier

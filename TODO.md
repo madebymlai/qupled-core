@@ -1,25 +1,35 @@
 # Examina - TODO List
 
-## Phase 3 Improvements (Current)
+## Phase 3 - AI Analysis ✅ COMPLETED
 
-### High Priority
-- [ ] **Provider-agnostic rate limiting** - Class-level request tracker that works for all LLM providers
-  - Track timestamps of recent requests
-  - Configurable limits per provider (Groq: 25/min, OpenAI: 60/min, Anthropic: 50/min, Ollama: unlimited)
-  - Auto-throttle before making requests (preventive vs reactive)
-  - Estimated time for batch operations
+**Done:**
+- ✅ Intelligent splitter (filters instructions, works for all formats)
+- ✅ AI analysis with Groq
+- ✅ Rate limit handling with exponential retry
+- ✅ Database + Vector store
+- ✅ Topic and core loop discovery
 
-### Medium Priority
-- [ ] **Resume failed analysis** - Store analysis progress, resume from last successful exercise
-- [ ] **Batch processing optimization** - Analyze exercises in optimal batch sizes for each provider
-- [ ] **Caching** - Cache LLM responses to avoid re-analyzing same exercises
+**Future improvements (low priority):**
+- [ ] Provider-agnostic rate limiting tracker
+- [ ] Resume failed analysis
+- [ ] Batch processing optimization
+- [ ] Topic/core loop deduplication
+- [ ] Confidence thresholds
+- [ ] Caching LLM responses
 
-### Low Priority
-- [ ] **Topic/core loop deduplication** - Merge similar topics ("Boolean Algebra" vs "Boolean Algebra and Digital Circuits")
-- [ ] **Confidence thresholds** - Only store analysis if confidence > 0.7
-- [ ] **Multi-provider fallback** - Try Ollama if Groq fails, or vice versa
+## Phase 4 - Tutor Features (CURRENT)
 
-## Phase 4 - Tutor Features (Next)
+### Completed
+- ✅ **Add Anthropic Claude Sonnet 4.5** - Better rate limits, higher quality (14 topics, 23 core loops found!)
+- ✅ **Analyze with Anthropic** - Successfully analyzed all 27 ADE exercises including SR Latch
+
+### In Progress
+- [ ] **Add language switch (Italian/English)** - Allow user to choose output language for analysis and tutor
+  - Add `--lang` flag to analyze command
+  - Store language preference in config
+  - Update prompts to request responses in selected language
+
+### Next Steps
 - [ ] Implement `learn` command - Interactive tutor for learning core loops
 - [ ] Implement `practice` command - Practice exercises with hints
 - [ ] Implement `generate` command - Generate new similar exercises

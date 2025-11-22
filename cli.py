@@ -309,8 +309,8 @@ def ingest(course, zip_file):
 @cli.command()
 @click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
 @click.option('--limit', '-l', type=int, help='Limit number of exercises to analyze (for testing)')
-@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq']), default='groq',
-              help='LLM provider (default: groq)')
+@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic']), default='anthropic',
+              help='LLM provider (default: anthropic)')
 def analyze(course, limit, provider):
     """Analyze exercises with AI to discover topics and core loops."""
     console.print(f"\n[bold cyan]Analyzing exercises for {course}...[/bold cyan]\n")
@@ -345,8 +345,8 @@ def analyze(course, limit, provider):
         llm = LLMManager(provider=provider)
         analyzer = ExerciseAnalyzer(llm)
 
-        # For embeddings, we still need Ollama
-        embed_llm = LLMManager(provider="ollama") if provider == "groq" else llm
+        # For embeddings, we still need Ollama (Groq/Anthropic don't provide embeddings)
+        embed_llm = LLMManager(provider="ollama") if provider in ["groq", "anthropic"] else llm
         vector_store = VectorStore(llm_manager=embed_llm)
 
         # Check if provider is ready
@@ -363,6 +363,14 @@ def analyze(course, limit, provider):
                 console.print(f"[red]GROQ_API_KEY not set![/red]")
                 console.print(f"[yellow]Get your free API key at: https://console.groq.com[/yellow]")
                 console.print(f"[yellow]Then set it: export GROQ_API_KEY=your_key_here[/yellow]\n")
+                return
+            console.print(f"   ✓ API key found\n")
+        elif provider == "anthropic":
+            console.print(f"   Using Anthropic API with {llm.primary_model}")
+            if not Config.ANTHROPIC_API_KEY:
+                console.print(f"[red]ANTHROPIC_API_KEY not set![/red]")
+                console.print(f"[yellow]Get your API key at: https://console.anthropic.com[/yellow]")
+                console.print(f"[yellow]Then set it: export ANTHROPIC_API_KEY=your_key_here[/yellow]\n")
                 return
             console.print(f"   ✓ API key found\n")
 

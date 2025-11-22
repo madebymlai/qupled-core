@@ -39,6 +39,10 @@ class LLMManager:
             self.primary_model = Config.GROQ_MODEL
             self.fast_model = Config.GROQ_MODEL
             self.embed_model = Config.LLM_EMBED_MODEL  # Still use Ollama for embeddings
+        elif provider == "anthropic":
+            self.primary_model = Config.ANTHROPIC_MODEL
+            self.fast_model = Config.ANTHROPIC_MODEL
+            self.embed_model = Config.LLM_EMBED_MODEL  # Still use Ollama for embeddings
         else:
             self.primary_model = Config.LLM_PRIMARY_MODEL  # Heavy reasoning
             self.fast_model = Config.LLM_FAST_MODEL  # Quick tasks
@@ -70,6 +74,10 @@ class LLMManager:
             )
         elif self.provider == "groq":
             return self._groq_generate(
+                prompt, model, system, temperature, max_tokens, json_mode
+            )
+        elif self.provider == "anthropic":
+            return self._anthropic_generate(
                 prompt, model, system, temperature, max_tokens, json_mode
             )
         else:
@@ -262,6 +270,121 @@ class LLMManager:
                     model=model,
                     success=False,
                     error=f"Groq error: {str(e)}"
+                )
+
+        # Should never reach here, but just in case
+        return LLMResponse(
+            text="",
+            model=model,
+            success=False,
+            error="Max retries exceeded"
+        )
+
+    def _anthropic_generate(self, prompt: str, model: str,
+                           system: Optional[str], temperature: float,
+                           max_tokens: Optional[int], json_mode: bool) -> LLMResponse:
+        """Generate using Anthropic API with automatic retry on rate limits.
+
+        Args:
+            prompt: User prompt
+            model: Model name
+            system: System prompt
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens
+            json_mode: Force JSON output
+
+        Returns:
+            LLMResponse
+        """
+        import time
+
+        # Check for API key upfront
+        if not Config.ANTHROPIC_API_KEY:
+            return LLMResponse(
+                text="",
+                model=model,
+                success=False,
+                error="ANTHROPIC_API_KEY not set. Get one at https://console.anthropic.com"
+            )
+
+        max_retries = 3
+        base_delay = 2  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                url = "https://api.anthropic.com/v1/messages"
+
+                headers = {
+                    "x-api-key": Config.ANTHROPIC_API_KEY,
+                    "anthropic-version": "2023-06-01",
+                    "content-type": "application/json"
+                }
+
+                # Build messages
+                messages = [{"role": "user", "content": prompt}]
+
+                payload = {
+                    "model": model,
+                    "messages": messages,
+                    "max_tokens": max_tokens or 4096,
+                    "temperature": temperature,
+                }
+
+                # Add system prompt if provided
+                if system:
+                    payload["system"] = system
+
+                response = requests.post(url, json=payload, headers=headers, timeout=60)
+                response.raise_for_status()
+
+                result = response.json()
+                text = result["content"][0]["text"]
+
+                return LLMResponse(
+                    text=text,
+                    model=model,
+                    success=True,
+                    metadata={
+                        "usage": result.get("usage"),
+                        "stop_reason": result.get("stop_reason"),
+                    }
+                )
+
+            except requests.exceptions.HTTPError as e:
+                error_msg = f"Anthropic API error: {e}"
+                if e.response.status_code == 401:
+                    error_msg = "Invalid ANTHROPIC_API_KEY. Check your API key."
+                    # Don't retry on auth errors
+                    return LLMResponse(text="", model=model, success=False, error=error_msg)
+                elif e.response.status_code == 429:
+                    # Rate limit - retry with backoff
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        print(f"  Rate limit hit, retrying in {delay}s... (attempt {attempt+1}/{max_retries})")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        error_msg = "Rate limit exceeded. All retries exhausted."
+                elif e.response.status_code == 400:
+                    try:
+                        error_detail = e.response.json()
+                        error_msg = f"Anthropic API error: {error_detail}"
+                    except:
+                        error_msg = f"Anthropic API error: {e} - {e.response.text}"
+
+                # Return error if not retrying
+                return LLMResponse(
+                    text="",
+                    model=model,
+                    success=False,
+                    error=error_msg
+                )
+            except Exception as e:
+                return LLMResponse(
+                    text="",
+                    model=model,
+                    success=False,
+                    error=f"Anthropic error: {str(e)}"
                 )
 
         # Should never reach here, but just in case
