@@ -31,7 +31,7 @@ class Config:
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
 
     # Groq Settings
-    GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")  # Current Groq model
+    GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")  # Best rate limits on Groq free tier
 
     # Processing Settings
     PDF_MAX_SIZE_MB = 50
