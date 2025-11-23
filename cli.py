@@ -5,6 +5,7 @@ CLI interface for managing courses, ingesting exams, and studying.
 """
 
 import click
+import json
 from rich.console import Console
 from rich.table import Table
 from rich import print as rprint
@@ -188,6 +189,113 @@ def info(course):
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        raise click.Abort()
+
+
+@cli.command()
+@click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
+@click.option('--tag', '-t', help='Search by procedure tag (design, transformation, etc.)')
+@click.option('--text', help='Search by text in exercise content')
+@click.option('--multi-only', is_flag=True, help='Only show multi-procedure exercises')
+@click.option('--limit', '-l', type=int, default=20, help='Maximum number of results (default: 20)')
+def search(course, tag, text, multi_only, limit):
+    """Search exercises by tags or content."""
+    try:
+        with Database() as db:
+            # Find course by code or acronym
+            all_courses = db.get_all_courses()
+            found_course = None
+            for c in all_courses:
+                if c['code'] == course or c['acronym'] == course:
+                    found_course = c
+                    break
+
+            if not found_course:
+                console.print(f"\n[red]Course '{course}' not found.[/red]\n")
+                console.print("Use 'examina courses' to see available courses.\n")
+                return
+
+            course_code = found_course['code']
+
+            # Perform search
+            exercises = []
+            search_type = []
+
+            if tag:
+                exercises = db.get_exercises_by_tag(course_code, tag)
+                search_type.append(f"tag '{tag}'")
+            elif text:
+                exercises = db.search_exercises_by_text(course_code, text)
+                search_type.append(f"text '{text}'")
+            else:
+                # No filter specified, get all exercises
+                exercises = db.get_exercises_by_course(course_code)
+                search_type.append("all exercises")
+
+            # Filter to multi-procedure only if requested
+            if multi_only:
+                # Get multi-procedure exercises
+                multi_proc_exercises = db.get_exercises_with_multiple_procedures(course_code)
+                multi_proc_ids = {ex['id'] for ex in multi_proc_exercises}
+                exercises = [ex for ex in exercises if ex['id'] in multi_proc_ids]
+                search_type.append("multi-procedure only")
+
+            # Limit results
+            exercises = exercises[:limit]
+
+            # Display results
+            console.print(f"\n[bold cyan]Search Results[/bold cyan]")
+            console.print(f"[dim]Course: {found_course['name']} ({found_course['acronym']})[/dim]")
+            console.print(f"[dim]Filter: {', '.join(search_type)}[/dim]\n")
+
+            if not exercises:
+                console.print("[yellow]No exercises found matching the search criteria.[/yellow]\n")
+                return
+
+            console.print(f"[bold]Found {len(exercises)} exercise(s):[/bold]\n")
+
+            for ex in exercises:
+                # Get all core loops for this exercise
+                core_loops = db.get_exercise_core_loops(ex['id'])
+
+                # Display exercise header
+                exercise_id = ex.get('exercise_number') or ex.get('source_pdf', 'Unknown')
+                console.print(f"[cyan]Exercise: {exercise_id}[/cyan]")
+
+                # Display procedures
+                if len(core_loops) > 1:
+                    console.print(f"  [yellow]Procedures ({len(core_loops)}):[/yellow]")
+                    for i, cl in enumerate(core_loops, 1):
+                        step_info = f" (point {cl['step_number']})" if cl['step_number'] else ""
+                        console.print(f"    {i}. {cl['name']}{step_info}")
+                elif len(core_loops) == 1:
+                    console.print(f"  Core Loop: {core_loops[0]['name']}")
+                else:
+                    console.print(f"  [dim]No core loops assigned[/dim]")
+
+                # Display tags if present
+                if ex.get('tags'):
+                    tags = json.loads(ex['tags']) if isinstance(ex['tags'], str) else ex['tags']
+                    console.print(f"  Tags: {', '.join(tags)}")
+
+                # Display difficulty
+                if ex.get('difficulty'):
+                    console.print(f"  Difficulty: {ex['difficulty']}")
+
+                # Display source
+                if ex.get('source_pdf'):
+                    page_info = f" (page {ex['page_number']})" if ex.get('page_number') else ""
+                    console.print(f"  [dim]Source: {ex['source_pdf']}{page_info}[/dim]")
+
+                console.print()
+
+            if len(exercises) == limit:
+                console.print(f"[dim]Showing first {limit} results. Use --limit to see more.[/dim]\n")
+
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
         raise click.Abort()
 
 
@@ -865,10 +973,11 @@ def generate(course, loop, difficulty, lang):
 @click.option('--procedure', '-p',
               type=click.Choice(['design', 'transformation', 'verification', 'minimization', 'analysis', 'implementation']),
               help='Filter by procedure type')
+@click.option('--multi-only', is_flag=True, help='Only show multi-procedure exercises')
 @click.option('--tags', help='Filter by tags (comma-separated)')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Language for feedback (default: en)')
-def quiz(course, questions, topic, loop, difficulty, review_only, procedure, tags, lang):
+def quiz(course, questions, topic, loop, difficulty, review_only, procedure, multi_only, tags, lang):
     """Take an interactive quiz to test your knowledge."""
     from core.quiz_engine import QuizEngine
     from models.llm_manager import LLMManager
@@ -909,6 +1018,7 @@ def quiz(course, questions, topic, loop, difficulty, review_only, procedure, tag
                 difficulty=difficulty,
                 review_only=review_only,
                 procedure_type=procedure,
+                multi_only=multi_only,
                 tags=tags
             )
         except ValueError as e:
@@ -924,6 +1034,10 @@ def quiz(course, questions, topic, loop, difficulty, review_only, procedure, tag
             quiz_info += f" | Core Loop: {loop}"
         if difficulty:
             quiz_info += f" | Difficulty: {difficulty}"
+        if procedure:
+            quiz_info += f" | Procedure: {procedure}"
+        if multi_only:
+            quiz_info += " | Multi-Procedure Only"
         if review_only:
             quiz_info += " | Review Mode"
 
@@ -936,7 +1050,17 @@ def quiz(course, questions, topic, loop, difficulty, review_only, procedure, tag
 
             # Display question
             console.print(f"[bold]Question {i}/{session.total_questions}[/bold]")
-            console.print(f"[dim]Topic: {question.topic_name} | Core Loop: {question.core_loop_name} | Difficulty: {question.difficulty}[/dim]\n")
+
+            # Display metadata - check if multi-procedure exercise
+            if question.core_loops and len(question.core_loops) > 1:
+                console.print(f"[dim]Topic: {question.topic_name} | Difficulty: {question.difficulty}[/dim]")
+                console.print("[dim]Procedures:[/dim]")
+                for idx, loop in enumerate(question.core_loops, 1):
+                    loop_name = loop.get('name', 'Unknown')
+                    console.print(f"[dim]  {idx}. {loop_name}[/dim]")
+                console.print()
+            else:
+                console.print(f"[dim]Topic: {question.topic_name} | Core Loop: {question.core_loop_name} | Difficulty: {question.difficulty}[/dim]\n")
 
             console.print(Panel(question.exercise_text, title="Exercise", border_style="blue"))
             console.print()

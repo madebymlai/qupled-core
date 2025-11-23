@@ -25,6 +25,7 @@ class QuizQuestion:
     core_loop_name: str
     topic_name: str
     difficulty: str
+    core_loops: Optional[List[Dict[str, Any]]] = None  # List of all core loops for multi-procedure exercises
     user_answer: Optional[str] = None
     is_correct: Optional[bool] = None
     score: Optional[float] = None
@@ -73,6 +74,7 @@ class QuizEngine:
         difficulty: Optional[str] = None,
         review_only: bool = False,
         procedure_type: Optional[str] = None,
+        multi_only: bool = False,
         tags: Optional[str] = None
     ) -> QuizSession:
         """Create a new quiz session.
@@ -85,6 +87,7 @@ class QuizEngine:
             difficulty: Optional difficulty filter
             review_only: If True, only include exercises due for review
             procedure_type: Optional procedure type (transformation, design, etc.)
+            multi_only: If True, only include exercises with multiple procedures
             tags: Optional tag filter (comma-separated)
 
         Returns:
@@ -95,6 +98,8 @@ class QuizEngine:
         # Determine quiz type
         if review_only:
             quiz_type = 'review'
+        elif multi_only:
+            quiz_type = 'multi_procedure'
         elif procedure_type:
             quiz_type = 'procedure'
         elif core_loop:
@@ -113,6 +118,7 @@ class QuizEngine:
             difficulty=difficulty,
             review_only=review_only,
             procedure_type=procedure_type,
+            multi_only=multi_only,
             tags=tags
         )
 
@@ -121,16 +127,30 @@ class QuizEngine:
 
         # Create quiz questions
         questions = []
-        for i, exercise in enumerate(exercises, 1):
-            questions.append(QuizQuestion(
-                question_number=i,
-                exercise_id=exercise['id'],
-                exercise_text=exercise['text'],
-                core_loop_id=exercise.get('core_loop_id', ''),
-                core_loop_name=exercise.get('core_loop_name', 'Unknown'),
-                topic_name=exercise.get('topic_name', 'Unknown'),
-                difficulty=exercise.get('difficulty', 'medium')
-            ))
+        with Database() as db:
+            for i, exercise in enumerate(exercises, 1):
+                # Fetch all core loops for this exercise
+                core_loops = db.get_core_loops_for_exercise(exercise['id'])
+
+                # Use first core loop for backward compatibility
+                primary_loop_id = exercise.get('core_loop_id', '')
+                primary_loop_name = exercise.get('core_loop_name', 'Unknown')
+
+                # If we have core loops from junction table, use the first one as primary
+                if core_loops:
+                    primary_loop_id = core_loops[0].get('id', primary_loop_id)
+                    primary_loop_name = core_loops[0].get('name', primary_loop_name)
+
+                questions.append(QuizQuestion(
+                    question_number=i,
+                    exercise_id=exercise['id'],
+                    exercise_text=exercise['text'],
+                    core_loop_id=primary_loop_id,
+                    core_loop_name=primary_loop_name,
+                    topic_name=exercise.get('topic_name', 'Unknown'),
+                    difficulty=exercise.get('difficulty', 'medium'),
+                    core_loops=core_loops if core_loops else None
+                ))
 
         # Get topic_id and core_loop_id for session metadata
         topic_id = None
@@ -168,6 +188,7 @@ class QuizEngine:
         difficulty: Optional[str],
         review_only: bool,
         procedure_type: Optional[str] = None,
+        multi_only: bool = False,
         tags: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Select exercises for the quiz.
@@ -180,6 +201,7 @@ class QuizEngine:
             difficulty: Optional difficulty filter
             review_only: Only exercises due for review
             procedure_type: Optional procedure type filter (transformation, design, etc.)
+            multi_only: Only exercises with multiple procedures
             tags: Optional tag filter (comma-separated)
 
         Returns:
@@ -246,6 +268,10 @@ class QuizEngine:
 
             # Group by exercise to aggregate core loop names
             query += " GROUP BY e.id"
+
+            # Filter by multi-procedure exercises (HAVING clause after GROUP BY)
+            if multi_only:
+                query += " HAVING COUNT(DISTINCT ecl.core_loop_id) > 1"
 
             # Execute query
             results = db.conn.execute(query, params).fetchall()

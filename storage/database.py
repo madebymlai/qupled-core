@@ -1227,6 +1227,62 @@ class Database:
             results.append(result)
         return results
 
+    def get_exercises_by_procedure_type(self, course_code: str, procedure_type: str) -> List[Dict[str, Any]]:
+        """Get exercises by procedure type (design, transformation, etc.).
+
+        Args:
+            course_code: Course code to filter by
+            procedure_type: Type of procedure (design, transformation, verification, minimization, analysis, implementation)
+
+        Returns:
+            List of exercise dictionaries that include this procedure type in their tags
+        """
+        # Check if created_at column exists for ordering
+        cursor = self.conn.execute("PRAGMA table_info(exercises)")
+        columns = [row[1] for row in cursor.fetchall()]
+        order_by = "e.created_at" if 'created_at' in columns else "e.id"
+
+        cursor = self.conn.execute(f"""
+            SELECT DISTINCT e.*
+            FROM exercises e
+            WHERE e.course_code = ?
+            AND e.tags LIKE ?
+            ORDER BY {order_by} DESC
+        """, (course_code, f'%"{procedure_type}"%'))
+
+        results = []
+        for row in cursor.fetchall():
+            result = dict(row)
+            if result.get('image_paths'):
+                result['image_paths'] = json.loads(result['image_paths'])
+            if result.get('variations'):
+                result['variations'] = json.loads(result['variations'])
+            if result.get('analysis_metadata'):
+                result['analysis_metadata'] = json.loads(result['analysis_metadata'])
+            if result.get('tags'):
+                result['tags'] = json.loads(result['tags'])
+            results.append(result)
+        return results
+
+    def get_core_loops_for_exercise(self, exercise_id: str) -> List[Dict[str, Any]]:
+        """Get all core loops associated with an exercise.
+
+        Args:
+            exercise_id: Exercise ID
+
+        Returns:
+            List of core loop dictionaries with step_number information
+        """
+        cursor = self.conn.execute("""
+            SELECT cl.*, ecl.step_number
+            FROM core_loops cl
+            JOIN exercise_core_loops ecl ON cl.id = ecl.core_loop_id
+            WHERE ecl.exercise_id = ?
+            ORDER BY ecl.step_number
+        """, (exercise_id,))
+
+        return [dict(row) for row in cursor.fetchall()]
+
     def update_exercise_tags(self, exercise_id: str, tags: List[str]):
         """Update tags for an exercise.
 
@@ -1290,3 +1346,69 @@ class Database:
         query = f"UPDATE exercises SET {', '.join(updates)} WHERE id = ?"
         params.append(exercise_id)
         self.conn.execute(query, params)
+
+    # Search operations for Phase 6.5
+    def get_exercises_by_tag(self, course_code: str, tag: str) -> List[Dict[str, Any]]:
+        """Get exercises that have a specific tag.
+
+        Args:
+            course_code: Course code to filter by
+            tag: Tag to search for (e.g., 'design', 'transformation', 'transform_mealy_to_moore')
+
+        Returns:
+            List of exercise dictionaries
+        """
+        cursor = self.conn.execute("""
+            SELECT * FROM exercises
+            WHERE course_code = ? AND tags LIKE ?
+            ORDER BY created_at DESC
+        """, (course_code, f'%{tag}%'))
+
+        results = []
+        for row in cursor.fetchall():
+            result = dict(row)
+            if result.get('image_paths'):
+                result['image_paths'] = json.loads(result['image_paths'])
+            if result.get('variations'):
+                result['variations'] = json.loads(result['variations'])
+            if result.get('analysis_metadata'):
+                result['analysis_metadata'] = json.loads(result['analysis_metadata'])
+            if result.get('tags'):
+                result['tags'] = json.loads(result['tags'])
+            results.append(result)
+        return results
+
+    def search_exercises_by_text(self, course_code: str, search_text: str) -> List[Dict[str, Any]]:
+        """Search exercises by text content.
+
+        Args:
+            course_code: Course code to filter by
+            search_text: Text to search for in exercise content
+
+        Returns:
+            List of exercise dictionaries
+        """
+        cursor = self.conn.execute("""
+            SELECT * FROM exercises
+            WHERE course_code = ? AND (
+                text LIKE ? OR
+                exercise_number LIKE ? OR
+                source_pdf LIKE ?
+            )
+            ORDER BY created_at DESC
+        """, (course_code, f'%{search_text}%', f'%{search_text}%', f'%{search_text}%'))
+
+        results = []
+        for row in cursor.fetchall():
+            result = dict(row)
+            if result.get('image_paths'):
+                result['image_paths'] = json.loads(result['image_paths'])
+            if result.get('variations'):
+                result['variations'] = json.loads(result['variations'])
+            if result.get('analysis_metadata'):
+                result['analysis_metadata'] = json.loads(result['analysis_metadata'])
+            if result.get('tags'):
+                result['tags'] = json.loads(result['tags'])
+            results.append(result)
+        return results
+
