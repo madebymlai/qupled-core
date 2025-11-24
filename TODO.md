@@ -141,12 +141,62 @@
   - See PHASE10_TESTING.md for detailed test results
 
 **Remaining Cleanup:**
-- [ ] **Service Interface for SaaS Readiness**
-  - Refactor hardcoded providers in CLI (cli.py:1196) and Tutor (tutor.py:37)
-  - Add consistent `--provider` flag to all commands (learn, prove, practice, etc.)
-  - Create stateless `ExaminaService` class wrapping core operations
-  - Document service interface for future web layer integration
-  - Goal: Enable thin web layer that can instantiate services with user preferences
+- [x] **Service Interface for SaaS Readiness** ✅ (completed 2025-11-24)
+  - Fixed hardcoded providers in CLI (cli.py:1196) and Tutor (tutor.py:37)
+  - Added consistent `--provider` flag to all commands (learn, prove, practice, etc.)
+  - Created stateless `ExaminaService` class wrapping core operations (core/service.py)
+  - Documented service interface for future web layer integration
+  - Goal achieved: Thin web layer can instantiate services with user preferences
+
+---
+
+### Phase 11 - Provider Routing Architecture ✅ COMPLETED (2025-11-24)
+
+**Goal:** Task-based routing to optimize cost and quality across different LLM providers.
+
+**Implementation:**
+
+- [x] **Task Type System** (`core/task_types.py`)
+  - Three task categories: BULK_ANALYSIS, INTERACTIVE, PREMIUM
+  - Different providers optimized for different use cases
+
+- [x] **Provider Router** (`core/provider_router.py`)
+  - Profile-based routing (Free/Pro/Local)
+  - Automatic fallback handling (API key missing only)
+  - Fail-fast design for transparency (no runtime fallback)
+
+- [x] **Provider Profiles** (`config/provider_profiles.yaml`)
+  - **Free:** DeepSeek for bulk, Groq for interactive, premium disabled
+  - **Pro:** DeepSeek for bulk, Anthropic for interactive/premium
+  - **Local:** Ollama only (privacy mode)
+
+- [x] **DeepSeek Integration**
+  - Added DeepSeek provider support (671B MoE model)
+  - $0.14/M tokens (10-20x cheaper than Anthropic)
+  - No rate limiting (high/unlimited RPM)
+  - Primary provider for bulk operations in Free/Pro profiles
+
+- [x] **CLI Integration**
+  - Added `--profile [free|pro|local]` flag to commands
+  - Backward compatible `--provider` flag still works
+  - Service layer supports both routing and direct provider usage
+
+- [x] **Testing & Validation**
+  - All routing tests pass (6/6 scenarios)
+  - Both profile-based and direct provider usage tested
+  - DeepSeek API verified working
+
+**Cost Impact:**
+- Bulk operations: 10-20x cost reduction vs Anthropic
+- Free tier sustainable with DeepSeek + Groq
+- Pro tier balances cost (DeepSeek bulk) + quality (Anthropic interactive)
+
+**Design Decisions:**
+- Fail-fast on provider failures (no silent fallback for cost/quality control)
+- Fallback only when API key missing (configuration issue, not runtime issue)
+- Profile-based routing encourages cost-aware usage patterns
+
+---
 
 ## Future: Web Application Migration 🌐
 
