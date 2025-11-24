@@ -204,8 +204,65 @@
 - [ ] Detect knowledge gaps and fill them proactively
 - [ ] Recommend personalized learning paths
 
+## Phase 8 - Automatic Topic Splitting ✅ COMPLETED
+
+**Problem:** LLM analysis sometimes creates generic topics (e.g., "Algebra Lineare") with too many diverse core loops (30+), making them difficult to study effectively.
+
+**Solution:** Fully LLM-driven post-processing to automatically detect and split generic topics into specific, focused subtopics.
+
+### 8.1 Configuration ✅ COMPLETED
+- ✅ Added `GENERIC_TOPIC_THRESHOLD` setting (default: 10 core loops)
+- ✅ Added `TOPIC_CLUSTER_MIN/MAX` settings (4-6 subtopics)
+- ✅ Added `TOPIC_SPLITTING_ENABLED` toggle
+- ✅ Environment variable support for customization
+
+### 8.2 Database Methods ✅ COMPLETED
+- ✅ Implemented `split_topic()` in database.py
+- ✅ Transaction-safe with automatic rollback on failure
+- ✅ Preserves all exercise-core_loop relationships
+- ✅ Optional deletion of empty original topics
+- ✅ Returns detailed statistics (topics created, loops moved, errors)
+
+### 8.3 Detection & Clustering ✅ COMPLETED
+- ✅ Implemented `detect_generic_topics()` in analyzer.py
+- ✅ Detection criteria: >10 core loops OR topic name matches course name
+- ✅ Implemented `cluster_core_loops_for_topic()` for LLM-based clustering
+- ✅ Semantic similarity grouping of core loops
+- ✅ Full validation (ensures all core loops assigned exactly once)
+- ✅ Cluster count validation (4-6 subtopics)
+
+### 8.4 CLI Command ✅ COMPLETED
+- ✅ Created `split-topics` command
+- ✅ Added `--dry-run` flag for preview without changes
+- ✅ Added `--force` flag to skip confirmation prompts
+- ✅ Added `--delete-old` flag to remove empty original topics
+- ✅ Multi-language support (Italian/English)
+- ✅ Rich UI with detailed progress and statistics
+
+### 8.5 Testing & Validation ✅ COMPLETED
+- ✅ Successfully tested on AL course (B006807)
+- ✅ Split "Algebra Lineare" (30 core loops) into 6 focused topics:
+  - Sottospazi Vettoriali e Basi (10 loops)
+  - Applicazioni Lineari e Trasformazioni (6 loops)
+  - Diagonalizzazione e Autovalori (5 loops)
+  - Cambi di Base e Basi Ortonormali (3 loops)
+  - Matrici Parametriche e Determinanti (3 loops)
+  - Teoria e Problemi Integrati (3 loops)
+- ✅ All 30 core loops preserved and properly categorized
+- ✅ No data loss or broken relationships
+
+**Features:**
+- No hardcoding - fully LLM-driven for any subject/language
+- Safe - transaction-based with rollback on failure
+- Transparent - dry-run mode shows preview before applying
+- Scalable - configurable thresholds and cluster sizes
+- Validated - ensures all core loops assigned exactly once
+
+**Achievement: Generic topic problem completely resolved! 🎉**
+
 ## Known Issues
 - Groq free tier rate limit (30 req/min) prevents analyzing large courses in one run
 - Splitter may over-split on some edge cases (needs more real-world testing)
 - API timeouts with long prompts (enhanced learn with prerequisites may timeout - use --no-concepts flag)
 - Deduplication may occasionally merge semantically different items with similar names (e.g., "Mealy Machine" vs "Moore Machine" have 0.92 similarity)
+- Topic splitting with `--delete-old` may fail due to foreign key constraints if topic has references (safe to skip deletion)

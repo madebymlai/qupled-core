@@ -62,6 +62,14 @@ Examina analyzes past exam PDFs to:
 - 🔜 Metacognitive learning strategies (study tips and frameworks)
 - 🔜 Adaptive teaching based on mastery level
 
+**Phase 8: Automatic Topic Splitting** ✅ COMPLETED
+- ✅ **Generic topic detection** - Automatically finds topics with too many core loops
+- ✅ **LLM-based clustering** - Semantically groups core loops into focused subtopics
+- ✅ **Smart splitting** - Converts generic topics into 4-6 specific, manageable topics
+- **NEW**: `split-topics` command with dry-run mode
+- **NEW**: Transaction-safe database updates with rollback
+- **NEW**: Fully LLM-driven (no hardcoding, works for any subject)
+
 ## Installation
 
 ### Prerequisites
@@ -214,6 +222,39 @@ python3 cli.py deduplicate --course ADE --threshold 0.90
 - Dry-run mode to preview changes before applying
 - Configurable similarity threshold (0.0-1.0)
 - Prevents data loss by preserving all exercise associations
+
+### 7. Automatic Topic Splitting
+
+```bash
+# Preview topic splits without applying changes (dry run)
+python3 cli.py split-topics --course AL --lang it --dry-run
+
+# Automatically split generic topics into focused subtopics
+python3 cli.py split-topics --course AL --lang it --force
+
+# Delete empty original topic after split
+python3 cli.py split-topics --course AL --lang it --force --delete-old
+```
+
+**Topic Splitting Features:**
+- **Automatic Detection**: Finds generic topics (>10 core loops or matching course name)
+- **LLM-Based Clustering**: Semantically groups core loops into 4-6 focused subtopics
+- **Smart Organization**: Creates specific, descriptive topic names (Italian/English)
+- **Safe Execution**: Transaction-based with rollback on failure
+- **Preview Mode**: Dry-run shows proposed splits before applying
+- **Data Integrity**: All core loops preserved and validated
+- **No Hardcoding**: Fully LLM-driven, works for any subject
+
+**Example Result:**
+```
+"Algebra Lineare" (30 core loops) → Split into 6 topics:
+  - Sottospazi Vettoriali e Basi (10 loops)
+  - Applicazioni Lineari e Trasformazioni (6 loops)
+  - Diagonalizzazione e Autovalori (5 loops)
+  - Cambi di Base e Basi Ortonormali (3 loops)
+  - Matrici Parametriche e Determinanti (3 loops)
+  - Teoria e Problemi Integrati (3 loops)
+```
 
 ## Usage Examples
 
@@ -400,3 +441,4 @@ Built with Claude Code for studying at Università degli Studi di Firenze (UNIFI
   - ✅ Phase 7.2: Step-by-step WHY reasoning (partially complete)
   - 🔜 Phase 7.3: Metacognitive learning strategies
   - 🔜 Phase 7.4: Adaptive teaching based on mastery
+- Phase 8: Automatic Topic Splitting ✅ COMPLETE (LLM-driven clustering of generic topics)
