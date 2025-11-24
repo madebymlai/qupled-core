@@ -276,6 +276,65 @@
 
 **Achievement: Generic topic problem completely resolved! 🎉**
 
+## Phase 9 - Theory and Proof Support 🚧 PLANNED
+
+**Problem:** Current system is designed for procedural exercises (core loops), but many courses have theory questions and proofs that require different handling.
+
+**Goal:** Support theory questions and mathematical proofs alongside procedural exercises.
+
+### Key Requirements:
+- **Theory questions**: No core loop, different categorization (concepts, definitions, theorems)
+- **Proof questions** (dimostrazione): Use step-by-step reasoning, but structured differently than procedures
+- **Multi-course testing**: MUST test on ADE, AL, AND PC to avoid hardcoding
+- **No hardcoding**: Solution must work for any course/subject (computer architecture, linear algebra, concurrent programming)
+
+### 9.1 Exercise Type Detection 🔜 TODO
+- [ ] Add `exercise_type` field to exercises table ('procedural', 'theory', 'proof', 'hybrid')
+- [ ] Update analyzer to detect theory vs procedural questions
+- [ ] Implement proof keyword detection (Italian: "dimostra", "dimostrare", "dimostrazione"; English: "prove", "proof", "show that")
+- [ ] Add confidence scoring for exercise type classification
+
+### 9.2 Theory Question Categorization 🔜 TODO
+- [ ] Define categorization criteria for theory questions (concept, definition, theorem, explanation)
+- [ ] Update database schema to store theory metadata (theorem_name, concept_id, etc.)
+- [ ] Create theory-specific tagging system (not based on core loops)
+- [ ] Support theory-to-theory relationships (prerequisite concepts)
+
+### 9.3 Proof Learning System 🔜 TODO
+- [ ] Create proof-specific step-by-step structure (premise → reasoning → conclusion)
+- [ ] Implement proof technique identification (direct, contradiction, induction, construction)
+- [ ] Add proof strategy explanations (when to use each technique)
+- [ ] Support proof verification and common mistake detection
+- [ ] Create proof practice mode with hints
+
+### 9.4 CLI Integration 🔜 TODO
+- [ ] Add `--type` filter to quiz command (procedural, theory, proof)
+- [ ] Update `learn` command to handle theory questions
+- [ ] Create `prove` command for interactive proof practice
+- [ ] Update `info` command to show theory question statistics
+- [ ] Add theory question count to course summary
+
+### 9.5 Multi-Course Testing 🔜 TODO
+- [ ] Test on ADE (Computer Architecture - FSMs, boolean algebra, performance)
+- [ ] Test on AL (Linear Algebra - theorems, proofs, definitions)
+- [ ] Test on PC (Concurrent Programming - synchronization theory, safety properties)
+- [ ] Validate no hardcoded assumptions for specific subjects
+- [ ] Ensure language-agnostic implementation (Italian/English)
+
+### 9.6 Implementation Strategy (Parallel Agents)
+**Use 3-4 parallel agents to implement subsections:**
+- Agent 1: Database schema + exercise type detection (9.1)
+- Agent 2: Theory categorization + metadata (9.2)
+- Agent 3: Proof learning system + CLI integration (9.3 + 9.4)
+- Agent 4: Testing across all 3 courses (9.5)
+
+**Critical Requirements for Agents:**
+- ✅ Test on ADE, AL, AND PC (not just ADE)
+- ✅ No hardcoded subject-specific logic
+- ✅ Support both Italian and English
+- ✅ Use LLM for classification (no keyword hardcoding)
+- ✅ Backward compatible with existing procedural exercises
+
 ## Known Issues
 - Groq free tier rate limit (30 req/min) prevents analyzing large courses in one run
 - Splitter may over-split on some edge cases (needs more real-world testing)
