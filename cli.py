@@ -1672,7 +1672,9 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
               default=None, help='LLM provider (overrides profile routing)')
 @click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
               default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
-def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, profile):
+@click.option('--force', '-f', is_flag=True,
+              help='Skip prerequisite mastery check and learn anyway')
+def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, profile, force):
     """Learn core loops with AI tutor explanation (enhanced with WHY reasoning)."""
     from core.tutor import Tutor
     from models.llm_manager import LLMManager
@@ -1715,6 +1717,26 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, 
                 return
 
             core_loop_id = core_loop_row['id']
+
+            # Check prerequisite mastery (unless --force is used)
+            if not force:
+                from core.adaptive_teaching import AdaptiveTeachingManager
+                with AdaptiveTeachingManager() as atm:
+                    prereq_check = atm.check_prerequisite_mastery(course_code, loop)
+
+                    if not prereq_check['ready']:
+                        console.print("[bold yellow]⚠️  Prerequisite Warning[/bold yellow]\n")
+                        console.print("Some related concepts in this topic have low mastery:\n")
+
+                        for prereq in prereq_check['weak_prerequisites'][:5]:
+                            mastery_pct = prereq['mastery'] * 100
+                            console.print(f"  • [yellow]{prereq['name']}[/yellow] - {mastery_pct:.0f}% mastery")
+
+                        console.print(f"\n[dim]{prereq_check['recommendation']}[/dim]")
+                        console.print("\n[dim]Use --force to skip this check and learn anyway.[/dim]\n")
+
+                        if not click.confirm("Continue anyway?", default=False):
+                            return
 
         # Determine provider (adaptive uses PREMIUM, otherwise INTERACTIVE)
         task_type = "premium" if adaptive else "interactive"
@@ -2282,6 +2304,28 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
             console.print(f"[red]Error: {e}[/red]\n")
             console.print("Try different filters or add more exercises.\n")
             return
+
+        # Show prerequisite awareness for adaptive mode
+        if adaptive:
+            from core.adaptive_teaching import AdaptiveTeachingManager
+            from core.mastery_aggregator import MasteryAggregator
+
+            with Database() as db:
+                aggregator = MasteryAggregator(db)
+                weak_loops = aggregator.get_weak_core_loops(course_code, threshold=0.4)
+
+                if weak_loops:
+                    console.print("[dim]📊 Adaptive mode detected weak areas:[/dim]")
+                    for wl in weak_loops[:3]:
+                        console.print(f"   [yellow]• {wl['core_loop_name']}[/yellow] ({wl['mastery_score']:.0%} mastery)")
+                    console.print("[dim]   Quiz will prioritize these areas.\n[/dim]")
+
+                # If filtering by specific core loop, check prerequisites
+                if loop:
+                    with AdaptiveTeachingManager() as atm:
+                        prereq_check = atm.check_prerequisite_mastery(course_code, loop, threshold=0.4)
+                        if not prereq_check['ready']:
+                            console.print(f"[dim]💡 Tip: {prereq_check['recommendation']}[/dim]\n")
 
         # Display quiz info
         quiz_info = f"📝 Quiz Session: {session.total_questions} questions"

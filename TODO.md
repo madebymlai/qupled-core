@@ -18,10 +18,10 @@
 **Future Enhancements:**
 - [x] Integrate metacognitive tips into `learn` command UI ✅ (completed 2025-11-24)
 - [x] Display separated solutions during learning (when available) ✅ (completed 2025-11-24)
-- [ ] Adaptive teaching based on mastery level
-- [ ] Track student understanding per topic
-- [ ] Detect knowledge gaps and fill proactively
-- [ ] Personalized learning paths
+- [x] Adaptive teaching based on mastery level ✅ (completed 2025-11-25)
+- [x] Track student understanding per topic ✅ (completed 2025-11-25)
+- [x] Detect knowledge gaps and fill proactively ✅ (completed 2025-11-25)
+- [x] Personalized learning paths ✅ (completed 2025-11-25)
 
 ## High Priority Improvements
 

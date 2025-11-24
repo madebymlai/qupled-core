@@ -162,6 +162,75 @@ class AdaptiveTeachingManager:
 
         return gaps
 
+    def check_prerequisite_mastery(
+        self,
+        course_code: str,
+        core_loop_name: str,
+        threshold: float = 0.5,
+        user_id: Optional[str] = None
+    ) -> Dict[str, Any]:
+        """Check if prerequisites for a core loop are mastered.
+
+        Args:
+            course_code: Course code
+            core_loop_name: Core loop to check prerequisites for
+            threshold: Minimum mastery required (default 0.5)
+            user_id: User ID (reserved for future multi-user support)
+
+        Returns:
+            Dict with:
+            - ready: bool - True if all prerequisites are mastered
+            - weak_prerequisites: List of weak prerequisite names
+            - recommendation: str - What to do if not ready
+        """
+        weak_prerequisites = []
+
+        with Database() as db:
+            # Find prerequisite concepts for this core loop
+            # First, get the core loop's topic
+            core_loop = db.conn.execute("""
+                SELECT cl.id, cl.topic_id, t.name as topic_name
+                FROM core_loops cl
+                JOIN topics t ON cl.topic_id = t.id
+                WHERE cl.name = ? AND t.course_code = ?
+            """, (core_loop_name, course_code)).fetchone()
+
+            if not core_loop:
+                return {'ready': True, 'weak_prerequisites': [], 'recommendation': ''}
+
+            topic_id = core_loop['topic_id']
+
+            # Get other core loops in the same topic that might be prerequisites
+            # (simpler core loops that should be learned first)
+            related_loops = db.conn.execute("""
+                SELECT cl.id, cl.name
+                FROM core_loops cl
+                WHERE cl.topic_id = ? AND cl.name != ?
+            """, (topic_id, core_loop_name)).fetchall()
+
+            # Check mastery of related core loops
+            for loop in related_loops:
+                loop_name = loop['name']
+                mastery = self._calculate_mastery(course_code, core_loop_name=loop_name, user_id=user_id)
+
+                if mastery < threshold:
+                    weak_prerequisites.append({
+                        'name': loop_name,
+                        'mastery': mastery,
+                        'needed': threshold
+                    })
+
+        if weak_prerequisites:
+            names = [p['name'] for p in weak_prerequisites[:3]]
+            recommendation = f"Consider reviewing first: {', '.join(names)}"
+            return {
+                'ready': False,
+                'weak_prerequisites': weak_prerequisites,
+                'recommendation': recommendation
+            }
+
+        return {'ready': True, 'weak_prerequisites': [], 'recommendation': ''}
+
     def get_personalized_learning_path(self, course_code: str,
                                       user_id: Optional[str] = None,
                                       limit: int = 10) -> List[Dict]:
