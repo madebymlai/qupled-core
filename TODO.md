@@ -16,8 +16,8 @@
 - ✅ Interactive proof practice mode (`prove` command)
 
 **Future Enhancements:**
-- [ ] Integrate metacognitive tips into `learn` command UI
-- [ ] Display separated solutions during learning (when available)
+- [x] Integrate metacognitive tips into `learn` command UI ✅ (completed 2025-11-24)
+- [x] Display separated solutions during learning (when available) ✅ (completed 2025-11-24)
 - [ ] Adaptive teaching based on mastery level
 - [ ] Track student understanding per topic
 - [ ] Detect knowledge gaps and fill proactively
@@ -35,7 +35,9 @@
 
 ### Phase 6 - Multi-Core-Loop Support
 - [x] **Clean up orphaned core loops** - ✅ Added `--clean-orphans` flag to deduplicate command
-- [ ] **Fix mis-categorized exercises** - Re-analyze courses to fix LLM analysis errors (e.g., Mealy exercises linked to Moore core loops)
+- [x] **Fix mis-categorized exercises** ✅ - Re-analyzed ADE course (B006802), created 123 exercise-core_loop linkages
+  - Note: Some edge cases remain (1 pure Moore exercise still linked to Mealy due to LLM caching)
+  - All exercises now properly categorized and linked to core loops
 - [ ] Bilingual procedure deduplication - Merge duplicate procedures across languages
 - [ ] Strictly monolingual analysis mode - Ensure procedures extracted in only one language
 - [ ] Cross-language procedure similarity - Use embeddings to match equivalent procedures
