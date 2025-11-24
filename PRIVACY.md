@@ -1,16 +1,16 @@
 # Privacy Policy
 
-## Your Exams Stay Yours
+## Your Course Materials Stay Yours
 
-Examina analyzes the PDFs you upload to build a private knowledge base and tutor for you only. We don't share your exams or generated questions with other users.
+Examina analyzes the materials you upload (past exams, homework, problem sets, lecture notes) to build a private knowledge base and tutor for you only. We don't share your materials or generated questions with other users.
 
-## What Happens When You Upload a PDF
+## What Happens When You Upload Course Materials
 
-1. **Storage**: It's stored in your account only and used to extract exercises, topics, and procedures.
+1. **Storage**: Materials are stored in your account only and used to extract exercises, topics, and procedures.
 
 2. **LLM Processing**: The content may be sent to our LLM providers (e.g., Anthropic, Groq, or your own local Ollama) only to generate explanations, quizzes, and summaries.
 
-3. **No Training**: We don't sell your data or use your exams to train our own models.
+3. **No Training**: We don't sell your data or use your course materials to train our own models.
 
 4. **Your Control**: You can delete your uploads and associated data at any time.
 
@@ -24,7 +24,7 @@ When using external LLM providers (Anthropic, Groq, OpenAI), your exam content i
 
 ## Data Retention
 
-- **Exam PDFs**: Stored in your local database (`data/examina.db`) until you delete them
+- **Course Material PDFs**: Stored in your local database (`data/examina.db`) until you delete them
 - **Analysis Cache**: LLM responses are cached locally to save API costs and improve performance
 - **Quiz History**: Your quiz attempts and progress are stored locally
 - **Rate Limit Tracking**: API usage is tracked locally in cache files

@@ -1,10 +1,10 @@
 # Examina
 
-AI-powered exam preparation system that learns from past exams to help you master university courses.
+AI-powered exam preparation system that learns from your course materials to help you master university courses.
 
 ## What It Does
 
-Examina analyzes past exam PDFs to automatically:
+Examina analyzes your course materials (past exams, homework, problem sets, lecture notes) to automatically:
 - **Discover topics & procedures** - Identifies recurring problem-solving patterns ("core loops")
 - **Build a knowledge base** - Extracts exercises, procedures, and solving strategies
 - **Teach interactively** - Provides AI tutoring with theory, examples, and feedback
@@ -40,8 +40,8 @@ python3 cli.py init
 # 1. Add a course
 python3 cli.py add-course --code ADE --name "Computer Architecture"
 
-# 2. Ingest exam PDFs
-python3 cli.py ingest --course ADE --zip exams.zip
+# 2. Ingest course materials (past exams, homework, problem sets, etc.)
+python3 cli.py ingest --course ADE --zip course_materials.zip
 
 # 3. Analyze with AI (discovers topics & procedures)
 python3 cli.py analyze --course ADE --provider anthropic
@@ -58,6 +58,19 @@ python3 cli.py quiz --course ADE --questions 5
 # 7. Check progress
 python3 cli.py progress --course ADE
 ```
+
+## What Can You Upload?
+
+Examina works with **any course material containing problems and exercises**:
+
+- ✅ **Past Exams** - With or without solutions (best for discovering exam patterns)
+- ✅ **Homework Assignments** - Problem sets from professors or TAs
+- ✅ **Practice Exams** - Mock exams or practice problems
+- ✅ **Exercise Collections** - PDFs from course websites or textbooks
+- ✅ **Lecture Notes** - Notes with worked examples and practice problems
+- ✅ **Problem Set PDFs** - Any structured problem collection
+
+**The engine learns from structure, not source.** Past exams are ideal but not required.
 
 ## Key Features
 
@@ -93,11 +106,19 @@ python3 cli.py info --course B006802
 
 ### Content Ingestion
 ```bash
-# From ZIP archive
-python3 cli.py ingest --course B006802 --zip exams.zip
+# From ZIP archive (past exams, homework, problem sets, lecture notes, etc.)
+python3 cli.py ingest --course B006802 --zip course_materials.zip
 
 # From directory
-python3 cli.py ingest --course B006802 --dir ./pdfs/
+python3 cli.py ingest --course B006802 --dir ./course_pdfs/
+
+# Examples of what you can ingest:
+# - Past exams with or without solutions
+# - Homework assignments and problem sets
+# - Practice exams from the professor
+# - Exercise collections from course sites
+# - Lecture notes with worked examples
+# - Textbook problem PDFs
 ```
 
 ### Analysis
@@ -247,11 +268,11 @@ Issues and pull requests welcome! See [TODO.md](TODO.md) for areas needing work.
 
 ## Privacy & Data
 
-**Your exams stay yours.** Examina analyzes PDFs you upload to build a private knowledge base for you only. We don't share your exams or generated questions with other users.
+**Your course materials stay yours.** Examina analyzes the materials you upload (exams, homework, problem sets, notes) to build a private knowledge base for you only. We don't share your materials or generated questions with other users.
 
 - 📄 Your PDFs are stored locally in your account
 - 🔒 Content sent to LLM providers only for generating explanations/quizzes
-- 🚫 We don't sell data or train models on your exams
+- 🚫 We don't sell data or train models on your course materials
 - 🗑️ Delete your uploads and data anytime
 
 See [PRIVACY.md](PRIVACY.md) for full details.
