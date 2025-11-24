@@ -14,6 +14,8 @@ from core.tutor import Tutor
 from models.llm_manager import LLMManager
 from config import Config
 from core.proof_tutor import ProofTutor
+from core.mastery_aggregator import MasteryAggregator
+from core.sm2 import SM2Algorithm
 
 
 @dataclass
@@ -475,18 +477,54 @@ class QuizEngine:
         """Update student progress based on quiz results.
 
         Uses spaced repetition (SM-2 algorithm) to schedule reviews.
+        Now includes exercise-level mastery updates with cascade propagation.
 
         Args:
             session: Completed quiz session
             db: Database connection
         """
-        # Group questions by core loop
+        # Initialize mastery aggregator for cascade updates
+        aggregator = MasteryAggregator(db)
+        sm2 = SM2Algorithm()
+
+        # Track exercises updated for cascade
+        updated_exercises = set()
+
+        # First: Update exercise-level mastery for each answered question
+        for question in session.questions:
+            if question.score is None:
+                continue
+
+            # Calculate SM-2 quality from score and performance
+            quality = sm2.get_review_quality_from_score(
+                correct=question.is_correct or False,
+                time_taken=question.time_spent or 180,
+                hint_used=question.hints_requested > 0,
+                expected_time=180  # 3 minutes expected
+            )
+
+            # Update exercise mastery
+            aggregator.update_exercise_mastery(
+                exercise_id=question.exercise_id,
+                course_code=session.course_code,
+                quality=quality,
+                correct=question.is_correct or False
+            )
+            updated_exercises.add(question.exercise_id)
+
+        # Cascade updates for all affected exercises
+        for exercise_id in updated_exercises:
+            aggregator.cascade_update(exercise_id)
+
+        # Group questions by core loop (for backward compatibility)
         core_loop_performance = {}
         for question in session.questions:
             if question.score is None:
                 continue
 
             loop_id = question.core_loop_id
+            if not loop_id:  # Skip if no core loop assigned
+                continue
             if loop_id not in core_loop_performance:
                 core_loop_performance[loop_id] = {
                     'attempts': 0,
