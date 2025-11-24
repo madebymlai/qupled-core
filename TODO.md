@@ -68,14 +68,20 @@
   - Prevents cross-language duplicate procedures
   - All tests pass (4/4), fully documented
 
-### Phase 9 - Theory & Proof Support
+### Phase 9 - Theory & Proof Support ✅ COMPLETED
 - [x] **Interactive proof practice mode** ✅ - Already implemented (`prove` command)
 - [x] **Tune theory detection threshold** ✅ (completed 2025-11-24)
   - Lowered from 2 keywords → 1 keyword
   - Added explicit prompt notes that 1 keyword is sufficient
   - Expected to improve detection from 55% to 70%+
-- [ ] Re-analyze existing exercises with Phase 9 detection
-- [ ] Build theory concept dependency visualization
+- [x] Re-analyze existing exercises with Phase 9 detection ✅ (completed 2025-11-25)
+  - All existing exercises already have Phase 9 type detection applied
+  - 48 theory/hybrid exercises with categories detected
+- [x] Build theory concept dependency visualization ✅ (completed 2025-11-25)
+  - New CLI command: `examina concept-map --course CODE`
+  - Tree view of Topic → Core Loop hierarchy
+  - `--show-mastery` flag shows learning progress
+  - `--mermaid` flag outputs diagram format for rendering
 
 ### Phase 10 - Learning Materials as First-Class Content 🚧 IN PROGRESS
 

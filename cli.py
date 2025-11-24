@@ -258,6 +258,131 @@ def info(course):
 
 @cli.command()
 @click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
+@click.option('--mermaid', is_flag=True, help='Output Mermaid diagram format (for rendering)')
+@click.option('--show-mastery', is_flag=True, help='Show mastery levels for each concept')
+def concept_map(course, mermaid, show_mastery):
+    """Visualize topic and core loop concept dependencies."""
+    from rich.tree import Tree
+    from rich.panel import Panel
+
+    try:
+        with Database() as db:
+            # Find course
+            all_courses = db.get_all_courses()
+            found_course = None
+            for c in all_courses:
+                if c['code'] == course or c['acronym'] == course:
+                    found_course = c
+                    break
+
+            if not found_course:
+                console.print(f"\n[red]Course '{course}' not found.[/red]\n")
+                return
+
+            course_code = found_course['code']
+            topics = db.get_topics_by_course(course_code)
+
+            if not topics:
+                console.print(f"\n[yellow]No topics found for {found_course['name']}.[/yellow]\n")
+                return
+
+            # Get mastery data if requested
+            mastery_data = {}
+            if show_mastery:
+                from core.mastery_aggregator import MasteryAggregator
+                aggregator = MasteryAggregator(db)
+                weak_loops = aggregator.get_weak_core_loops(course_code, threshold=1.0)  # Get all
+                for wl in weak_loops:
+                    mastery_data[wl['core_loop_id']] = wl['mastery_score']
+
+            if mermaid:
+                # Output Mermaid diagram format
+                console.print("```mermaid")
+                console.print("graph TD")
+                console.print(f"    COURSE[{found_course['acronym'] or found_course['code']}]")
+
+                for topic in topics:
+                    topic_id = f"T{topic['id']}"
+                    topic_name = topic['name'].replace(' ', '_')[:30]
+                    console.print(f"    COURSE --> {topic_id}[{topic_name}]")
+
+                    core_loops = db.get_core_loops_by_topic(topic['id'])
+                    for cl in core_loops:
+                        cl_id = f"CL{cl['id']}"
+                        cl_name = cl['name'].replace(' ', '_')[:25]
+                        console.print(f"    {topic_id} --> {cl_id}[{cl_name}]")
+
+                console.print("```")
+
+            else:
+                # Rich tree view
+                tree = Tree(
+                    f"[bold cyan]{found_course['name']}[/bold cyan] ({found_course['acronym'] or course_code})",
+                    guide_style="dim"
+                )
+
+                # Count stats
+                total_loops = 0
+                theory_count = 0
+                procedural_count = 0
+
+                for topic in topics:
+                    core_loops = db.get_core_loops_by_topic(topic['id'])
+                    total_loops += len(core_loops)
+
+                    # Get exercise type distribution for this topic
+                    topic_exercises = db.conn.execute("""
+                        SELECT exercise_type, COUNT(*) as count
+                        FROM exercises
+                        WHERE topic_id = ?
+                        GROUP BY exercise_type
+                    """, (topic['id'],)).fetchall()
+
+                    type_info = ""
+                    for te in topic_exercises:
+                        if te['exercise_type'] == 'theory':
+                            theory_count += te['count']
+                            type_info += f" [dim](T:{te['count']})[/dim]"
+                        elif te['exercise_type'] == 'procedural':
+                            procedural_count += te['count']
+
+                    topic_branch = tree.add(f"[bold yellow]{topic['name']}[/bold yellow] ({len(core_loops)} loops){type_info}")
+
+                    for cl in core_loops:
+                        # Build core loop label with mastery if available
+                        cl_label = cl['name']
+                        if show_mastery and cl['id'] in mastery_data:
+                            mastery = mastery_data[cl['id']]
+                            if mastery >= 0.7:
+                                cl_label = f"[green]{cl['name']}[/green] ✓ {mastery:.0%}"
+                            elif mastery >= 0.4:
+                                cl_label = f"[yellow]{cl['name']}[/yellow] ◐ {mastery:.0%}"
+                            else:
+                                cl_label = f"[red]{cl['name']}[/red] ○ {mastery:.0%}"
+                        elif show_mastery:
+                            cl_label = f"[dim]{cl['name']}[/dim] (new)"
+
+                        topic_branch.add(cl_label)
+
+                console.print()
+                console.print(tree)
+
+                # Summary
+                console.print()
+                console.print(f"[dim]Summary: {len(topics)} topics, {total_loops} core loops[/dim]")
+                if theory_count > 0 or procedural_count > 0:
+                    console.print(f"[dim]Exercise types: {procedural_count} procedural, {theory_count} theory[/dim]")
+                console.print()
+
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
+
+
+@cli.command()
+@click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
 @click.option('--tag', '-t', help='Search by procedure tag (design, transformation, etc.)')
 @click.option('--text', help='Search by text in exercise content')
 @click.option('--multi-only', is_flag=True, help='Only show multi-procedure exercises')
