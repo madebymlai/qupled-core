@@ -44,7 +44,8 @@ class Tutor:
               explain_concepts: bool = True,
               depth: str = "medium",
               adaptive: bool = True,
-              include_study_strategy: bool = False) -> TutorResponse:
+              include_study_strategy: bool = False,
+              show_solutions: bool = True) -> TutorResponse:
         """Explain a core loop with theory and procedure.
 
         Args:
@@ -54,6 +55,7 @@ class Tutor:
             depth: Explanation depth - basic, medium, advanced (default: medium)
             adaptive: Enable adaptive teaching (auto-select depth and prerequisites based on mastery)
             include_study_strategy: Whether to include metacognitive study strategy (default: False)
+            show_solutions: Whether to show official solutions for exercises (default: True)
 
         Returns:
             TutorResponse with explanation
@@ -73,9 +75,20 @@ class Tutor:
                     success=False
                 )
 
-            # Get example exercises
+            # Get example exercises (with solutions if available)
             exercises = db.get_exercises_by_course(course_code)
             examples = [ex for ex in exercises if ex.get('core_loop_id') == core_loop_id][:3]
+
+            # Track exercises with solutions for later display
+            exercises_with_solutions = []
+            if show_solutions:
+                for ex in examples:
+                    if ex.get('solution') and ex.get('solution').strip():
+                        exercises_with_solutions.append({
+                            'exercise_number': ex.get('exercise_number', 'Unknown'),
+                            'solution': ex.get('solution'),
+                            'source_pdf': ex.get('source_pdf', '')
+                        })
 
         core_loop_dict = dict(core_loop)
 
@@ -151,6 +164,11 @@ class Tutor:
             full_content.append("\n" + "=" * 60 + "\n")
             full_content.append(self._format_adaptive_recommendations(adaptive_recommendations))
 
+        # Add official solutions section if available
+        if exercises_with_solutions:
+            full_content.append("\n" + "=" * 60 + "\n")
+            full_content.append(self._format_official_solutions(exercises_with_solutions))
+
         return TutorResponse(
             content="\n".join(full_content),
             success=True,
@@ -161,7 +179,9 @@ class Tutor:
                 "depth": depth,
                 "adaptive": adaptive,
                 "recommendations": adaptive_recommendations,
-                "includes_study_strategy": include_study_strategy
+                "includes_study_strategy": include_study_strategy,
+                "has_solutions": len(exercises_with_solutions) > 0,
+                "solutions_count": len(exercises_with_solutions)
             }
         )
 
@@ -605,6 +625,57 @@ Generate ONLY the exercise text, not the solution.
                 lines.append(f"\n📅 {headers['next_review']}: {review_date.strftime('%Y-%m-%d')}")
             except:
                 pass
+
+        return "\n".join(lines)
+
+    def _format_official_solutions(self, exercises_with_solutions: List[Dict[str, Any]]) -> str:
+        """Format official solutions section.
+
+        Args:
+            exercises_with_solutions: List of exercises with solutions
+
+        Returns:
+            Formatted string with solutions
+        """
+        language_headers = {
+            "it": {
+                "title": "SOLUZIONI UFFICIALI",
+                "available": "Sono disponibili soluzioni ufficiali per alcuni esercizi di esempio:",
+                "exercise": "Esercizio",
+                "from": "da",
+                "note": "Nota: Questa soluzione e stata estratta automaticamente dal PDF dell'esame."
+            },
+            "en": {
+                "title": "OFFICIAL SOLUTIONS",
+                "available": "Official solutions are available for some example exercises:",
+                "exercise": "Exercise",
+                "from": "from",
+                "note": "Note: This solution was automatically extracted from the exam PDF."
+            }
+        }
+
+        headers = language_headers.get(self.language, language_headers["en"])
+        lines = [f"\n{headers['title']}\n"]
+        lines.append(headers['available'])
+        lines.append("")
+
+        for i, ex_sol in enumerate(exercises_with_solutions, 1):
+            exercise_num = ex_sol.get('exercise_number', f'#{i}')
+            source_pdf = ex_sol.get('source_pdf', '')
+            solution = ex_sol.get('solution', '')
+
+            lines.append(f"{headers['exercise']} {exercise_num}")
+            if source_pdf:
+                lines.append(f"({headers['from']} {source_pdf})")
+            lines.append("")
+            lines.append(solution)
+            lines.append("")
+            lines.append(f"[{headers['note']}]")
+            lines.append("")
+
+            if i < len(exercises_with_solutions):
+                lines.append("-" * 40)
+                lines.append("")
 
         return "\n".join(lines)
 
