@@ -100,6 +100,9 @@ TRANSLATION_PAIRS = {
 # These are concepts that may have high string similarity but are semantically different
 SEMANTIC_OPPOSITES = [
     ("mealy", "moore"),  # Different FSM types
+    ("mealy to moore", "moore to mealy"),  # Inverse transformations
+    ("mealy→moore", "moore→mealy"),  # Inverse transformations (arrow notation)
+    ("conversione mealy moore", "conversione moore mealy"),  # Italian inverse transformations
     ("sum of products", "product of sums"),  # Full English names
     ("sop", "pos"),  # Sum of Products vs Product of Sums (abbreviations)
     ("somma di prodotti", "prodotto di somme"),  # Italian equivalents
