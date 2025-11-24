@@ -72,15 +72,33 @@ class Config:
     CACHE_ENABLED = True
     CACHE_TTL = 3600  # seconds
 
+    # Procedure Pattern Caching (Option 3 - Performance Optimization)
+    # Enables caching and reuse of recognized procedure patterns across exercises
+    # This feature improves analysis speed by avoiding re-analysis of identical patterns
+    PROCEDURE_CACHE_ENABLED = os.getenv("EXAMINA_PROCEDURE_CACHE_ENABLED", "true").lower() == "true"
+    # Minimum confidence threshold for storing a procedure pattern in cache (0.0-1.0)
+    PROCEDURE_CACHE_MIN_CONFIDENCE = float(os.getenv("EXAMINA_PROCEDURE_CACHE_MIN_CONFIDENCE", "0.85"))
+    # Scope of procedure caching: 'course' for per-course cache or 'global' for cross-course cache
+    PROCEDURE_CACHE_SCOPE = os.getenv("EXAMINA_PROCEDURE_CACHE_SCOPE", "course")
+    # Minimum embedding similarity threshold for matching cached procedures (0.0-1.0)
+    PROCEDURE_CACHE_EMBEDDING_THRESHOLD = float(os.getenv("EXAMINA_PROCEDURE_CACHE_EMBEDDING_THRESHOLD", "0.90"))
+    # Minimum text similarity threshold for validating procedure matches (0.0-1.0)
+    PROCEDURE_CACHE_TEXT_VALIDATION_THRESHOLD = float(os.getenv("EXAMINA_PROCEDURE_CACHE_TEXT_THRESHOLD", "0.70"))
+    # Enable preloading of cached procedures on startup for faster analysis
+    PROCEDURE_CACHE_PRELOAD = os.getenv("EXAMINA_PROCEDURE_CACHE_PRELOAD", "true").lower() == "true"
+
     # Analysis Settings
     MIN_EXERCISES_FOR_CORE_LOOP = 2  # Minimum exercises to establish a core loop
     CORE_LOOP_SIMILARITY_THRESHOLD = 0.85  # Similarity threshold for merging core loops (string-based)
     MIN_ANALYSIS_CONFIDENCE = float(os.getenv("EXAMINA_MIN_CONFIDENCE", "0.5"))  # Minimum confidence for analysis results
 
-    # Semantic Similarity Settings (NEW)
+    # Semantic Similarity Settings
     SEMANTIC_SIMILARITY_ENABLED = os.getenv("EXAMINA_SEMANTIC_ENABLED", "true").lower() == "true"  # Enable semantic matching
     SEMANTIC_SIMILARITY_THRESHOLD = float(os.getenv("EXAMINA_SEMANTIC_THRESHOLD", "0.85"))  # Threshold for semantic similarity
     SEMANTIC_LOG_NEAR_MISSES = os.getenv("EXAMINA_LOG_NEAR_MISSES", "true").lower() == "true"  # Log items with high similarity but semantic difference
+    # Embedding model for semantic matching (multilingual recommended for IT/EN courses)
+    # Options: "all-MiniLM-L6-v2" (English), "paraphrase-multilingual-MiniLM-L12-v2" (multilingual)
+    SEMANTIC_EMBEDDING_MODEL = os.getenv("EXAMINA_EMBEDDING_MODEL", "paraphrase-multilingual-MiniLM-L12-v2")
 
     # Study Strategy Settings
     STUDY_STRATEGY_CACHE_DIR = DATA_DIR / "strategy_cache"  # Cache directory for generated strategies

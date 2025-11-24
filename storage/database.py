@@ -57,8 +57,8 @@ class Database:
             self.connect()
 
         self._create_tables()
+        self._run_migrations()  # Run migrations BEFORE indexes (migrations may add columns needed for indexes)
         self._create_indexes()
-        self._run_migrations()
         self.conn.commit()
 
     def _run_migrations(self):
@@ -524,6 +524,25 @@ class Database:
             """)
             print("[INFO] Migration completed: material_exercise_links table created")
 
+        # Option 3: Add user_id column to procedure_cache_entries for web-ready multi-tenant support
+        cursor = self.conn.execute("""
+            SELECT name FROM sqlite_master
+            WHERE type='table' AND name='procedure_cache_entries'
+        """)
+        if cursor.fetchone():
+            # Table exists, check if user_id column exists
+            cursor = self.conn.execute("PRAGMA table_info(procedure_cache_entries)")
+            columns = [row[1] for row in cursor.fetchall()]
+            if 'user_id' not in columns:
+                print("[INFO] Running migration: Adding user_id column to procedure_cache_entries for multi-tenant support")
+                self.conn.execute("""
+                    ALTER TABLE procedure_cache_entries
+                    ADD COLUMN user_id TEXT
+                """)
+                # Recreate unique constraint is complex in SQLite, skip for now
+                # The INSERT will handle duplicates with ON CONFLICT
+                print("[INFO] Migration completed: user_id column added to procedure_cache_entries")
+
     def _create_tables(self):
         """Create all database tables."""
 
@@ -721,6 +740,29 @@ class Database:
             )
         """)
 
+        # Procedure cache table (Option 3: Pattern Caching)
+        # Web-ready: user_id nullable for CLI mode, included in unique constraint for multi-tenant isolation
+        self.conn.execute("""
+            CREATE TABLE IF NOT EXISTS procedure_cache_entries (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id TEXT,                        -- NULL for CLI/global, set for web multi-tenant
+                course_code TEXT,
+                pattern_hash TEXT NOT NULL,
+                exercise_text_sample TEXT,
+                topic TEXT,
+                difficulty TEXT,
+                variations_json TEXT,
+                procedures_json TEXT NOT NULL,
+                embedding BLOB,
+                normalized_text TEXT,
+                match_count INTEGER DEFAULT 0,
+                confidence_avg REAL DEFAULT 1.0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_matched_at TIMESTAMP,
+                UNIQUE(user_id, course_code, pattern_hash)  -- Multi-tenant safe unique constraint
+            )
+        """)
+
     def _create_indexes(self):
         """Create database indexes for performance."""
         indexes = [
@@ -739,6 +781,9 @@ class Database:
             "CREATE INDEX IF NOT EXISTS idx_topic_mastery_course ON topic_mastery(course_code)",
             "CREATE INDEX IF NOT EXISTS idx_exercise_core_loops_exercise ON exercise_core_loops(exercise_id)",
             "CREATE INDEX IF NOT EXISTS idx_exercise_core_loops_core_loop ON exercise_core_loops(core_loop_id)",
+            "CREATE INDEX IF NOT EXISTS idx_proc_cache_course ON procedure_cache_entries(course_code)",
+            "CREATE INDEX IF NOT EXISTS idx_proc_cache_hash ON procedure_cache_entries(pattern_hash)",
+            "CREATE INDEX IF NOT EXISTS idx_proc_cache_user ON procedure_cache_entries(user_id)",  # Web-ready
         ]
 
         for index_sql in indexes:
@@ -2092,3 +2137,256 @@ class Database:
                 result['analysis_metadata'] = json.loads(result['analysis_metadata'])
             results.append(result)
         return results
+
+    # Procedure Cache operations (Option 3: Pattern Caching)
+
+    def store_procedure_cache_entry(self, entry_data: Dict[str, Any]) -> int:
+        """Store a new procedure cache entry.
+
+        Args:
+            entry_data: Dictionary containing cache entry fields:
+                - user_id: Optional user ID for multi-tenant isolation (None = CLI mode)
+                - course_code: Optional course code (None = global cache)
+                - pattern_hash: Hash of normalized exercise text
+                - exercise_text_sample: First 500 chars for inspection
+                - topic: Cached topic name
+                - difficulty: Cached difficulty
+                - variations_json: JSON array of variations
+                - procedures_json: JSON array of ProcedureInfo dicts
+                - embedding: Vector embedding as numpy bytes (BLOB)
+                - normalized_text: Normalized exercise text for matching
+                - match_count: How many times this was matched (default: 0)
+                - confidence_avg: Average confidence when matched (default: 1.0)
+
+        Returns:
+            Entry ID
+        """
+        # Convert lists/dicts to JSON strings if needed
+        if 'variations_json' in entry_data and isinstance(entry_data['variations_json'], list):
+            entry_data['variations_json'] = json.dumps(entry_data['variations_json'])
+        if 'procedures_json' in entry_data and isinstance(entry_data['procedures_json'], list):
+            entry_data['procedures_json'] = json.dumps(entry_data['procedures_json'])
+
+        cursor = self.conn.execute("""
+            INSERT INTO procedure_cache_entries
+            (user_id, course_code, pattern_hash, exercise_text_sample, topic, difficulty,
+             variations_json, procedures_json, embedding, normalized_text,
+             match_count, confidence_avg)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            entry_data.get('user_id'),  # Web-ready: NULL for CLI mode
+            entry_data.get('course_code'),
+            entry_data['pattern_hash'],
+            entry_data.get('exercise_text_sample'),
+            entry_data.get('topic'),
+            entry_data.get('difficulty'),
+            entry_data.get('variations_json'),
+            entry_data['procedures_json'],
+            entry_data.get('embedding'),
+            entry_data.get('normalized_text'),
+            entry_data.get('match_count', 0),
+            entry_data.get('confidence_avg', 1.0)
+        ))
+        return cursor.lastrowid
+
+    def get_procedure_cache_entries(self, course_code: Optional[str] = None,
+                                     user_id: Optional[str] = None) -> List[Dict[str, Any]]:
+        """Get procedure cache entries.
+
+        Args:
+            course_code: Optional course code to filter by.
+                        If None, returns all entries (including global cache).
+            user_id: Optional user ID for multi-tenant isolation.
+                    If None (CLI mode), returns entries with user_id IS NULL.
+
+        Returns:
+            List of cache entry dictionaries
+        """
+        # Build query based on filters (web-ready with user isolation)
+        if course_code is None and user_id is None:
+            # CLI mode: return all entries with NULL user_id
+            cursor = self.conn.execute("""
+                SELECT * FROM procedure_cache_entries
+                WHERE user_id IS NULL
+                ORDER BY created_at DESC
+            """)
+        elif course_code is None and user_id is not None:
+            # Web mode: return all entries for specific user
+            cursor = self.conn.execute("""
+                SELECT * FROM procedure_cache_entries
+                WHERE user_id = ?
+                ORDER BY created_at DESC
+            """, (user_id,))
+        elif course_code is not None and user_id is None:
+            # CLI mode: return entries for specific course + global entries
+            cursor = self.conn.execute("""
+                SELECT * FROM procedure_cache_entries
+                WHERE (course_code = ? OR course_code IS NULL) AND user_id IS NULL
+                ORDER BY created_at DESC
+            """, (course_code,))
+        else:
+            # Web mode: return entries for specific course + global entries for user
+            cursor = self.conn.execute("""
+                SELECT * FROM procedure_cache_entries
+                WHERE (course_code = ? OR course_code IS NULL) AND user_id = ?
+                ORDER BY created_at DESC
+            """, (course_code, user_id))
+
+        results = []
+        for row in cursor.fetchall():
+            result = dict(row)
+            # Parse JSON fields
+            if result.get('variations_json'):
+                result['variations_json'] = json.loads(result['variations_json'])
+            if result.get('procedures_json'):
+                result['procedures_json'] = json.loads(result['procedures_json'])
+            results.append(result)
+        return results
+
+    def update_cache_entry_stats(self, entry_id: int, confidence: float):
+        """Update match statistics for a cache entry.
+
+        Updates match_count (increments by 1) and confidence_avg (running average).
+        Also updates last_matched_at timestamp.
+
+        Args:
+            entry_id: Cache entry ID
+            confidence: Confidence score of this match (0.0-1.0)
+        """
+        # Get current stats
+        cursor = self.conn.execute("""
+            SELECT match_count, confidence_avg
+            FROM procedure_cache_entries
+            WHERE id = ?
+        """, (entry_id,))
+        row = cursor.fetchone()
+
+        if row:
+            current_count = row[0]
+            current_avg = row[1]
+
+            # Calculate new running average
+            new_count = current_count + 1
+            new_avg = ((current_avg * current_count) + confidence) / new_count
+
+            # Update entry
+            self.conn.execute("""
+                UPDATE procedure_cache_entries
+                SET match_count = ?,
+                    confidence_avg = ?,
+                    last_matched_at = CURRENT_TIMESTAMP
+                WHERE id = ?
+            """, (new_count, new_avg, entry_id))
+
+    def delete_procedure_cache(self, course_code: Optional[str] = None,
+                                user_id: Optional[str] = None):
+        """Delete procedure cache entries.
+
+        Args:
+            course_code: Optional course code. If provided, deletes entries for that course.
+                        If None, deletes ALL cache entries (including global).
+            user_id: Optional user ID for multi-tenant isolation.
+                    If None (CLI mode), deletes entries with user_id IS NULL.
+        """
+        # Web-ready: always scope by user_id for isolation
+        if course_code is None and user_id is None:
+            # CLI mode: delete all entries with NULL user_id
+            self.conn.execute("DELETE FROM procedure_cache_entries WHERE user_id IS NULL")
+        elif course_code is None and user_id is not None:
+            # Web mode: delete all entries for specific user
+            self.conn.execute("DELETE FROM procedure_cache_entries WHERE user_id = ?", (user_id,))
+        elif course_code is not None and user_id is None:
+            # CLI mode: delete entries for specific course (keeps global cache)
+            self.conn.execute("""
+                DELETE FROM procedure_cache_entries
+                WHERE course_code = ? AND user_id IS NULL
+            """, (course_code,))
+        else:
+            # Web mode: delete entries for specific course for specific user
+            self.conn.execute("""
+                DELETE FROM procedure_cache_entries
+                WHERE course_code = ? AND user_id = ?
+            """, (course_code, user_id))
+
+    def get_cache_stats(self, course_code: Optional[str] = None,
+                        user_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get statistics about the procedure cache.
+
+        Args:
+            course_code: Optional course code to filter by.
+                        If None, returns stats for all entries.
+            user_id: Optional user ID for multi-tenant isolation.
+                    If None (CLI mode), returns stats for entries with user_id IS NULL.
+
+        Returns:
+            Dictionary with cache statistics:
+                - total_entries: Total number of cache entries
+                - total_matches: Sum of all match_count values
+                - avg_confidence: Average of all confidence_avg values
+                - course_entries: Number of course-specific entries (if course_code provided)
+                - global_entries: Number of global entries
+        """
+        # Build user filter clause (web-ready)
+        user_filter = "user_id IS NULL" if user_id is None else f"user_id = ?"
+        user_params = () if user_id is None else (user_id,)
+
+        if course_code is None:
+            # Stats for all entries (scoped by user)
+            cursor = self.conn.execute(f"""
+                SELECT
+                    COUNT(*) as total_entries,
+                    SUM(match_count) as total_matches,
+                    AVG(confidence_avg) as avg_confidence
+                FROM procedure_cache_entries
+                WHERE {user_filter}
+            """, user_params)
+            row = cursor.fetchone()
+
+            # Count global vs course-specific (within user scope)
+            cursor = self.conn.execute(f"""
+                SELECT COUNT(*) FROM procedure_cache_entries
+                WHERE course_code IS NULL AND {user_filter}
+            """, user_params)
+            global_count = cursor.fetchone()[0]
+
+            return {
+                'total_entries': row[0] or 0,
+                'total_matches': row[1] or 0,
+                'avg_confidence': row[2] or 0.0,
+                'global_entries': global_count,
+                'course_entries': (row[0] or 0) - global_count
+            }
+        else:
+            # Stats for specific course + global (scoped by user)
+            params = (course_code,) + user_params
+            cursor = self.conn.execute(f"""
+                SELECT
+                    COUNT(*) as total_entries,
+                    SUM(match_count) as total_matches,
+                    AVG(confidence_avg) as avg_confidence
+                FROM procedure_cache_entries
+                WHERE (course_code = ? OR course_code IS NULL) AND {user_filter}
+            """, params)
+            row = cursor.fetchone()
+
+            # Count course-specific (within user scope)
+            cursor = self.conn.execute(f"""
+                SELECT COUNT(*) FROM procedure_cache_entries
+                WHERE course_code = ? AND {user_filter}
+            """, params)
+            course_count = cursor.fetchone()[0]
+
+            # Count global (within user scope)
+            cursor = self.conn.execute(f"""
+                SELECT COUNT(*) FROM procedure_cache_entries
+                WHERE course_code IS NULL AND {user_filter}
+            """, user_params)
+            global_count = cursor.fetchone()[0]
+
+            return {
+                'total_entries': row[0] or 0,
+                'total_matches': row[1] or 0,
+                'avg_confidence': row[2] or 0.0,
+                'course_entries': course_count,
+                'global_entries': global_count
+            }

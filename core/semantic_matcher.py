@@ -17,6 +17,8 @@ from typing import Tuple, Optional, List, Dict, Any
 from dataclasses import dataclass
 import numpy as np
 
+from config import Config
+
 # Import sentence-transformers with fallback
 try:
     from sentence_transformers import SentenceTransformer
@@ -69,16 +71,17 @@ class SimilarityResult:
 class SemanticMatcher:
     """Semantic similarity matcher using embeddings."""
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2", use_embeddings: bool = True, llm_manager=None, enable_translation_detection: bool = True):
+    def __init__(self, model_name: str = None, use_embeddings: bool = True, llm_manager=None, enable_translation_detection: bool = True):
         """Initialize semantic matcher.
 
         Args:
-            model_name: Name of the sentence transformer model to use
+            model_name: Name of the sentence transformer model to use (default from Config)
             use_embeddings: If False, use string matching fallback
             llm_manager: Optional LLMManager instance for dynamic opposite detection and translation detection
             enable_translation_detection: If True, use LLM-based translation detection
         """
-        self.model_name = model_name
+        # Use config default if no model specified
+        self.model_name = model_name or Config.SEMANTIC_EMBEDDING_MODEL
         self.use_embeddings = use_embeddings and SENTENCE_TRANSFORMERS_AVAILABLE
         self.model = None
         self.llm_manager = llm_manager
@@ -99,8 +102,8 @@ class SemanticMatcher:
         # Initialize embedding model if requested
         if self.use_embeddings:
             try:
-                print(f"[INFO] Loading sentence-transformers model: {model_name}")
-                self.model = SentenceTransformer(model_name)
+                print(f"[INFO] Loading sentence-transformers model: {self.model_name}")
+                self.model = SentenceTransformer(self.model_name)
                 self.enabled = True
                 print(f"[INFO] Semantic matcher initialized with embeddings")
 

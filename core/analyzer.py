@@ -7,7 +7,7 @@ import json
 import re
 import time
 import asyncio
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -15,6 +15,10 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from models.llm_manager import LLMManager, LLMResponse
 from storage.database import Database
 from config import Config
+
+# Type checking imports (avoid circular dependencies)
+if TYPE_CHECKING:
+    from core.procedure_cache import ProcedureCache, CacheHit
 
 # Try to import semantic matcher, fallback to string similarity if not available
 try:
@@ -96,18 +100,24 @@ class AnalysisResult:
 class ExerciseAnalyzer:
     """Analyzes exercises using LLM to discover topics and core loops."""
 
-    def __init__(self, llm_manager: Optional[LLMManager] = None, language: str = "en", monolingual: bool = False):
+    def __init__(self, llm_manager: Optional[LLMManager] = None, language: str = "en",
+                 monolingual: bool = False, procedure_cache: Optional['ProcedureCache'] = None):
         """Initialize analyzer.
 
         Args:
             llm_manager: LLM manager instance
             language: Output language for analysis ("en" or "it")
             monolingual: Enable strictly monolingual mode (all procedures in single language)
+            procedure_cache: Optional ProcedureCache instance for pattern caching (Option 3 optimization)
         """
         self.llm = llm_manager or LLMManager()
         self.language = language
         self.monolingual = monolingual
         self.primary_language = None  # Will be detected from course metadata/exercises
+
+        # Option 3: Procedure Pattern Caching
+        self.procedure_cache = procedure_cache
+        self.cache_stats = {'hits': 0, 'misses': 0}
 
         # Initialize translation detector for monolingual mode
         self.translation_detector = None
@@ -474,6 +484,59 @@ Respond ONLY with valid JSON, no other text.
             theory_metadata=None
         )
 
+    def _build_result_from_cache(self, cache_hit: 'CacheHit', exercise_text: str) -> AnalysisResult:
+        """Build AnalysisResult from cache hit (Option 3: Procedure Pattern Caching).
+
+        Args:
+            cache_hit: Cache hit result containing cached procedures and metadata
+            exercise_text: Original exercise text
+
+        Returns:
+            AnalysisResult built from cached data
+        """
+        from core.procedure_cache import CacheHit
+
+        # Convert cached procedures to ProcedureInfo objects
+        # Handle two formats:
+        # 1. List of dicts (from analyzer): [{'name': '...', 'type': '...', 'steps': [...]}]
+        # 2. List of strings (from build command): ['Step 1', 'Step 2', 'Step 3']
+        procedures = []
+
+        if not cache_hit.procedures:
+            # Empty procedures list
+            pass
+        elif isinstance(cache_hit.procedures[0], str):
+            # Format 2: List of step strings - wrap in single ProcedureInfo
+            procedures.append(ProcedureInfo(
+                name=cache_hit.topic or 'Procedure',
+                type='other',
+                steps=cache_hit.procedures,  # Use the string list as steps
+                point_number=None,
+                transformation=None
+            ))
+        else:
+            # Format 1: List of ProcedureInfo dicts
+            for p in cache_hit.procedures:
+                procedures.append(ProcedureInfo(
+                    name=p.get('name', 'Unknown'),
+                    type=p.get('type', 'other'),
+                    steps=p.get('steps', []),
+                    point_number=p.get('point_number'),
+                    transformation=p.get('transformation')
+                ))
+
+        return AnalysisResult(
+            is_valid_exercise=True,
+            is_fragment=False,
+            should_merge_with_previous=False,
+            topic=cache_hit.topic,
+            difficulty=cache_hit.difficulty,
+            variations=cache_hit.variations,
+            confidence=cache_hit.confidence,
+            procedures=procedures,
+            exercise_type='procedural'  # Default - cache doesn't store this
+        )
+
     def _detect_primary_language(self, exercises: List[Dict[str, Any]], course_name: str) -> str:
         """Detect the primary language of the course.
 
@@ -685,12 +748,34 @@ No markdown code blocks, just JSON."""
         Returns:
             AnalysisResult with classification
         """
+        # Check procedure cache first (Option 3: Performance Optimization)
+        if self.procedure_cache and Config.PROCEDURE_CACHE_ENABLED:
+            cache_hit = self.procedure_cache.lookup(exercise_text, course_code=course_name)
+            if cache_hit and cache_hit.confidence >= Config.PROCEDURE_CACHE_MIN_CONFIDENCE:
+                self.cache_stats['hits'] += 1
+                # Build result from cache
+                return self._build_result_from_cache(cache_hit, exercise_text)
+            else:
+                # No cache hit or low confidence - track as miss
+                self.cache_stats['misses'] += 1
+
         last_error = None
         for attempt in range(max_retries + 1):
             try:
                 result = self.analyze_exercise(exercise_text, course_name, previous_exercise)
                 # Check if analysis was successful
                 if result.confidence > 0.0 or result.topic is not None:
+                    # Add to procedure cache for future use (Option 3)
+                    if self.procedure_cache and Config.PROCEDURE_CACHE_ENABLED and result.procedures:
+                        self.procedure_cache.add(
+                            exercise_text=exercise_text,
+                            topic=result.topic or '',
+                            difficulty=result.difficulty or 'medium',
+                            variations=result.variations or [],
+                            procedures=[p.__dict__ if hasattr(p, '__dict__') else p for p in result.procedures],
+                            confidence=result.confidence,
+                            course_code=course_name
+                        )
                     return result
                 # If we got default result, retry
                 if attempt < max_retries:
@@ -723,6 +808,18 @@ No markdown code blocks, just JSON."""
         Returns:
             AnalysisResult with classification
         """
+        # Check procedure cache first (Option 3: Performance Optimization)
+        # Note: Cache lookup is synchronous, but fast (in-memory)
+        if self.procedure_cache and Config.PROCEDURE_CACHE_ENABLED:
+            cache_hit = self.procedure_cache.lookup(exercise_text, course_code=course_name)
+            if cache_hit and cache_hit.confidence >= Config.PROCEDURE_CACHE_MIN_CONFIDENCE:
+                self.cache_stats['hits'] += 1
+                # Build result from cache
+                return self._build_result_from_cache(cache_hit, exercise_text)
+            else:
+                # No cache hit or low confidence - track as miss
+                self.cache_stats['misses'] += 1
+
         last_error = None
         for attempt in range(max_retries + 1):
             try:
@@ -818,6 +915,17 @@ No markdown code blocks, just JSON."""
 
                 # Check if analysis was successful
                 if result.confidence > 0.0 or result.topic is not None:
+                    # Add to procedure cache for future use (Option 3)
+                    if self.procedure_cache and Config.PROCEDURE_CACHE_ENABLED and result.procedures:
+                        self.procedure_cache.add(
+                            exercise_text=exercise_text,
+                            topic=result.topic or '',
+                            difficulty=result.difficulty or 'medium',
+                            variations=result.variations or [],
+                            procedures=[p.__dict__ if hasattr(p, '__dict__') else p for p in result.procedures],
+                            confidence=result.confidence,
+                            course_code=course_name
+                        )
                     return result
 
                 # If we got default result, retry

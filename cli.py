@@ -720,7 +720,22 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
         console.print(f"🤖 Initializing AI components (provider: {effective_provider}, {mode_str})...")
 
         async with LLMManager(provider=effective_provider) as llm:
-            analyzer = ExerciseAnalyzer(llm, language=lang, monolingual=monolingual)
+            # Initialize procedure cache for faster analysis (Option 3 - Performance)
+            procedure_cache = None
+            if Config.PROCEDURE_CACHE_ENABLED:
+                from core.procedure_cache import ProcedureCache
+                from core.semantic_matcher import SemanticMatcher
+                try:
+                    semantic_matcher = SemanticMatcher() if Config.SEMANTIC_SIMILARITY_ENABLED else None
+                    procedure_cache = ProcedureCache(db, semantic_matcher, user_id=None)
+                    if Config.PROCEDURE_CACHE_PRELOAD:
+                        procedure_cache.load_cache(course_code)
+                    console.print(f"   ✓ Procedure cache enabled ({len(procedure_cache._entries)} patterns)\n")
+                except Exception as e:
+                    console.print(f"   ⚠ Procedure cache unavailable: {e}\n")
+                    procedure_cache = None
+
+            analyzer = ExerciseAnalyzer(llm, language=lang, monolingual=monolingual, procedure_cache=procedure_cache)
 
             # Initialize translation detector for language detection
             from core.translation_detector import TranslationDetector
@@ -974,7 +989,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
             # Show cache statistics
             cache_stats = llm.get_cache_stats()
             if cache_stats['total_requests'] > 0:
-                console.print("📊 Cache Statistics:")
+                console.print("📊 LLM Response Cache:")
                 console.print(f"   Cache hits: {cache_stats['cache_hits']}")
                 console.print(f"   Cache misses: {cache_stats['cache_misses']}")
                 console.print(f"   Hit rate: {cache_stats['hit_rate_percent']}%")
@@ -982,6 +997,17 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                     console.print(f"   [green]💰 Saved ~{cache_stats['cache_hits']} API calls![/green]\n")
                 else:
                     console.print(f"   [dim]Run analyze again to see cache benefits[/dim]\n")
+
+            # Show procedure cache statistics (Option 3)
+            if analyzer.cache_stats and (analyzer.cache_stats['hits'] > 0 or analyzer.cache_stats['misses'] > 0):
+                total = analyzer.cache_stats['hits'] + analyzer.cache_stats['misses']
+                hit_rate = (analyzer.cache_stats['hits'] / total * 100) if total > 0 else 0
+                console.print("📊 Procedure Pattern Cache:")
+                console.print(f"   Hits: {analyzer.cache_stats['hits']}")
+                console.print(f"   Misses: {analyzer.cache_stats['misses']}")
+                console.print(f"   Hit rate: {hit_rate:.1f}%")
+                if analyzer.cache_stats['hits'] > 0:
+                    console.print(f"   [green]💰 Skipped {analyzer.cache_stats['hits']} LLM analyses via pattern matching![/green]\n")
 
             # Summary
             console.print("[bold green]✨ Analysis complete![/bold green]\n")
@@ -1075,7 +1101,24 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
         mode_str = f"language: {lang}, monolingual: {'ON' if monolingual else 'OFF'}"
         console.print(f"🤖 Initializing AI components (provider: {effective_provider}, {mode_str})...")
         llm = LLMManager(provider=effective_provider)
-        analyzer = ExerciseAnalyzer(llm, language=lang, monolingual=monolingual)
+
+        # Initialize procedure cache for faster analysis (Option 3 - Performance)
+        procedure_cache = None
+        if Config.PROCEDURE_CACHE_ENABLED:
+            from core.procedure_cache import ProcedureCache
+            from core.semantic_matcher import SemanticMatcher
+            try:
+                with Database() as cache_db:
+                    semantic_matcher = SemanticMatcher() if Config.SEMANTIC_SIMILARITY_ENABLED else None
+                    procedure_cache = ProcedureCache(cache_db, semantic_matcher, user_id=None)
+                    if Config.PROCEDURE_CACHE_PRELOAD:
+                        procedure_cache.load_cache(course_code)
+                    console.print(f"   ✓ Procedure cache enabled ({len(procedure_cache._entries)} patterns)\n")
+            except Exception as e:
+                console.print(f"   ⚠ Procedure cache unavailable: {e}\n")
+                procedure_cache = None
+
+        analyzer = ExerciseAnalyzer(llm, language=lang, monolingual=monolingual, procedure_cache=procedure_cache)
 
         # Initialize translation detector for language detection
         from core.translation_detector import TranslationDetector
@@ -1330,7 +1373,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
         # Show cache statistics
         cache_stats = llm.get_cache_stats()
         if cache_stats['total_requests'] > 0:
-            console.print("📊 Cache Statistics:")
+            console.print("📊 LLM Response Cache:")
             console.print(f"   Cache hits: {cache_stats['cache_hits']}")
             console.print(f"   Cache misses: {cache_stats['cache_misses']}")
             console.print(f"   Hit rate: {cache_stats['hit_rate_percent']}%")
@@ -1338,6 +1381,17 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                 console.print(f"   [green]💰 Saved ~{cache_stats['cache_hits']} API calls![/green]\n")
             else:
                 console.print(f"   [dim]Run analyze again to see cache benefits[/dim]\n")
+
+        # Show procedure cache statistics (Option 3)
+        if analyzer.cache_stats and (analyzer.cache_stats['hits'] > 0 or analyzer.cache_stats['misses'] > 0):
+            total = analyzer.cache_stats['hits'] + analyzer.cache_stats['misses']
+            hit_rate = (analyzer.cache_stats['hits'] / total * 100) if total > 0 else 0
+            console.print("📊 Procedure Pattern Cache:")
+            console.print(f"   Hits: {analyzer.cache_stats['hits']}")
+            console.print(f"   Misses: {analyzer.cache_stats['misses']}")
+            console.print(f"   Hit rate: {hit_rate:.1f}%")
+            if analyzer.cache_stats['hits'] > 0:
+                console.print(f"   [green]💰 Skipped {analyzer.cache_stats['hits']} LLM analyses via pattern matching![/green]\n")
 
         # Summary
         console.print("[bold green]✨ Analysis complete![/bold green]\n")
@@ -3368,6 +3422,253 @@ def rate_limits(provider, reset):
         console.print("[dim]  • Use --provider <name> to see a specific provider[/dim]")
         console.print("[dim]  • Use --reset to clear rate limit tracking[/dim]")
         console.print("[dim]  • Configure limits in .env: GROQ_RPM=30, ANTHROPIC_RPM=50, etc.[/dim]\n")
+
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
+
+
+@cli.command(name='pattern-cache')
+@click.option('--course', '-c', help='Course code (optional, defaults to all courses)')
+@click.option('--stats', 'action', flag_value='stats', default=True, help='Show cache statistics (default)')
+@click.option('--build', 'action', flag_value='build', help='Build cache from existing analyzed exercises')
+@click.option('--clear', 'action', flag_value='clear', help='Clear cache entries')
+@click.option('--force', is_flag=True, default=False, help='Skip confirmation prompts')
+def pattern_cache(course, action, force):
+    """Manage procedure pattern cache for faster analysis.
+
+    The procedure cache stores patterns from LLM analysis to avoid redundant
+    API calls for similar exercises. This can significantly speed up analysis
+    of courses with repetitive exercise patterns.
+
+    Examples:
+        examina pattern-cache              # Show cache stats (all courses)
+        examina pattern-cache -c ARCH1     # Show stats for specific course
+        examina pattern-cache --build      # Build cache from analyzed exercises
+        examina pattern-cache --clear      # Clear all cache entries
+        examina pattern-cache --clear -c ARCH1  # Clear cache for specific course
+    """
+    from rich.table import Table
+    from rich.panel import Panel
+    from core.procedure_cache import ProcedureCache
+    from core.semantic_matcher import SemanticMatcher
+
+    try:
+        with Database() as db:
+            # Resolve course code if provided
+            course_code = None
+            if course:
+                all_courses = db.get_all_courses()
+                for c in all_courses:
+                    if c['code'] == course or c['acronym'] == course:
+                        course_code = c['code']
+                        break
+                if not course_code:
+                    console.print(f"[red]Course '{course}' not found.[/red]\n")
+                    return
+
+            if action == 'stats':
+                # Show cache statistics
+                console.print("\n[bold cyan]Procedure Pattern Cache Statistics[/bold cyan]\n")
+
+                # Get database-level stats
+                db_stats = db.get_cache_stats(course_code=course_code, user_id=None)
+
+                if course_code:
+                    console.print(f"[bold]Course:[/bold] {course_code}\n")
+                else:
+                    console.print("[bold]Scope:[/bold] All courses\n")
+
+                # Create stats table
+                table = Table(title="Cache Overview")
+                table.add_column("Metric", style="cyan")
+                table.add_column("Value", style="white")
+
+                table.add_row("Total Patterns Cached", str(db_stats.get('total_entries', 0)))
+                table.add_row("Total Cache Hits", str(db_stats.get('total_hits', 0)))
+
+                # Add per-course breakdown if showing all
+                if not course_code:
+                    course_stats = db_stats.get('by_course', {})
+                    if course_stats:
+                        table.add_row("", "")  # Spacer
+                        table.add_row("[bold]By Course[/bold]", "")
+                        for cc, count in sorted(course_stats.items(), key=lambda x: -x[1]):
+                            table.add_row(f"  {cc}", str(count))
+
+                console.print(table)
+                console.print()
+
+                # Show configuration
+                console.print("[bold]Configuration:[/bold]")
+                console.print(f"  • Embedding threshold: {Config.PROCEDURE_CACHE_EMBEDDING_THRESHOLD}")
+                console.print(f"  • Text validation threshold: {Config.PROCEDURE_CACHE_TEXT_VALIDATION_THRESHOLD}")
+                console.print(f"  • Min confidence: {Config.PROCEDURE_CACHE_MIN_CONFIDENCE}")
+                console.print(f"  • Cache enabled: {Config.PROCEDURE_CACHE_ENABLED}")
+                console.print()
+
+                # Tips
+                console.print("[dim]Tips:[/dim]")
+                console.print("[dim]  • Use --build to populate cache from existing analyzed exercises[/dim]")
+                console.print("[dim]  • Use --clear to reset cache (useful after major changes)[/dim]")
+                console.print("[dim]  • Configure thresholds via EXAMINA_PROCEDURE_CACHE_* env vars[/dim]")
+                console.print()
+
+            elif action == 'build':
+                # Build cache from existing analyzed exercises
+                console.print("\n[bold cyan]Building Procedure Pattern Cache[/bold cyan]\n")
+
+                if course_code:
+                    console.print(f"[bold]Course:[/bold] {course_code}\n")
+                else:
+                    console.print("[bold]Scope:[/bold] All courses\n")
+
+                # Initialize semantic matcher for embeddings
+                semantic_matcher = None
+                if Config.SEMANTIC_SIMILARITY_ENABLED:
+                    console.print("🔄 Initializing semantic matcher for embeddings...")
+                    try:
+                        semantic_matcher = SemanticMatcher()
+                        if semantic_matcher.enabled:
+                            console.print(f"   ✓ Embeddings enabled (model: {Config.SEMANTIC_EMBEDDING_MODEL})\n")
+                        else:
+                            console.print("   ⚠ Embeddings unavailable, using text-only matching\n")
+                    except Exception as e:
+                        console.print(f"   ⚠ Embeddings unavailable: {e}\n")
+                        semantic_matcher = None
+
+                # Initialize cache
+                cache = ProcedureCache(db, semantic_matcher, user_id=None)
+                cache.load_cache(course_code)
+
+                # Get analyzed exercises with procedures
+                console.print("📊 Scanning analyzed exercises...")
+
+                # Query exercises with core loops (where procedures are stored)
+                # Handle both schemas: junction table AND legacy core_loop_id column
+                if course_code:
+                    cursor = db.conn.execute("""
+                        SELECT e.id, e.text as exercise_text, e.source_pdf,
+                               t.name as topic, e.difficulty, e.variations,
+                               cl.procedure as procedures_json, cl.id as core_loop_id
+                        FROM exercises e
+                        JOIN exercise_core_loops ecl ON e.id = ecl.exercise_id
+                        JOIN core_loops cl ON ecl.core_loop_id = cl.id
+                        JOIN topics t ON cl.topic_id = t.id
+                        WHERE e.course_code = ? AND cl.procedure IS NOT NULL
+                        UNION
+                        SELECT e.id, e.text as exercise_text, e.source_pdf,
+                               t.name as topic, e.difficulty, e.variations,
+                               cl.procedure as procedures_json, cl.id as core_loop_id
+                        FROM exercises e
+                        JOIN core_loops cl ON e.core_loop_id = cl.id
+                        JOIN topics t ON cl.topic_id = t.id
+                        WHERE e.course_code = ? AND e.core_loop_id IS NOT NULL AND cl.procedure IS NOT NULL
+                    """, (course_code, course_code))
+                else:
+                    cursor = db.conn.execute("""
+                        SELECT e.id, e.text as exercise_text, e.source_pdf, e.course_code,
+                               t.name as topic, e.difficulty, e.variations,
+                               cl.procedure as procedures_json, cl.id as core_loop_id
+                        FROM exercises e
+                        JOIN exercise_core_loops ecl ON e.id = ecl.exercise_id
+                        JOIN core_loops cl ON ecl.core_loop_id = cl.id
+                        JOIN topics t ON cl.topic_id = t.id
+                        WHERE cl.procedure IS NOT NULL
+                        UNION
+                        SELECT e.id, e.text as exercise_text, e.source_pdf, e.course_code,
+                               t.name as topic, e.difficulty, e.variations,
+                               cl.procedure as procedures_json, cl.id as core_loop_id
+                        FROM exercises e
+                        JOIN core_loops cl ON e.core_loop_id = cl.id
+                        JOIN topics t ON cl.topic_id = t.id
+                        WHERE e.core_loop_id IS NOT NULL AND cl.procedure IS NOT NULL
+                    """)
+
+                rows = cursor.fetchall()
+                columns = [desc[0] for desc in cursor.description]
+
+                total = len(rows)
+                added = 0
+                skipped = 0
+
+                if total == 0:
+                    console.print("[yellow]No analyzed exercises found to cache.[/yellow]\n")
+                    console.print("Run 'examina analyze' first to analyze exercises.\n")
+                    return
+
+                console.print(f"   Found {total} analyzed exercises\n")
+                console.print("🔨 Building cache entries...")
+
+                for row in rows:
+                    row_dict = dict(zip(columns, row))
+                    exercise_text = row_dict['exercise_text']
+                    topic = row_dict.get('topic')
+                    difficulty = row_dict.get('difficulty')
+                    ex_course_code = row_dict.get('course_code', course_code)
+
+                    # Parse JSON fields (variations is stored as JSON string in exercises table)
+                    try:
+                        variations_raw = row_dict.get('variations')
+                        variations = json.loads(variations_raw) if variations_raw else []
+
+                        # Procedures are stored as JSON in core_loops.procedure
+                        procedures_raw = row_dict.get('procedures_json')
+                        procedures = json.loads(procedures_raw) if procedures_raw else []
+                    except json.JSONDecodeError:
+                        skipped += 1
+                        continue
+
+                    # Confidence defaults to 1.0 for existing analyzed exercises
+                    confidence = 1.0
+
+                    # Skip if no procedures
+                    if not procedures:
+                        skipped += 1
+                        continue
+
+                    # Try to add to cache (cache.add handles duplicates)
+                    try:
+                        cache.add(
+                            exercise_text=exercise_text,
+                            topic=topic,
+                            difficulty=difficulty,
+                            variations=variations,
+                            procedures=procedures,
+                            confidence=confidence,
+                            course_code=ex_course_code
+                        )
+                        added += 1
+                    except Exception:
+                        skipped += 1
+
+                console.print(f"\n[green]✓ Cache build complete![/green]")
+                console.print(f"  • Added: {added} new patterns")
+                console.print(f"  • Skipped: {skipped} (duplicates/low confidence/no procedures)")
+                console.print(f"  • Total in cache: {len(cache._entries)}\n")
+
+            elif action == 'clear':
+                # Clear cache entries
+                scope_msg = f"for course '{course_code}'" if course_code else "for ALL courses"
+
+                if not force:
+                    console.print(f"\n[yellow]Warning:[/yellow] This will delete all cached procedure patterns {scope_msg}.\n")
+                    if not click.confirm("Are you sure you want to continue?"):
+                        console.print("[dim]Cancelled.[/dim]\n")
+                        return
+
+                console.print(f"\n[bold cyan]Clearing Procedure Pattern Cache[/bold cyan]\n")
+
+                # Initialize cache and clear
+                cache = ProcedureCache(db, semantic_matcher=None, user_id=None)
+                cache.load_cache(course_code)
+
+                entries_before = len(cache._entries)
+                cache.clear(course_code)
+
+                console.print(f"[green]✓ Cleared {entries_before} cache entries {scope_msg}[/green]\n")
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
