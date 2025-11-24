@@ -13,6 +13,7 @@ from config import Config
 from core.concept_explainer import ConceptExplainer
 from core.study_strategies import StudyStrategyManager
 from core.proof_tutor import ProofTutor
+from core.metacognitive import MetacognitiveStrategies, DifficultyLevel, MasteryLevel
 
 
 @dataclass
@@ -38,6 +39,7 @@ class Tutor:
         self.concept_explainer = ConceptExplainer(llm_manager=self.llm, language=language)
         self.strategy_manager = StudyStrategyManager(language=language)
         self.proof_tutor = ProofTutor(llm_manager=self.llm, language=language)
+        self.metacognitive = MetacognitiveStrategies()
 
     def learn(self, course_code: str,
               core_loop_id: str,
@@ -45,7 +47,8 @@ class Tutor:
               depth: str = "medium",
               adaptive: bool = True,
               include_study_strategy: bool = False,
-              show_solutions: bool = True) -> TutorResponse:
+              show_solutions: bool = True,
+              include_metacognitive: bool = True) -> TutorResponse:
         """Explain a core loop with theory and procedure.
 
         Args:
@@ -56,6 +59,7 @@ class Tutor:
             adaptive: Enable adaptive teaching (auto-select depth and prerequisites based on mastery)
             include_study_strategy: Whether to include metacognitive study strategy (default: False)
             show_solutions: Whether to show official solutions for exercises (default: True)
+            include_metacognitive: Whether to include metacognitive study tips (default: True)
 
         Returns:
             TutorResponse with explanation
@@ -159,6 +163,11 @@ class Tutor:
                 full_content.append("\n" + "=" * 60 + "\n")
                 full_content.append(self.strategy_manager.format_strategy_output(strategy, core_loop_name))
 
+        # Add metacognitive learning strategies if requested
+        if include_metacognitive:
+            full_content.append("\n" + "=" * 60 + "\n")
+            full_content.append(self._format_metacognitive_tips(core_loop_name, depth, core_loop_dict))
+
         # Add adaptive recommendations at end
         if adaptive and adaptive_recommendations:
             full_content.append("\n" + "=" * 60 + "\n")
@@ -180,6 +189,7 @@ class Tutor:
                 "adaptive": adaptive,
                 "recommendations": adaptive_recommendations,
                 "includes_study_strategy": include_study_strategy,
+                "includes_metacognitive": include_metacognitive,
                 "has_solutions": len(exercises_with_solutions) > 0,
                 "solutions_count": len(exercises_with_solutions)
             }
@@ -678,6 +688,118 @@ Generate ONLY the exercise text, not the solution.
                 lines.append("")
 
         return "\n".join(lines)
+
+    def _format_metacognitive_tips(self, core_loop_name: str, depth: str,
+                                   core_loop_dict: Dict[str, Any]) -> str:
+        """Format metacognitive learning strategies section.
+
+        Args:
+            core_loop_name: Name of the core loop
+            depth: Difficulty level (basic, medium, advanced)
+            core_loop_dict: Core loop dictionary with metadata
+
+        Returns:
+            Formatted string with metacognitive strategies
+        """
+        language_headers = {
+            "it": {
+                "title": "STRATEGIE DI APPRENDIMENTO",
+                "framework": "Strategia consigliata per problemi di questo tipo",
+                "tips": "Consigli per studiare efficacemente",
+                "self_assessment": "Domande di autovalutazione",
+                "retrieval": "Tecniche di recupero per rafforzare la memoria"
+            },
+            "en": {
+                "title": "LEARNING STRATEGIES",
+                "framework": "Recommended problem-solving framework",
+                "tips": "Study tips for effective learning",
+                "self_assessment": "Self-assessment prompts",
+                "retrieval": "Retrieval practice techniques"
+            }
+        }
+
+        headers = language_headers.get(self.language, language_headers["en"])
+        lines = [f"\n{headers['title']}\n"]
+
+        # Map depth to difficulty level
+        difficulty_map = {
+            "basic": DifficultyLevel.EASY,
+            "medium": DifficultyLevel.MEDIUM,
+            "advanced": DifficultyLevel.HARD
+        }
+        difficulty = difficulty_map.get(depth, DifficultyLevel.MEDIUM)
+
+        # Assume NEW mastery for now (could be enhanced with actual mastery data)
+        mastery = MasteryLevel.NEW
+
+        # 1. Problem-solving framework
+        # Determine problem type from core loop name/description
+        problem_type = self._infer_problem_type(core_loop_name)
+        framework = self.metacognitive.get_problem_solving_framework(problem_type)
+
+        lines.append(f"### {headers['framework']}: {framework.name}\n")
+        lines.append(framework.description)
+        lines.append("")
+        for step in framework.steps:
+            lines.append(f"  {step}")
+        lines.append("")
+
+        # 2. Study tips (show top 3 most relevant)
+        tips = self.metacognitive.get_study_tips(core_loop_name, difficulty, mastery)
+        if tips:
+            lines.append(f"### {headers['tips']}:\n")
+            for i, tip in enumerate(tips[:3], 1):
+                lines.append(f"{i}. **{tip.tip}**")
+                lines.append(f"   Why: {tip.why}")
+                lines.append(f"   When: {tip.when_to_use}")
+                lines.append("")
+
+        # 3. Self-assessment prompts (show top 2)
+        assessments = self.metacognitive.get_self_assessment_prompts(core_loop_name, mastery)
+        if assessments:
+            lines.append(f"### {headers['self_assessment']}:\n")
+            for i, assessment in enumerate(assessments[:2], 1):
+                lines.append(f"{i}. {assessment.prompt}")
+            lines.append("")
+
+        # 4. Retrieval practice suggestions
+        # Assume 0 hours since last review (immediate)
+        retrieval_techniques = self.metacognitive.get_retrieval_practice_suggestions(
+            time_since_last_review=0,
+            mastery=mastery
+        )
+        if retrieval_techniques:
+            lines.append(f"### {headers['retrieval']}:\n")
+            for technique in retrieval_techniques[:2]:
+                lines.append(f"**{technique.technique}**: {technique.description}")
+                lines.append(f"Example: {technique.example}")
+                lines.append("")
+
+        return "\n".join(lines)
+
+    def _infer_problem_type(self, core_loop_name: str) -> str:
+        """Infer problem type from core loop name.
+
+        Args:
+            core_loop_name: Name of the core loop
+
+        Returns:
+            Problem type string (design, theory, proof, debugging, etc.)
+        """
+        name_lower = core_loop_name.lower()
+
+        if any(keyword in name_lower for keyword in ['prove', 'proof', 'theorem', 'lemma']):
+            return "proof"
+        elif any(keyword in name_lower for keyword in ['design', 'construct', 'build', 'create']):
+            return "design"
+        elif any(keyword in name_lower for keyword in ['debug', 'verify', 'check', 'validate']):
+            return "debugging"
+        elif any(keyword in name_lower for keyword in ['theory', 'concept', 'definition', 'explain']):
+            return "theory"
+        elif any(keyword in name_lower for keyword in ['implement', 'code', 'program']):
+            return "implementation"
+        else:
+            return "general"
 
     def _learn_proof(self, course_code: str, core_loop_id: str, example_exercise: Dict[str, Any],
                      explain_concepts: bool, depth: str, adaptive: bool) -> TutorResponse:
