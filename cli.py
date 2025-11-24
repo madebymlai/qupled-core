@@ -2533,5 +2533,74 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
         raise click.Abort()
 
 
+@cli.command()
+@click.option('--course', '-c', required=True, help='Course code')
+@click.option('--dry-run', is_flag=True, default=True,
+              help='Preview changes without updating database (default: true)')
+@click.option('--confidence-threshold', type=float, default=0.5,
+              help='Minimum confidence to separate (0.0-1.0, default: 0.5)')
+def separate_solutions(course, dry_run, confidence_threshold):
+    """Separate questions from solutions in exercises using LLM (works for any format/language)."""
+    from core.solution_separator import process_course_solutions
+    from models.llm_manager import LLMManager
+
+    console.print(f"\n[bold cyan]Separating Solutions for {course}...[/bold cyan]\n")
+
+    if dry_run:
+        console.print("[yellow]DRY RUN MODE - No changes will be made[/yellow]\n")
+
+    try:
+        # Find course
+        with Database() as db:
+            all_courses = db.get_all_courses()
+            found_course = None
+            for c in all_courses:
+                if c['code'] == course or c['acronym'] == course:
+                    found_course = c
+                    break
+
+            if not found_course:
+                console.print(f"[red]Course '{course}' not found.[/red]\n")
+                return
+
+            course_code = found_course['code']
+
+        # Initialize LLM
+        console.print("🤖 Initializing AI solution separator...")
+        console.print("[dim]Using LLM-based detection (works for any format/language)[/dim]\n")
+        llm = LLMManager(provider="anthropic")
+
+        # Process course
+        console.print(f"📝 Analyzing exercises for {course_code}...\n")
+        stats = process_course_solutions(
+            course_code=course_code,
+            llm_manager=llm,
+            dry_run=dry_run
+        )
+
+        # Display results
+        console.print("\n[bold]Results:[/bold]")
+        console.print(f"  Total exercises: {stats['total_exercises']}")
+        console.print(f"  Exercises with solutions: {stats['has_solution']}")
+        console.print(f"  Successfully separated: {stats['separated']}")
+        console.print(f"  High confidence (≥0.8): {stats['high_confidence']}")
+        console.print(f"  Failed: {stats['failed']}")
+
+        if stats['separated'] > 0:
+            success_rate = (stats['separated'] / stats['has_solution'] * 100) if stats['has_solution'] > 0 else 0
+            console.print(f"\n[green]✓ Separation success rate: {success_rate:.1f}%[/green]")
+
+        if dry_run and stats['separated'] > 0:
+            console.print(f"\n[yellow]Run without --dry-run to apply changes[/yellow]")
+
+        console.print()
+
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
+
+
 if __name__ == '__main__':
     cli()
