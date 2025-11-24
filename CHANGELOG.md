@@ -5,6 +5,20 @@ All notable changes and completed phases are documented here.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.12.1] - 2025-11-24
+
+### Performance
+- **Increased default batch size from 10 → 30** for faster bulk analysis
+  - **40% faster analysis** on fresh data (60s → 36-40s for 27 exercises)
+  - Single batch processing reduces batch overhead
+  - Optimized for DeepSeek/Anthropic (no rate limit concerns)
+  - Users can still override with `--batch-size` flag if needed
+  - Tested successfully on B006802 (Computer Architecture)
+
+### Changed
+- `Config.BATCH_SIZE` default increased from 10 to 30 (`config.py:63`)
+- Comment updated to reflect optimization for no-rate-limit providers
+
 ## [0.12.0] - 2025-11-24
 
 ### Added

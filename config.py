@@ -60,7 +60,7 @@ class Config:
     # Processing Settings
     PDF_MAX_SIZE_MB = 50
     IMAGE_MAX_SIZE_MB = 10
-    BATCH_SIZE = 10  # Process N exercises at once
+    BATCH_SIZE = 30  # Process N exercises at once (optimized for DeepSeek/no rate limits)
 
     # Quiz Settings
     DEFAULT_QUIZ_LENGTH = 10
