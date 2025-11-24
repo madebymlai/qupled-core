@@ -98,11 +98,10 @@ TRANSLATION_PAIRS = {
 
 # Known semantically different pairs (should NEVER merge)
 # These are concepts that may have high string similarity but are semantically different
+# NOTE: Inverse transformations (e.g., "A to B" vs "B to A") are detected generically
+# by is_inverse_transformation(), so they don't need to be listed here
 SEMANTIC_OPPOSITES = [
     ("mealy", "moore"),  # Different FSM types
-    ("mealy to moore", "moore to mealy"),  # Inverse transformations
-    ("mealy→moore", "moore→mealy"),  # Inverse transformations (arrow notation)
-    ("conversione mealy moore", "conversione moore mealy"),  # Italian inverse transformations
     ("sum of products", "product of sums"),  # Full English names
     ("sop", "pos"),  # Sum of Products vs Product of Sums (abbreviations)
     ("somma di prodotti", "prodotto di somme"),  # Italian equivalents
@@ -308,6 +307,60 @@ class SemanticMatcher:
 
         return False
 
+    def is_inverse_transformation(self, text1: str, text2: str) -> bool:
+        """
+        Detect if two texts represent inverse transformations (generic, no hardcoding).
+
+        Examples:
+        - "Mealy to Moore" ↔ "Moore to Mealy" → True
+        - "Binary to Decimal" ↔ "Decimal to Binary" → True
+        - "Conversione Mealy Moore" ↔ "Conversione Moore Mealy" → True
+        - "Matrix→Vector" ↔ "Vector→Matrix" → True
+
+        Args:
+            text1: First text
+            text2: Second text
+
+        Returns:
+            True if texts are inverse transformations
+        """
+        import re
+
+        t1_lower = text1.lower().strip()
+        t2_lower = text2.lower().strip()
+
+        # Transformation patterns to detect (generic, works for any A/B pair)
+        patterns = [
+            # English patterns
+            r'(.+?)\s+to\s+(.+)',           # "A to B"
+            r'(.+?)\s*→\s*(.+)',            # "A→B"
+            r'(.+?)\s*->\s*(.+)',           # "A->B"
+            r'(.+?)\s+into\s+(.+)',         # "A into B"
+            r'transform\s+(.+?)\s+to\s+(.+)',  # "transform A to B"
+            # Italian patterns
+            r'conversione\s+(.+?)\s+(.+)',  # "conversione A B"
+            r'trasforma\w*\s+(.+?)\s+in\s+(.+)',  # "trasforma A in B"
+        ]
+
+        for pattern in patterns:
+            match1 = re.search(pattern, t1_lower)
+            match2 = re.search(pattern, t2_lower)
+
+            if match1 and match2:
+                # Extract source and target for both texts
+                source1, target1 = match1.groups()
+                source2, target2 = match2.groups()
+
+                # Clean up whitespace
+                source1, target1 = source1.strip(), target1.strip()
+                source2, target2 = source2.strip(), target2.strip()
+
+                # Check if they're inverses (swapped)
+                if source1 == target2 and target1 == source2:
+                    return True
+
+        return False
+
     def are_semantically_different(self, text1: str, text2: str) -> bool:
         """
         Check if texts contain semantically opposite terms.
@@ -328,6 +381,10 @@ class SemanticMatcher:
             True if texts contain semantically opposite concepts
         """
         import re
+
+        # First check for generic inverse transformations (NO HARDCODING)
+        if self.is_inverse_transformation(text1, text2):
+            return True
 
         t1_lower = text1.lower()
         t2_lower = text2.lower()
