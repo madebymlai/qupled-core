@@ -61,12 +61,21 @@
 
 **Goal:** Lecture notes and slides become first-class learning materials, not forced into exercise format.
 
+**Design Document:** See [PHASE10_DESIGN.md](PHASE10_DESIGN.md) for complete design principles and contracts.
+
 **Conceptual Model:**
 - Topics / Core Loops → Abstract concepts ("FSM minimization", "Moore machine design")
 - Learning Materials → Theory sections, worked examples, references from notes/slides
 - Exercises → Practice problems / exam-style questions
 
-**Learning Flow:** Topic → theory → worked example → practice (not just "practice")
+**Learning Flow:** Topic → theory → worked example → practice (default learning script, not optional)
+
+**Key Design Principles:**
+1. **Smart splitter = pure classifier** (segment/classify content, don't store)
+2. **Ingestion modes = document type** (`--material-type exams|notes` describes PDF, not algorithm)
+3. **Topic linking = symmetric treatment** (materials and exercises use same detection logic)
+4. **Tutor flow = explicit, configurable** (theory → example → practice is first-class, not "sometimes show notes")
+5. **Success = no regression + notes coverage** (exam pipeline unchanged, notes become usable)
 
 **Status:**
 
