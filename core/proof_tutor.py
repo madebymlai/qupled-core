@@ -526,3 +526,135 @@ Be encouraging but rigorous. Focus on helping the student learn, not just gradin
 
         # Default to direct
         return "direct"
+
+    def get_proof_guidance(self, exercise_text: str, technique: str) -> Dict[str, Any]:
+        """Get step-by-step proof guidance.
+
+        Args:
+            exercise_text: Exercise text
+            technique: Proof technique to use
+
+        Returns:
+            Dictionary with steps and guidance
+        """
+        lang_instruction = "in Italian" if self.language == "it" else "in English"
+
+        prompt = f"""Provide step-by-step guidance for proving this statement using {technique} proof.
+
+Exercise: {exercise_text}
+
+Proof Technique: {technique}
+
+Provide a structured outline of proof steps ({lang_instruction}):
+1. What to assume/start with
+2. Key logical steps to take
+3. What definitions/theorems to use
+4. How to reach the conclusion
+
+Format as numbered steps. Be specific but don't give away the full solution.
+Each step should guide thinking, not provide complete answers.
+"""
+
+        response = self.llm.generate(
+            prompt=prompt,
+            model=self.llm.fast_model,
+            temperature=0.5,
+            max_tokens=1000
+        )
+
+        if not response.success:
+            return {"success": False, "error": response.error}
+
+        # Parse response into steps
+        steps = []
+        for line in response.text.split('\n'):
+            line = line.strip()
+            if line and (line[0].isdigit() or line.startswith('-') or line.startswith('•')):
+                # Remove numbering
+                clean_line = line.lstrip('0123456789.-•) ').strip()
+                if clean_line:
+                    steps.append(clean_line)
+
+        return {
+            "success": True,
+            "steps": steps,
+            "technique": technique
+        }
+
+    def get_hint_for_step(self, exercise_text: str, technique: str, step_number: int) -> str:
+        """Get a hint for a specific proof step.
+
+        Args:
+            exercise_text: Exercise text
+            technique: Proof technique being used
+            step_number: Which step needs a hint
+
+        Returns:
+            Hint text
+        """
+        lang_instruction = "in Italian" if self.language == "it" else "in English"
+
+        prompt = f"""Provide a helpful hint for step {step_number} of this proof.
+
+Exercise: {exercise_text}
+Technique: {technique}
+Step: {step_number}
+
+Give a hint that helps the student think through this step without giving away the answer ({lang_instruction}).
+The hint should:
+- Point to relevant definitions or theorems
+- Suggest what to consider or look for
+- NOT provide the complete step
+
+Keep it brief (2-3 sentences).
+"""
+
+        response = self.llm.generate(
+            prompt=prompt,
+            model=self.llm.fast_model,
+            temperature=0.5,
+            max_tokens=200
+        )
+
+        if response.success:
+            return response.text.strip()
+        return f"Error generating hint: {response.error}"
+
+    def get_full_proof(self, exercise_text: str, technique: str) -> str:
+        """Get complete proof solution.
+
+        Args:
+            exercise_text: Exercise text
+            technique: Proof technique to use
+
+        Returns:
+            Full proof in markdown format
+        """
+        lang_instruction = "in Italian" if self.language == "it" else "in English"
+
+        prompt = f"""Provide a complete, rigorous proof for this statement using {technique} proof.
+
+Exercise: {exercise_text}
+
+Proof Technique: {technique}
+
+Provide a complete formal proof ({lang_instruction}) with:
+1. Clear statement of what we're proving
+2. Setup (definitions, assumptions, given information)
+3. Step-by-step proof with justifications
+4. Clear conclusion
+
+Format in markdown with proper mathematical notation.
+Be rigorous and educational - explain WHY each step follows.
+"""
+
+        response = self.llm.generate(
+            prompt=prompt,
+            model=self.llm.primary_model,
+            temperature=0.3,
+            max_tokens=2000
+        )
+
+        if response.success:
+            return response.text.strip()
+        return f"Error generating proof: {response.error}"

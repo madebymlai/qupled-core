@@ -19,7 +19,7 @@ from core.pdf_processor import PDFProcessor
 from core.exercise_splitter import ExerciseSplitter
 from core.analyzer import ExerciseAnalyzer, AnalysisResult
 from models.llm_manager import LLMManager
-from study_context import study_plan
+from scripts.study_context import study_plan
 
 console = Console()
 
@@ -987,6 +987,154 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy):
         prereq_status = "with prerequisites" if includes_prereqs else "without prerequisites"
         adaptive_status = "adaptive" if result.metadata.get('adaptive', False) else "manual"
         console.print(f"\n[dim]Core loop: {loop} | Depth: {actual_depth} | {prereq_status} | Examples: {examples_count} | Mode: {adaptive_status}[/dim]\n")
+
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
+
+
+@cli.command()
+@click.option('--course', '-c', required=True, help='Course code')
+@click.option('--exercise', '-e', type=int, help='Specific exercise ID to prove')
+@click.option('--interactive', is_flag=True, default=True,
+              help='Interactive mode with step-by-step guidance (default)')
+@click.option('--technique', '-t', type=click.Choice(['direct', 'contradiction', 'induction', 'construction', 'contrapositive']),
+              help='Force a specific proof technique')
+@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
+              help='Output language (default: en)')
+def prove(course, exercise, interactive, technique, lang):
+    """Practice mathematical proofs interactively with AI guidance."""
+    from core.tutor import Tutor
+    from core.proof_tutor import ProofTutor
+    from models.llm_manager import LLMManager
+    from rich.prompt import Prompt, Confirm
+
+    console.print(f"\n[bold cyan]Proof Practice Mode[/bold cyan]\n")
+
+    try:
+        # Find course
+        with Database() as db:
+            all_courses = db.get_all_courses()
+            found_course = None
+            for c in all_courses:
+                if c['code'] == course or c['acronym'] == course:
+                    found_course = c
+                    break
+
+            if not found_course:
+                console.print(f"[red]Course '{course}' not found.[/red]\n")
+                return
+
+            course_code = found_course['code']
+
+            # Get proof exercise
+            if exercise:
+                # Get specific exercise
+                cursor = db.conn.execute(
+                    '''SELECT id, text, exercise_type FROM exercises
+                       WHERE course_code = ? AND id = ? AND exercise_type IN ('proof', 'theory', 'hybrid')''',
+                    (course_code, exercise)
+                )
+                ex = cursor.fetchone()
+                if not ex:
+                    console.print(f"[red]Proof exercise {exercise} not found.[/red]\n")
+                    return
+                ex_id, ex_text, ex_type = ex
+            else:
+                # Get random proof exercise
+                cursor = db.conn.execute(
+                    '''SELECT id, text, exercise_type FROM exercises
+                       WHERE course_code = ? AND exercise_type IN ('proof', 'theory')
+                       ORDER BY RANDOM() LIMIT 1''',
+                    (course_code,)
+                )
+                result = cursor.fetchone()
+                if not result:
+                    console.print(f"[yellow]No proof exercises found for course {course}.[/yellow]\n")
+                    console.print("[dim]Tip: Run analyze command first to detect exercise types[/dim]\n")
+                    return
+                ex_id, ex_text, ex_type = result
+
+        # Initialize proof tutor
+        llm = LLMManager(provider="anthropic")
+        proof_tutor = ProofTutor(llm, language=lang)
+
+        # Display exercise
+        console.print(f"[bold]Exercise {ex_id} ({ex_type}):[/bold]")
+        from rich.markdown import Markdown
+        console.print(Markdown(ex_text))
+        console.print()
+
+        if interactive:
+            # Interactive mode with step-by-step guidance
+            console.print("[bold green]Interactive Proof Practice[/bold green]")
+            console.print("[dim]I'll guide you through this proof step by step.[/dim]\n")
+
+            # Get proof analysis
+            console.print("🤖 Analyzing proof structure...\n")
+            suggested_technique = proof_tutor.suggest_technique(ex_text)
+            analysis_result = {'technique': suggested_technique}
+
+            if analysis_result:
+                # Show technique suggestion
+                suggested_technique = analysis_result.get('technique', 'direct')
+                actual_technique = technique or suggested_technique
+
+                console.print(f"[bold]Suggested proof technique:[/bold] {suggested_technique}")
+                if technique:
+                    console.print(f"[dim](You selected: {technique})[/dim]")
+                console.print()
+
+                # Show technique info
+                technique_info = proof_tutor.PROOF_TECHNIQUES.get(actual_technique)
+                if technique_info:
+                    console.print(f"[bold cyan]{technique_info.name.title()} Proof:[/bold cyan]")
+                    console.print(f"  {technique_info.description}")
+                    console.print(f"\n[bold]When to use:[/bold] {technique_info.when_to_use}\n")
+
+                # Get step-by-step guidance
+                console.print("🤖 Generating step-by-step proof guidance...\n")
+                guidance = proof_tutor.get_proof_guidance(ex_text, actual_technique)
+
+                if guidance and guidance.get('success'):
+                    steps = guidance.get('steps', [])
+                    console.print(f"[bold]Proof steps ({len(steps)} steps):[/bold]\n")
+
+                    for i, step in enumerate(steps, 1):
+                        console.print(f"[cyan]Step {i}:[/cyan] {step}")
+
+                        if Confirm.ask(f"\n[dim]Show hint for step {i}?[/dim]", default=False):
+                            hint = proof_tutor.get_hint_for_step(ex_text, actual_technique, i)
+                            if hint:
+                                console.print(f"[yellow]Hint:[/yellow] {hint}\n")
+
+                        console.print()
+
+                    # Common mistakes
+                    if technique_info:
+                        console.print(f"\n[bold yellow]⚠️  Common mistakes to avoid:[/bold yellow]")
+                        for mistake in technique_info.common_mistakes:
+                            console.print(f"  • {mistake}")
+                        console.print()
+
+                # Offer full solution
+                if Confirm.ask("\n[bold]Show complete solution?[/bold]", default=False):
+                    console.print("\n🤖 Generating complete proof...\n")
+                    solution = proof_tutor.get_full_proof(ex_text, actual_technique)
+                    if solution:
+                        console.print(Markdown(solution))
+                    console.print()
+
+        else:
+            # Non-interactive mode: just show solution
+            console.print("🤖 Generating proof solution...\n")
+            suggested_technique = technique or "direct"
+            solution = proof_tutor.get_full_proof(ex_text, suggested_technique)
+            if solution:
+                console.print(Markdown(solution))
+            console.print()
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
