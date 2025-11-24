@@ -66,17 +66,20 @@ class SmartExerciseSplitter:
     """
 
     def __init__(self, llm_manager: Optional[LLMManager] = None,
-                 enable_smart_detection: bool = True):
+                 enable_smart_detection: bool = True,
+                 notes_mode: bool = False):
         """
         Initialize smart splitter.
 
         Args:
             llm_manager: LLM manager for smart detection (required if enable_smart_detection=True)
             enable_smart_detection: Enable LLM-based detection for unstructured materials
+            notes_mode: If True, process ALL pages with LLM (not just pages without pattern-based exercises)
         """
         self.llm = llm_manager
         self.pattern_splitter = ExerciseSplitter()
         self.enable_smart = enable_smart_detection and llm_manager is not None
+        self.notes_mode = notes_mode
 
         # Load config
         self.confidence_threshold = Config.SMART_SPLIT_CONFIDENCE_THRESHOLD
@@ -129,11 +132,13 @@ class SmartExerciseSplitter:
         pattern_count = len(pattern_exercises)
         all_exercises.extend(pattern_exercises)
 
-        # Phase 2: LLM-based detection for pages without exercises
+        # Phase 2: LLM-based detection
         if self.enable_smart:
             for page in pages_to_process:
-                if page.page_number in pages_with_exercises:
-                    continue  # Already found exercises with patterns
+                # In notes mode, process ALL pages to detect theory/worked examples
+                # In exams mode, only process pages without pattern-based exercises
+                if not self.notes_mode and page.page_number in pages_with_exercises:
+                    continue  # Already found exercises with patterns (exams mode only)
 
                 if not page.text.strip():
                     continue  # Empty page
@@ -215,6 +220,15 @@ class SmartExerciseSplitter:
                 temperature=0.0,
                 max_tokens=1000
             )
+
+            # Check if LLM call was successful
+            if not response.success:
+                print(f"⚠️  LLM call failed for page {page.page_number}: {response.error}")
+                return [], []
+
+            if not response.text or not response.text.strip():
+                print(f"⚠️  LLM returned empty response for page {page.page_number}")
+                return [], []
 
             # Parse JSON response
             detected_content = self._parse_detection_response(response.text)
@@ -545,3 +559,16 @@ If no content found, return: {{"has_content": false, "content_items": []}}
         """
         # Delegate to pattern splitter's validation
         return self.pattern_splitter.validate_exercise(exercise, min_length)
+
+    def clean_exercise_text(self, text: str) -> str:
+        """
+        Clean up exercise text.
+
+        Args:
+            text: Raw text
+
+        Returns:
+            Cleaned text
+        """
+        # Delegate to pattern splitter's cleaning logic
+        return self.pattern_splitter.clean_exercise_text(text)

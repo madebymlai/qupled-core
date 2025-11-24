@@ -380,7 +380,8 @@ def ingest(course, zip_file, material_type, smart_split, provider):
             llm = LLMManager(provider=provider)
             exercise_splitter = SmartExerciseSplitter(
                 llm_manager=llm,
-                enable_smart_detection=True
+                enable_smart_detection=True,
+                notes_mode=True  # Process ALL pages with LLM for content classification
             )
             use_smart_splitter = True
         elif material_type == 'exams' and smart_split:
