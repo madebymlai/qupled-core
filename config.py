@@ -5,6 +5,16 @@ Configuration settings for Examina.
 import os
 from pathlib import Path
 
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    env_path = Path(__file__).parent / ".env"
+    if env_path.exists():
+        load_dotenv(env_path)
+except ImportError:
+    # python-dotenv not installed, will use system environment variables only
+    pass
+
 class Config:
     """Main configuration class for Examina."""
 
@@ -70,6 +80,12 @@ class Config:
     # Supported languages
     SUPPORTED_LANGUAGES = ["it", "en"]  # Italian and English
     DEFAULT_LANGUAGE = os.getenv("EXAMINA_LANGUAGE", "en")  # Default to English
+
+    # Topic Splitting Settings
+    GENERIC_TOPIC_THRESHOLD = int(os.getenv("EXAMINA_GENERIC_TOPIC_THRESHOLD", "10"))  # Min core loops to trigger splitting
+    TOPIC_CLUSTER_MIN = 4  # Minimum subtopics to create when splitting
+    TOPIC_CLUSTER_MAX = 6  # Maximum subtopics to create when splitting
+    TOPIC_SPLITTING_ENABLED = os.getenv("EXAMINA_TOPIC_SPLITTING_ENABLED", "true").lower() == "true"  # Enable automatic splitting
 
     @classmethod
     def ensure_dirs(cls):

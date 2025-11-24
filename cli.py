@@ -644,10 +644,12 @@ def analyze(course, limit, provider, lang, force, parallel, batch_size):
                     if primary_core_loop_id and primary_core_loop_id in core_loop_id_mapping:
                         primary_core_loop_id = core_loop_id_mapping[primary_core_loop_id]
 
-                    # Only update if primary_core_loop_id exists in deduplicated core_loops
+                    # Only update if primary_core_loop_id exists in deduplicated core_loops OR database
                     if primary_core_loop_id and primary_core_loop_id not in core_loops:
-                        print(f"[DEBUG] Skipping exercise {first_id[:20]}... - core_loop_id '{primary_core_loop_id}' not found in deduplicated core_loops")
-                        primary_core_loop_id = None
+                        # Check if it exists in database (may have been deduplicated to existing DB entry)
+                        if not db.get_core_loop(primary_core_loop_id):
+                            print(f"[DEBUG] Skipping exercise {first_id[:20]}... - core_loop_id '{primary_core_loop_id}' not found in deduplicated core_loops or database")
+                            primary_core_loop_id = None
 
                     # Collect tags for flexible search
                     tags = []
@@ -661,8 +663,8 @@ def analyze(course, limit, provider, lang, force, parallel, batch_size):
                             if proc_core_loop_id and proc_core_loop_id in core_loop_id_mapping:
                                 proc_core_loop_id = core_loop_id_mapping[proc_core_loop_id]
 
-                            # Link exercise to core loop via junction table
-                            if proc_core_loop_id and proc_core_loop_id in core_loops:
+                            # Link exercise to core loop via junction table (check both new loops and DB)
+                            if proc_core_loop_id and (proc_core_loop_id in core_loops or db.get_core_loop(proc_core_loop_id)):
                                 db.link_exercise_to_core_loop(
                                     exercise_id=first_id,
                                     core_loop_id=proc_core_loop_id,
@@ -732,6 +734,135 @@ def analyze(course, limit, provider, lang, force, parallel, batch_size):
         console.print(f"Next steps:")
         console.print(f"  • examina info --course {course} - View updated course info")
         console.print(f"  • examina learn --course {course} - Start learning (Phase 4)\n")
+
+    except Exception as e:
+        console.print(f"\n[bold red]Error:[/bold red] {e}\n")
+        import traceback
+        traceback.print_exc()
+        raise click.Abort()
+
+
+@cli.command(name='split-topics')
+@click.option('--course', '-c', required=True, help='Course code')
+@click.option('--provider', type=click.Choice(['anthropic', 'openai', 'groq', 'ollama']),
+              default=Config.LLM_PROVIDER, help=f'LLM provider (default: {Config.LLM_PROVIDER})')
+@click.option('--lang', type=click.Choice(['en', 'it']), default=Config.DEFAULT_LANGUAGE,
+              help=f'Output language (default: {Config.DEFAULT_LANGUAGE})')
+@click.option('--dry-run', is_flag=True,
+              help='Preview splits without applying changes')
+@click.option('--force', is_flag=True,
+              help='Skip confirmation prompts')
+@click.option('--delete-old', is_flag=True,
+              help='Delete old topic if empty after split')
+def split_topics(course, provider, lang, dry_run, force, delete_old):
+    """Automatically split generic topics into specific subtopics."""
+    try:
+        console.print(f"\n[bold cyan]Topic Splitting for {course}[/bold cyan]\n")
+
+        # Initialize database and analyzer
+        with Database() as db:
+            # Check if course exists
+            course_obj = db.get_course(course)
+            if not course_obj:
+                console.print(f"[bold red]Error:[/bold red] Course {course} not found\n")
+                return
+
+            # Initialize analyzer
+            from models.llm_manager import LLMManager
+            llm_manager = LLMManager(provider=provider)
+            analyzer = ExerciseAnalyzer(llm_manager=llm_manager, language=lang)
+
+            # Detect generic topics
+            console.print(f"[bold]Detecting generic topics...[/bold]")
+            generic_topics = analyzer.detect_generic_topics(course, db)
+
+            if not generic_topics:
+                console.print(f"[green]✓ No generic topics found! All topics are sufficiently specific.[/green]\n")
+                return
+
+            console.print(f"\n[yellow]Found {len(generic_topics)} generic topic(s):[/yellow]\n")
+            for topic_info in generic_topics:
+                console.print(f"  • {topic_info['name']}")
+                console.print(f"    - Core loops: {topic_info['core_loop_count']}")
+                console.print(f"    - Reason: {topic_info['reason']}\n")
+
+            if dry_run:
+                console.print("[yellow]Dry run mode: showing preview only, no changes will be made[/yellow]\n")
+
+            # Process each generic topic
+            for topic_info in generic_topics:
+                console.print(f"\n[bold]Processing topic: {topic_info['name']}[/bold]")
+
+                # Get core loops for this topic
+                core_loops = db.get_core_loops_by_topic(topic_info['id'])
+
+                # Cluster core loops using LLM
+                console.print(f"  Clustering {len(core_loops)} core loops...")
+                clusters = analyzer.cluster_core_loops_for_topic(
+                    topic_info['id'],
+                    topic_info['name'],
+                    core_loops
+                )
+
+                if not clusters:
+                    console.print(f"  [red]✗ Clustering failed for this topic[/red]")
+                    continue
+
+                # Show preview
+                console.print(f"\n  [green]✓ Generated {len(clusters)} new topics:[/green]\n")
+                for i, cluster in enumerate(clusters, 1):
+                    console.print(f"    {i}. [bold]{cluster['topic_name']}[/bold]")
+                    console.print(f"       Core loops: {len(cluster['core_loop_ids'])}")
+
+                    # Show core loop names
+                    loop_names = [cl['name'] for cl in core_loops if cl['id'] in cluster['core_loop_ids']]
+                    for loop_name in loop_names[:3]:  # Show first 3
+                        console.print(f"         - {loop_name}")
+                    if len(loop_names) > 3:
+                        console.print(f"         ... and {len(loop_names) - 3} more")
+                    console.print()
+
+                if dry_run:
+                    console.print("  [yellow](Dry run: skipping actual split)[/yellow]\n")
+                    continue
+
+                # Ask for confirmation unless --force
+                if not force:
+                    console.print(f"  [yellow]Apply this split to topic '{topic_info['name']}'?[/yellow]")
+                    confirm = click.confirm("  Proceed", default=True)
+                    if not confirm:
+                        console.print("  [yellow]Skipped[/yellow]\n")
+                        continue
+
+                # Apply the split
+                try:
+                    stats = db.split_topic(
+                        old_topic_id=topic_info['id'],
+                        clusters=clusters,
+                        course_code=course,
+                        delete_old=delete_old
+                    )
+
+                    console.print(f"\n  [green]✓ Successfully split topic![/green]")
+                    console.print(f"    - Old topic: {stats['old_topic_name']}")
+                    console.print(f"    - New topics: {len(stats['new_topics'])}")
+                    console.print(f"    - Core loops moved: {stats['core_loops_moved']}")
+
+                    if delete_old and stats.get('old_topic_deleted'):
+                        console.print(f"    - Old topic deleted: Yes")
+                    elif delete_old:
+                        console.print(f"    - Old topic deleted: No ({stats.get('remaining_core_loops', 0)} core loops remain)")
+
+                    if stats.get('errors'):
+                        console.print(f"\n  [yellow]Warnings:[/yellow]")
+                        for error in stats['errors']:
+                            console.print(f"    - {error}")
+
+                except Exception as e:
+                    console.print(f"\n  [red]✗ Split failed: {e}[/red]")
+                    continue
+
+            console.print(f"\n[green]✓ Topic splitting complete![/green]\n")
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")

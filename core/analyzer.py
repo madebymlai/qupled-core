@@ -990,3 +990,190 @@ Respond ONLY with valid JSON, no other text.
         self.core_loop_id_mapping = loop_id_mapping
 
         return deduplicated_loops
+
+    # ========================================================================
+    # Topic Splitting Methods (Phase 6)
+    # ========================================================================
+
+    def detect_generic_topics(self, course_code: str, db: 'Database') -> List[Dict[str, Any]]:
+        """Detect generic topics that should be split.
+
+        Args:
+            course_code: Course code to check
+            db: Database instance
+
+        Returns:
+            List of dicts with topic info that should be split:
+            [{"id": topic_id, "name": topic_name, "core_loop_count": N}, ...]
+        """
+        generic_topics = []
+
+        # Get all topics for this course
+        topics = db.get_topics_by_course(course_code)
+
+        # Get course info for name comparison
+        course = db.get_course(course_code)
+        course_name = course['name'] if course else ""
+
+        for topic in topics:
+            # Get core loops for this topic
+            core_loops = db.get_core_loops_by_topic(topic['id'])
+            loop_count = len(core_loops)
+
+            # Detection criteria
+            is_generic = False
+            reason = []
+
+            # Criterion 1: Topic has too many core loops
+            if loop_count >= Config.GENERIC_TOPIC_THRESHOLD:
+                is_generic = True
+                reason.append(f"{loop_count} core loops (threshold: {Config.GENERIC_TOPIC_THRESHOLD})")
+
+            # Criterion 2: Topic name matches or is very similar to course name
+            if course_name and self._is_topic_name_generic(topic['name'], course_name):
+                is_generic = True
+                reason.append(f"topic name '{topic['name']}' is generic/matches course")
+
+            if is_generic:
+                generic_topics.append({
+                    "id": topic['id'],
+                    "name": topic['name'],
+                    "core_loop_count": loop_count,
+                    "core_loops": [cl['id'] for cl in core_loops],
+                    "reason": "; ".join(reason)
+                })
+
+        return generic_topics
+
+    def _is_topic_name_generic(self, topic_name: str, course_name: str) -> bool:
+        """Check if topic name is too generic compared to course name."""
+        # Normalize both names for comparison
+        topic_norm = topic_name.lower().strip()
+        course_norm = course_name.lower().strip()
+
+        # Check if topic is exactly the course name
+        if topic_norm == course_norm:
+            return True
+
+        # Check if topic is main words from course name
+        # e.g., "Algebra Lineare" contains "Algebra"
+        course_words = set(course_norm.split())
+        topic_words = set(topic_norm.split())
+
+        # If topic is subset of course words and has < 3 unique words, it's generic
+        if topic_words.issubset(course_words) and len(topic_words) < 3:
+            return True
+
+        return False
+
+    def cluster_core_loops_for_topic(self, topic_id: int, topic_name: str,
+                                     core_loops: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+        """Cluster core loops into semantic groups using LLM.
+
+        Args:
+            topic_id: ID of generic topic
+            topic_name: Name of generic topic
+            core_loops: List of core loop dicts (with 'id' and 'name' keys)
+
+        Returns:
+            List of clusters or None if clustering fails:
+            [
+                {
+                    "topic_name": "Specific Topic Name",
+                    "core_loop_ids": ["loop1", "loop2", ...]
+                },
+                ...
+            ]
+        """
+        try:
+            print(f"[INFO] Clustering {len(core_loops)} core loops for topic '{topic_name}'...")
+
+            # Build core loop list for prompt
+            core_loop_list = "\n".join([
+                f"{i+1}. {cl['name']} (ID: {cl['id']})"
+                for i, cl in enumerate(core_loops)
+            ])
+
+            # Build clustering prompt
+            lang_instruction = "in Italian" if self.language == "it" else "in English"
+            prompt = f"""You are analyzing core loops (procedural problem-solving patterns) from the topic "{topic_name}".
+
+These {len(core_loops)} core loops are currently grouped together but are too diverse.
+Cluster them into {Config.TOPIC_CLUSTER_MIN}-{Config.TOPIC_CLUSTER_MAX} specific subtopics based on semantic similarity.
+
+Core loops to cluster:
+{core_loop_list}
+
+Requirements:
+- Create {Config.TOPIC_CLUSTER_MIN}-{Config.TOPIC_CLUSTER_MAX} clusters
+- Each core loop must appear in exactly ONE cluster
+- Give each cluster a specific, descriptive topic name {lang_instruction}
+- Topic names should reflect the mathematical/algorithmic concept, NOT be generic
+- Group by semantic similarity (what concepts/techniques are being practiced)
+
+Return ONLY valid JSON in this format:
+{{
+  "clusters": [
+    {{
+      "topic_name": "Specific Topic Name Here",
+      "core_loop_ids": ["loop_id_1", "loop_id_2", ...]
+    }},
+    ...
+  ]
+}}
+
+No markdown code blocks, just JSON."""
+
+            # Call LLM
+            response = self.llm.generate(
+                prompt=prompt,
+                temperature=0.5,  # Some creativity for grouping
+                json_mode=True
+            )
+
+            if not response.success:
+                print(f"[ERROR] LLM clustering failed: {response.error}")
+                return None
+
+            # Parse response
+            data = self.llm.parse_json_response(response)
+            if not data or 'clusters' not in data:
+                print(f"[ERROR] Invalid clustering response format")
+                return None
+
+            clusters = data['clusters']
+
+            # Validate clustering
+            all_assigned_ids = set()
+            for cluster in clusters:
+                if 'topic_name' not in cluster or 'core_loop_ids' not in cluster:
+                    print(f"[ERROR] Invalid cluster format: {cluster}")
+                    return None
+                all_assigned_ids.update(cluster['core_loop_ids'])
+
+            original_ids = set(cl['id'] for cl in core_loops)
+
+            # Check if all core loops were assigned
+            if all_assigned_ids != original_ids:
+                missing = original_ids - all_assigned_ids
+                extra = all_assigned_ids - original_ids
+                print(f"[WARNING] Clustering validation failed:")
+                if missing:
+                    print(f"  Missing IDs: {missing}")
+                if extra:
+                    print(f"  Extra IDs: {extra}")
+                return None
+
+            # Check cluster count
+            if not (Config.TOPIC_CLUSTER_MIN <= len(clusters) <= Config.TOPIC_CLUSTER_MAX):
+                print(f"[WARNING] Cluster count {len(clusters)} outside range {Config.TOPIC_CLUSTER_MIN}-{Config.TOPIC_CLUSTER_MAX}")
+
+            print(f"[INFO] Successfully created {len(clusters)} clusters")
+            for i, cluster in enumerate(clusters, 1):
+                print(f"  {i}. {cluster['topic_name']}: {len(cluster['core_loop_ids'])} core loops")
+
+            return clusters
+
+        except Exception as e:
+            print(f"[ERROR] Clustering failed: {e}")
+            return None

@@ -604,6 +604,99 @@ class Database:
         """, (course_code,))
         return [dict(row) for row in cursor.fetchall()]
 
+    def split_topic(self, old_topic_id: int, clusters: List[Dict[str, Any]],
+                    course_code: str, delete_old: bool = False) -> Dict[str, Any]:
+        """Split a generic topic into multiple specific topics.
+
+        Args:
+            old_topic_id: ID of topic to split
+            clusters: List of dicts with 'topic_name' and 'core_loop_ids' keys
+            course_code: Course code for the topic
+            delete_old: Whether to delete old topic if empty (default: False)
+
+        Returns:
+            Dict with split statistics and new topic IDs
+
+        Example clusters:
+            [
+                {
+                    "topic_name": "Autovalori e Diagonalizzazione",
+                    "core_loop_ids": ["loop1", "loop2", ...]
+                },
+                ...
+            ]
+        """
+        try:
+            # Get original topic info for logging
+            cursor = self.conn.execute(
+                "SELECT name FROM topics WHERE id = ?", (old_topic_id,)
+            )
+            row = cursor.fetchone()
+            if not row:
+                raise ValueError(f"Topic ID {old_topic_id} not found")
+
+            old_topic_name = row[0]
+            stats = {
+                "old_topic_id": old_topic_id,
+                "old_topic_name": old_topic_name,
+                "new_topics": [],
+                "core_loops_moved": 0,
+                "errors": []
+            }
+
+            # Process each cluster
+            for cluster in clusters:
+                topic_name = cluster.get("topic_name")
+                core_loop_ids = cluster.get("core_loop_ids", [])
+
+                if not topic_name or not core_loop_ids:
+                    stats["errors"].append(f"Invalid cluster: {cluster}")
+                    continue
+
+                # Create new topic
+                new_topic_id = self.add_topic(course_code, topic_name)
+
+                # Move core loops to new topic
+                moved_count = 0
+                for loop_id in core_loop_ids:
+                    try:
+                        self.conn.execute("""
+                            UPDATE core_loops
+                            SET topic_id = ?, updated_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (new_topic_id, loop_id))
+                        moved_count += 1
+                    except Exception as e:
+                        stats["errors"].append(f"Failed to move {loop_id}: {e}")
+
+                stats["new_topics"].append({
+                    "id": new_topic_id,
+                    "name": topic_name,
+                    "core_loops_moved": moved_count
+                })
+                stats["core_loops_moved"] += moved_count
+
+            # Optionally delete old topic if no core loops remain
+            if delete_old:
+                cursor = self.conn.execute("""
+                    SELECT COUNT(*) FROM core_loops WHERE topic_id = ?
+                """, (old_topic_id,))
+                remaining_loops = cursor.fetchone()[0]
+
+                if remaining_loops == 0:
+                    self.conn.execute("DELETE FROM topics WHERE id = ?", (old_topic_id,))
+                    stats["old_topic_deleted"] = True
+                else:
+                    stats["old_topic_deleted"] = False
+                    stats["remaining_core_loops"] = remaining_loops
+
+            self.conn.commit()
+            return stats
+
+        except Exception as e:
+            self.conn.rollback()
+            raise RuntimeError(f"Topic split failed: {e}")
+
     # Core loop operations
     def add_core_loop(self, loop_id: str, topic_id: int, name: str,
                       procedure: List[str], description: str = None) -> str:
