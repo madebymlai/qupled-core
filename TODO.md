@@ -218,6 +218,28 @@
 
 ---
 
+### Feature Tiers (Free vs Pro)
+
+**Design Decision:** Some features require significant LLM tokens and should be gated.
+
+**Free Tier Features:**
+- ✅ Exam ingestion (pattern-based splitting - no LLM)
+- ✅ Basic analysis (with procedure cache)
+- ✅ Quiz and learning modes
+- ✅ Progress tracking
+
+**Pro Tier Features:**
+- 📋 **Note/lecture ingestion** - Requires LLM-based smart splitting (high token cost)
+- 📋 **Advanced explanations** - Uses Anthropic for premium quality
+- 📋 **Unlimited analysis** - No rate limiting on bulk operations
+
+**Rationale:**
+- Notes are unstructured → require LLM to classify (theory/example/exercise)
+- Exams are structured → pattern-based splitting is free and fast
+- This keeps free tier sustainable while monetizing heavy LLM usage
+
+---
+
 ## Future: Web Application Migration 🌐
 
 **IMPORTANT DESIGN PRINCIPLE:** All new code must be web-ready.
