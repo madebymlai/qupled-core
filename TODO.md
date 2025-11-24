@@ -31,21 +31,30 @@
   - Automatic separation with confidence scoring
   - Tested on SO course (10 Q+A detected, 4 separated successfully)
   - Tested on ADE SOLUZIONI (correctly identified 16 question-only exercises)
-- [ ] Provider-agnostic rate limiting tracker
+- [x] **Provider-agnostic rate limiting tracker** ✅ (completed 2025-11-24)
+  - Sliding window algorithm (60-second windows)
+  - Thread-safe with persistent caching
+  - Works for ALL providers (anthropic, groq, ollama, openai, future)
+  - CLI command: `examina rate-limits`
 
 ### Phase 6 - Multi-Core-Loop Support
 - [x] **Clean up orphaned core loops** - ✅ Added `--clean-orphans` flag to deduplicate command
 - [x] **Fix mis-categorized exercises** ✅ - Re-analyzed ADE course (B006802), created 123 exercise-core_loop linkages
-  - Note: Some edge cases remain (1 pure Moore exercise still linked to Mealy due to LLM caching)
-  - All exercises now properly categorized and linked to core loops
-- [ ] Bilingual procedure deduplication - Merge duplicate procedures across languages
+- [x] **Bilingual procedure deduplication** ✅ (completed 2025-11-24)
+  - LLM-based translation detection (ANY language pair)
+  - Removed 85 hardcoded translation pairs
+  - Automatic cross-language merging
+- [x] **Automatic language detection** ✅ (completed 2025-11-24)
+  - LLM-based language detection for procedures/topics
+  - ISO 639-1 code mapping
+  - Database columns: `language` in core_loops and topics
+  - CLI command: `examina detect-languages`
 - [ ] Strictly monolingual analysis mode - Ensure procedures extracted in only one language
-- [ ] Cross-language procedure similarity - Use embeddings to match equivalent procedures
 
 ### Phase 9 - Theory & Proof Support
-- [ ] Re-analyze existing 75 exercises with Phase 9 detection
+- [x] **Interactive proof practice mode** ✅ - Already implemented (`prove` command)
+- [ ] Re-analyze existing exercises with Phase 9 detection
 - [ ] Tune theory detection threshold (2 keywords → 1 keyword)
-- [ ] Add interactive proof practice mode
 - [ ] Build theory concept dependency visualization
 
 ## Future: Web Application Migration 🌐
