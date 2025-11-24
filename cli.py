@@ -370,7 +370,7 @@ def search(course, tag, text, multi_only, limit):
               default='exams', help='Type of material: exams (problem sets) or notes (lecture slides)')
 @click.option('--smart-split', is_flag=True, default=False,
               help='Use LLM-based splitting for unstructured materials (lecture notes, embedded examples). Costs API tokens.')
-@click.option('--provider', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+@click.option('--provider', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
               default=None, help='LLM provider for smart splitting (overrides profile routing)')
 @click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
               default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
@@ -616,7 +616,7 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
 @cli.command()
 @click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
 @click.option('--limit', '-l', type=int, help='Limit number of exercises to analyze (for testing)')
-@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic']), default=None,
+@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic', 'openai', 'deepseek']), default=None,
               help='LLM provider (overrides profile routing)')
 @click.option('--profile', type=click.Choice(['free', 'pro', 'local']), default=None,
               help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
@@ -978,7 +978,7 @@ def analyze(course, limit, provider, profile, lang, force, parallel, batch_size)
 
 @cli.command(name='link-materials')
 @click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
-@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic']), default='anthropic',
+@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic', 'openai', 'deepseek']), default='anthropic',
               help='LLM provider (default: anthropic)')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language for analysis (default: en)')
@@ -1095,7 +1095,7 @@ def link_materials(course, provider, lang, link_exercises):
 
 @cli.command(name='split-topics')
 @click.option('--course', '-c', required=True, help='Course code')
-@click.option('--provider', type=click.Choice(['anthropic', 'openai', 'groq', 'ollama']),
+@click.option('--provider', type=click.Choice(['anthropic', 'openai', 'groq', 'ollama', 'deepseek']),
               default=Config.LLM_PROVIDER, help=f'LLM provider (default: {Config.LLM_PROVIDER})')
 @click.option('--lang', type=click.Choice(['en', 'it']), default=Config.DEFAULT_LANGUAGE,
               help=f'Output language (default: {Config.DEFAULT_LANGUAGE})')
@@ -1235,7 +1235,7 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
               help='Use adaptive teaching (auto-select depth based on mastery, default: enabled)')
 @click.option('--strategy', is_flag=True,
               help='Include study strategy and metacognitive guidance')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
               default=None, help='LLM provider (overrides profile routing)')
 @click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
               default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
@@ -1321,7 +1321,7 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, 
               help='Force a specific proof technique')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language (default: en)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
               default=None, help='LLM provider (overrides profile routing)')
 @click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
               default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
@@ -1474,7 +1474,7 @@ def prove(course, exercise, interactive, technique, lang, provider, profile):
               help='Difficulty level')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language (default: en)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
               default=None, help='LLM provider (overrides profile routing)')
 @click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
               default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
@@ -1567,7 +1567,7 @@ def practice(course, topic, difficulty, lang, provider, profile):
               default='medium', help='Exercise difficulty')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language (default: en)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
               default=None, help='LLM provider (overrides profile routing)')
 @click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
               default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
@@ -1626,7 +1626,7 @@ def generate(course, loop, difficulty, lang, provider, profile):
 @click.option('--interactive', '-i', is_flag=True, help='Interactive proof practice mode')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language (default: en)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
               default=None, help='LLM provider (overrides profile routing)')
 @click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
               default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
@@ -1776,7 +1776,7 @@ def prove(course, interactive, lang, provider, profile):
               help='Filter by exercise type (procedural=design/implementation, theory=analysis, proof=proofs)')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Language for feedback (default: en)')
-@click.option('--provider', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+@click.option('--provider', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
               default=None, help='LLM provider (overrides profile routing)')
 @click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
               default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
@@ -3003,7 +3003,7 @@ def rate_limits(provider, reset):
               help='Preview changes without updating database (default: true)')
 @click.option('--confidence-threshold', type=float, default=0.5,
               help='Minimum confidence to separate (0.0-1.0, default: 0.5)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
               help='LLM provider (default: from config)')
 def separate_solutions(course, dry_run, confidence_threshold, provider):
     """Separate questions from solutions in exercises using LLM (works for any format/language)."""
@@ -3249,7 +3249,7 @@ def detect_languages(course, dry_run, force):
               help='Output format (default: ascii)')
 @click.option('--export', type=click.Path(), help='Export to file')
 @click.option('--concept', help='Show learning path to specific concept')
-@click.option('--provider', type=click.Choice(['anthropic', 'openai', 'groq', 'ollama']),
+@click.option('--provider', type=click.Choice(['anthropic', 'openai', 'groq', 'ollama', 'deepseek']),
               default=Config.LLM_PROVIDER, help=f'LLM provider (default: {Config.LLM_PROVIDER})')
 def concept_graph(course, format, export, concept, provider):
     """Visualize theory concept dependencies and learning order."""
