@@ -1,0 +1,239 @@
+# Provider Profiles Configuration
+#
+# This file defines routing profiles that control which LLM providers
+# are used for different task types. Profiles enable:
+# - Cost optimization (route bulk tasks to cheaper providers)
+# - Quality control (route premium tasks to better models)
+# - Privacy protection (minimize provider exposure per task type)
+# - Fallback handling (automatic failover when primary unavailable)
+#
+# Profile Tiers:
+# - free: For users on free tier (uses cheaper/free providers)
+# - pro: For paid users (balances cost and quality)
+# - local: For privacy-focused users (uses local Ollama only)
+#
+# Task Types:
+# - bulk_analysis: PDF ingestion, exercise splitting, batch analysis
+# - interactive: Tutoring, quizzes, practice exercises
+# - premium: Deep explanations, adaptive teaching, proof guidance
+
+profiles:
+  # ============================================================================
+  # FREE TIER PROFILE
+  # ============================================================================
+  # Target audience: Free tier users, students, hobbyists
+  # Strategy: Use free/cheap providers for all tasks
+  # Cost: Minimal (relies on free tiers and rate limits)
+  # Quality: Good for basic usage, may struggle with complex reasoning
+  free:
+    description: "Free tier profile using cost-effective providers"
+
+    tasks:
+      # Bulk analysis: Use DeepSeek for cost efficiency
+      # DeepSeek is extremely cheap ($0.14/M tokens) and good quality
+      # Fallback to Groq if DeepSeek unavailable
+      bulk_analysis:
+        enabled: true
+        primary: deepseek
+        fallback: groq
+        max_retries: 3
+        retry_delay: 2.0
+
+      # Interactive: Use Groq for free tier
+      # Good balance of speed and quality for learning
+      interactive:
+        enabled: true
+        primary: groq
+        fallback: groq
+        max_retries: 3
+        retry_delay: 2.0
+
+      # Premium: Disabled on free tier
+      # Requires upgrade to access deep explanations
+      premium:
+        enabled: false
+        primary: null
+        fallback: null
+        max_retries: 0
+        retry_delay: 0.0
+
+  # ============================================================================
+  # PRO TIER PROFILE
+  # ============================================================================
+  # Target audience: Paid users, serious learners, professionals
+  # Strategy: Use premium providers for quality, cheaper for bulk
+  # Cost: Moderate (pays for Anthropic API)
+  # Quality: High for interactive/premium, good for bulk
+  pro:
+    description: "Professional tier with premium providers for quality"
+
+    tasks:
+      # Bulk analysis: Use DeepSeek for maximum cost efficiency
+      # DeepSeek at $0.14/M tokens is cheaper than Groq
+      # Fallback to Groq if DeepSeek unavailable
+      bulk_analysis:
+        enabled: true
+        primary: deepseek
+        fallback: groq
+        max_retries: 3
+        retry_delay: 2.0
+
+      # Interactive: Use Anthropic for quality
+      # Claude Sonnet 4 provides excellent tutoring and explanations
+      # Fallback to Groq if rate limited (acceptable quality drop)
+      interactive:
+        enabled: true
+        primary: anthropic
+        fallback: groq
+        max_retries: 3
+        retry_delay: 2.0
+
+      # Premium: Use Anthropic for highest quality
+      # No fallback - premium features require premium quality
+      premium:
+        enabled: true
+        primary: anthropic
+        fallback: null  # No fallback - premium tasks need best model
+        max_retries: 3
+        retry_delay: 2.0
+
+  # ============================================================================
+  # LOCAL TIER PROFILE
+  # ============================================================================
+  # Target audience: Privacy-focused users, offline usage, researchers
+  # Strategy: Use only local Ollama models
+  # Cost: Zero API costs (hardware costs only)
+  # Quality: Depends on local models (can be excellent with good hardware)
+  # Privacy: Maximum (all data stays local)
+  local:
+    description: "Local-only profile using Ollama for maximum privacy"
+
+    tasks:
+      # Bulk analysis: Use local Ollama
+      # No fallback (stay local for privacy)
+      bulk_analysis:
+        enabled: true
+        primary: ollama
+        fallback: null
+        max_retries: 3
+        retry_delay: 2.0
+
+      # Interactive: Use local Ollama
+      # No fallback (stay local for privacy)
+      interactive:
+        enabled: true
+        primary: ollama
+        fallback: null
+        max_retries: 3
+        retry_delay: 2.0
+
+      # Premium: Disabled on local tier
+      # Local models typically not strong enough for premium features
+      # (Can be enabled if user has high-end local models)
+      premium:
+        enabled: false
+        primary: null
+        fallback: null
+        max_retries: 0
+        retry_delay: 0.0
+
+  # ============================================================================
+  # ENTERPRISE TIER PROFILE (FUTURE)
+  # ============================================================================
+  # Placeholder for future enterprise features:
+  # - Dedicated API endpoints
+  # - Higher rate limits
+  # - Custom models
+  # - SLA guarantees
+  # Uncomment and configure when enterprise tier is implemented
+  #
+  # enterprise:
+  #   description: "Enterprise tier with dedicated infrastructure"
+  #
+  #   tasks:
+  #     bulk_analysis:
+  #       enabled: true
+  #       primary: anthropic  # Use premium for everything
+  #       fallback: groq
+  #       max_retries: 5
+  #       retry_delay: 1.0
+  #
+  #     interactive:
+  #       enabled: true
+  #       primary: anthropic
+  #       fallback: groq
+  #       max_retries: 5
+  #       retry_delay: 1.0
+  #
+  #     premium:
+  #       enabled: true
+  #       primary: anthropic
+  #       fallback: groq
+  #       max_retries: 5
+  #       retry_delay: 1.0
+
+# ============================================================================
+# NOTES ON PROVIDER SELECTION
+# ============================================================================
+#
+# Provider Characteristics (as of 2025):
+#
+# Anthropic (Claude):
+# - Pros: Excellent reasoning, great for tutoring, high quality
+# - Cons: Costs money, rate limits on free tier
+# - Best for: Interactive learning, premium explanations
+# - Rate limits: 50 RPM, 40k TPM (tier 1)
+#
+# Groq:
+# - Pros: Very fast inference, generous free tier, good quality
+# - Cons: Smaller context, rate limits can be hit easily
+# - Best for: Bulk operations, interactive on free tier
+# - Rate limits: 30 RPM, 6k TPM (free tier)
+#
+# Ollama (Local):
+# - Pros: Free, private, unlimited, no rate limits
+# - Cons: Requires local setup, slower, quality varies by model
+# - Best for: Privacy-focused users, offline usage
+# - Rate limits: None (local)
+#
+# OpenAI (Future):
+# - Pros: Wide model selection, good docs, stable API
+# - Cons: Can be expensive, rate limits
+# - Best for: TBD when integrated
+#
+# DeepSeek:
+# - Pros: Excellent reasoning (671B MoE), very cheap ($0.14/M tokens), large context (64k)
+# - Cons: Newer provider, may have rate limits
+# - Best for: Cost-effective bulk operations, analysis tasks
+# - Rate limits: 60 RPM, 1M TPM (typical)
+#
+# ============================================================================
+# ROUTING STRATEGY GUIDELINES
+# ============================================================================
+#
+# When designing profiles:
+#
+# 1. Cost Optimization:
+#    - Route high-volume tasks (bulk_analysis) to cheaper providers
+#    - Reserve expensive providers (Anthropic) for high-value tasks
+#
+# 2. Quality Requirements:
+#    - Use best models for premium/interactive tasks where quality matters
+#    - Accept lower quality for bulk operations where scale matters more
+#
+# 3. Privacy Considerations:
+#    - Minimize number of providers that see sensitive data
+#    - Use local models for highest privacy needs
+#    - Consider data retention policies of cloud providers
+#
+# 4. Fallback Strategy:
+#    - Provide fallbacks for interactive tasks (user-facing)
+#    - Consider no fallback for bulk tasks (fail fast, retry later)
+#    - Never fallback for premium tasks (quality drop unacceptable)
+#
+# 5. Rate Limiting:
+#    - Providers with lower rate limits should have fallbacks
+#    - Batch operations should use providers with higher limits
+#    - Monitor usage and adjust routing based on patterns
+#
+# ============================================================================

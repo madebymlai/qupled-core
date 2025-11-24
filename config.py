@@ -31,6 +31,11 @@ class Config:
     # LLM Settings
     LLM_PROVIDER = os.getenv("EXAMINA_LLM_PROVIDER", "anthropic")
 
+    # Provider Routing Settings (NEW - Provider Routing Architecture)
+    # Default provider profile to use when --profile flag not specified
+    PROVIDER_PROFILE = os.getenv("EXAMINA_PROVIDER_PROFILE", "free")  # Options: free, pro, local
+    PROVIDER_PROFILES_PATH = None  # Will be set to BASE_DIR / "config" / "provider_profiles.yaml" below
+
     # Ollama Settings (only used if provider=ollama)
     LLM_PRIMARY_MODEL = os.getenv("EXAMINA_PRIMARY_MODEL", "qwen2.5:14b")
     LLM_FAST_MODEL = os.getenv("EXAMINA_FAST_MODEL", "llama3.1:8b")
@@ -41,12 +46,16 @@ class Config:
     ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
     GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+    DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY")
 
     # Anthropic Settings
     ANTHROPIC_MODEL = os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-20250514")  # Sonnet 4.5
 
     # Groq Settings
     GROQ_MODEL = os.getenv("GROQ_MODEL", "llama-3.3-70b-versatile")  # Best rate limits on Groq free tier
+
+    # DeepSeek Settings
+    DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")  # DeepSeek v3 (671B MoE)
 
     # Processing Settings
     PDF_MAX_SIZE_MB = 50
@@ -142,6 +151,11 @@ class Config:
             "requests_per_minute": int(os.getenv("OPENAI_RPM", "60")),
             "tokens_per_minute": int(os.getenv("OPENAI_TPM", "90000")),
             "burst_size": 5
+        },
+        "deepseek": {
+            "requests_per_minute": int(os.getenv("DEEPSEEK_RPM", "60")),  # DeepSeek rate limits
+            "tokens_per_minute": int(os.getenv("DEEPSEEK_TPM", "1000000")),  # 1M tokens/min typical
+            "burst_size": 5
         }
         # Add more providers as needed - the system is fully generic
     }
@@ -156,6 +170,14 @@ class Config:
         cls.CHROMA_PATH.mkdir(exist_ok=True)
         cls.CACHE_PATH.mkdir(exist_ok=True)
         cls.STUDY_STRATEGY_CACHE_DIR.mkdir(exist_ok=True)
+
+        # Ensure config directory exists for provider profiles
+        config_dir = cls.BASE_DIR / "config"
+        config_dir.mkdir(exist_ok=True)
+
+        # Set provider profiles path if not already set
+        if cls.PROVIDER_PROFILES_PATH is None:
+            cls.PROVIDER_PROFILES_PATH = config_dir / "provider_profiles.yaml"
 
     @classmethod
     def get_course_pdf_dir(cls, course_code):

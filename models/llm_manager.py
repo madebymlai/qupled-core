@@ -35,7 +35,7 @@ class LLMManager:
         """Initialize LLM manager.
 
         Args:
-            provider: LLM provider ("ollama", "anthropic", "openai", "groq")
+            provider: LLM provider ("ollama", "anthropic", "openai", "groq", "deepseek")
             base_url: Base URL for API (for Ollama)
         """
         self.provider = provider
@@ -49,6 +49,10 @@ class LLMManager:
         elif provider == "anthropic":
             self.primary_model = Config.ANTHROPIC_MODEL
             self.fast_model = Config.ANTHROPIC_MODEL
+            self.embed_model = Config.LLM_EMBED_MODEL  # Still use Ollama for embeddings
+        elif provider == "deepseek":
+            self.primary_model = Config.DEEPSEEK_MODEL
+            self.fast_model = Config.DEEPSEEK_MODEL
             self.embed_model = Config.LLM_EMBED_MODEL  # Still use Ollama for embeddings
         else:
             self.primary_model = Config.LLM_PRIMARY_MODEL  # Heavy reasoning
@@ -245,6 +249,10 @@ class LLMManager:
             )
         elif self.provider == "anthropic":
             response = self._anthropic_generate(
+                prompt, model, system, temperature, max_tokens, json_mode
+            )
+        elif self.provider == "deepseek":
+            response = self._deepseek_generate(
                 prompt, model, system, temperature, max_tokens, json_mode
             )
         else:
@@ -617,6 +625,142 @@ class LLMManager:
             error="Max retries exceeded"
         )
 
+    def _deepseek_generate(self, prompt: str, model: str,
+                          system: Optional[str], temperature: float,
+                          max_tokens: Optional[int], json_mode: bool) -> LLMResponse:
+        """Generate using DeepSeek API (OpenAI-compatible) with automatic retry on rate limits.
+
+        Args:
+            prompt: User prompt
+            model: Model name
+            system: System prompt
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens
+            json_mode: Force JSON output
+
+        Returns:
+            LLMResponse
+        """
+        import time
+
+        # Check for API key upfront
+        if not Config.DEEPSEEK_API_KEY:
+            return LLMResponse(
+                text="",
+                model=model,
+                success=False,
+                error="DEEPSEEK_API_KEY not set. Get one at https://platform.deepseek.com"
+            )
+
+        # Check cache first
+        cache_key = self._generate_cache_key(
+            provider="deepseek",
+            model=model,
+            prompt=prompt,
+            system=system,
+            temperature=temperature,
+            json_mode=json_mode
+        )
+
+        cached_response = self._get_cached_response(cache_key)
+        if cached_response:
+            return cached_response
+
+        max_retries = 3
+        base_delay = 2  # seconds
+
+        for attempt in range(max_retries):
+            try:
+                url = "https://api.deepseek.com/v1/chat/completions"
+
+                messages = []
+                if system:
+                    messages.append({"role": "system", "content": system})
+                messages.append({"role": "user", "content": prompt})
+
+                payload = {
+                    "model": model,
+                    "messages": messages,
+                    "temperature": temperature,
+                }
+
+                if max_tokens:
+                    payload["max_tokens"] = max_tokens
+
+                if json_mode:
+                    payload["response_format"] = {"type": "json_object"}
+
+                headers = {
+                    "Authorization": f"Bearer {Config.DEEPSEEK_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+
+                response = requests.post(url, json=payload, headers=headers, timeout=60)
+                response.raise_for_status()
+
+                result = response.json()
+                text = result["choices"][0]["message"]["content"]
+
+                llm_response = LLMResponse(
+                    text=text,
+                    model=model,
+                    success=True,
+                    metadata={
+                        "usage": result.get("usage"),
+                        "finish_reason": result["choices"][0].get("finish_reason"),
+                    }
+                )
+
+                # Cache successful response
+                self._save_to_cache(cache_key, llm_response)
+
+                return llm_response
+
+            except requests.exceptions.HTTPError as e:
+                error_msg = f"DeepSeek API error: {e}"
+                if e.response.status_code == 401:
+                    error_msg = "Invalid DEEPSEEK_API_KEY. Check your API key."
+                    # Don't retry on auth errors
+                    return LLMResponse(text="", model=model, success=False, error=error_msg)
+                elif e.response.status_code == 429:
+                    # Rate limit - retry with backoff
+                    if attempt < max_retries - 1:
+                        delay = base_delay * (2 ** attempt)  # Exponential backoff
+                        print(f"  Rate limit hit, retrying in {delay}s... (attempt {attempt+1}/{max_retries})")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        error_msg = "Rate limit exceeded. All retries exhausted."
+                elif e.response.status_code == 400:
+                    try:
+                        error_detail = e.response.json()
+                        error_msg = f"DeepSeek API error: {error_detail}"
+                    except:
+                        error_msg = f"DeepSeek API error: {e} - {e.response.text}"
+
+                # Return error if not retrying
+                return LLMResponse(
+                    text="",
+                    model=model,
+                    success=False,
+                    error=error_msg
+                )
+            except Exception as e:
+                return LLMResponse(
+                    text="",
+                    model=model,
+                    success=False,
+                    error=f"DeepSeek error: {str(e)}"
+                )
+
+        # Should never reach here, but just in case
+        return LLMResponse(
+            text="",
+            model=model,
+            success=False,
+            error="Max retries exceeded"
+        )
+
     def embed(self, text: str, model: Optional[str] = None) -> Optional[List[float]]:
         """Generate embeddings for text.
 
@@ -742,3 +886,33 @@ class LLMManager:
                     pass
 
             return None
+
+    @staticmethod
+    def is_provider_available(provider: str) -> bool:
+        """Check if a provider is available (has API key configured).
+
+        This is a static utility method for provider availability checking.
+        Used by ProviderRouter to determine if a provider can be used.
+
+        Args:
+            provider: Provider name (e.g., "anthropic", "groq", "ollama", "deepseek")
+
+        Returns:
+            True if provider is available (API key exists or not required)
+        """
+        # Ollama doesn't need API key (local)
+        if provider == "ollama":
+            return True
+
+        # Check for API keys
+        if provider == "anthropic":
+            return Config.ANTHROPIC_API_KEY is not None and len(Config.ANTHROPIC_API_KEY) > 0
+        elif provider == "groq":
+            return Config.GROQ_API_KEY is not None and len(Config.GROQ_API_KEY) > 0
+        elif provider == "openai":
+            return Config.OPENAI_API_KEY is not None and len(Config.OPENAI_API_KEY) > 0
+        elif provider == "deepseek":
+            return Config.DEEPSEEK_API_KEY is not None and len(Config.DEEPSEEK_API_KEY) > 0
+
+        # Unknown provider
+        return False

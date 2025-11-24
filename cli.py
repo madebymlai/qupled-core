@@ -24,6 +24,39 @@ from scripts.study_context import study_plan
 console = Console()
 
 
+def get_effective_provider(provider, profile, task_type_value):
+    """Helper to determine effective provider based on --provider and --profile flags.
+
+    Args:
+        provider: Provider from --provider flag (None if not specified)
+        profile: Profile from --profile flag (None if not specified)
+        task_type_value: Task type string (e.g., "bulk_analysis", "interactive")
+
+    Returns:
+        Provider name to use
+    """
+    if provider is not None:
+        # Provider flag explicitly specified, use it
+        return provider
+    elif profile is not None:
+        # Profile specified, use routing
+        from core.provider_router import ProviderRouter
+        from core.task_types import TaskType
+        try:
+            router = ProviderRouter()
+            task_type = TaskType.from_string(task_type_value)
+            effective = router.route(task_type, profile)
+            console.print(f"[dim]Using profile '{profile}' → provider: {effective}[/dim]")
+            return effective
+        except Exception as e:
+            console.print(f"[yellow]Warning: Routing failed: {e}[/yellow]")
+            console.print(f"[dim]Falling back to default provider: {Config.LLM_PROVIDER}[/dim]")
+            return Config.LLM_PROVIDER
+    else:
+        # Neither specified, use default
+        return Config.LLM_PROVIDER
+
+
 @click.group()
 @click.version_option(version="0.1.0", prog_name="Examina")
 def cli():
@@ -338,8 +371,10 @@ def search(course, tag, text, multi_only, limit):
 @click.option('--smart-split', is_flag=True, default=False,
               help='Use LLM-based splitting for unstructured materials (lecture notes, embedded examples). Costs API tokens.')
 @click.option('--provider', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
-              default=Config.LLM_PROVIDER, help='LLM provider for smart splitting')
-def ingest(course, zip_file, material_type, smart_split, provider):
+              default=None, help='LLM provider for smart splitting (overrides profile routing)')
+@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
+              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+def ingest(course, zip_file, material_type, smart_split, provider, profile):
     """Ingest course materials (exams, homework, problem sets, lecture notes) for a course."""
     from tqdm import tqdm
 
@@ -367,6 +402,24 @@ def ingest(course, zip_file, material_type, smart_split, provider):
         file_mgr = FileManager()
         pdf_processor = PDFProcessor()
 
+        # Determine provider to use (provider flag overrides profile routing)
+        effective_provider = provider
+        if provider is None and profile is not None:
+            # Use routing
+            from core.provider_router import ProviderRouter
+            from core.task_types import TaskType
+            try:
+                router = ProviderRouter()
+                effective_provider = router.route(TaskType.BULK_ANALYSIS, profile)
+                console.print(f"[dim]Using profile '{profile}' → provider: {effective_provider}[/dim]")
+            except Exception as e:
+                console.print(f"[yellow]Warning: Routing failed: {e}[/yellow]")
+                console.print(f"[dim]Falling back to default provider: {Config.LLM_PROVIDER}[/dim]")
+                effective_provider = Config.LLM_PROVIDER
+        elif provider is None:
+            # No provider or profile specified, use default
+            effective_provider = Config.LLM_PROVIDER
+
         # Choose splitter based on material type
         use_smart_splitter = False
         if material_type == 'notes':
@@ -374,10 +427,10 @@ def ingest(course, zip_file, material_type, smart_split, provider):
             from core.smart_splitter import SmartExerciseSplitter
             from models.llm_manager import LLMManager
 
-            console.print(f"[cyan]📚 Processing lecture notes with smart content detection ({provider})[/cyan]")
+            console.print(f"[cyan]📚 Processing lecture notes with smart content detection ({effective_provider})[/cyan]")
             console.print("[dim]   Detecting theory sections, worked examples, and practice exercises[/dim]\n")
 
-            llm = LLMManager(provider=provider)
+            llm = LLMManager(provider=effective_provider)
             exercise_splitter = SmartExerciseSplitter(
                 llm_manager=llm,
                 enable_smart_detection=True,
@@ -389,10 +442,10 @@ def ingest(course, zip_file, material_type, smart_split, provider):
             from core.smart_splitter import SmartExerciseSplitter
             from models.llm_manager import LLMManager
 
-            console.print(f"[cyan]🤖 Smart splitting enabled with {provider}[/cyan]")
+            console.print(f"[cyan]🤖 Smart splitting enabled with {effective_provider}[/cyan]")
             console.print("[dim]   LLM-based detection for unstructured materials[/dim]\n")
 
-            llm = LLMManager(provider=provider)
+            llm = LLMManager(provider=effective_provider)
             exercise_splitter = SmartExerciseSplitter(
                 llm_manager=llm,
                 enable_smart_detection=True
@@ -563,8 +616,10 @@ def ingest(course, zip_file, material_type, smart_split, provider):
 @cli.command()
 @click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
 @click.option('--limit', '-l', type=int, help='Limit number of exercises to analyze (for testing)')
-@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic']), default='anthropic',
-              help='LLM provider (default: anthropic)')
+@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic']), default=None,
+              help='LLM provider (overrides profile routing)')
+@click.option('--profile', type=click.Choice(['free', 'pro', 'local']), default=None,
+              help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language for analysis (default: en)')
 @click.option('--force', '-f', is_flag=True, help='Force re-analysis of all exercises (ignore existing analysis)')
@@ -572,7 +627,7 @@ def ingest(course, zip_file, material_type, smart_split, provider):
               help='Use parallel batch processing for better performance (default: parallel)')
 @click.option('--batch-size', '-b', type=int, default=None,
               help=f'Batch size for parallel processing (default: {Config.BATCH_SIZE})')
-def analyze(course, limit, provider, lang, force, parallel, batch_size):
+def analyze(course, limit, provider, profile, lang, force, parallel, batch_size):
     """Analyze exercises with AI to discover topics and core loops."""
     console.print(f"\n[bold cyan]Analyzing exercises for {course}...[/bold cyan]\n")
 
@@ -626,9 +681,27 @@ def analyze(course, limit, provider, lang, force, parallel, batch_size):
                     console.print(f"[cyan]Resuming analysis from checkpoint ({remaining_count} exercises remaining)...[/cyan]\n")
                 exercises = all_exercises  # Need all for proper merging context
 
+        # Determine provider to use (provider flag overrides profile routing)
+        effective_provider = provider
+        if provider is None and profile is not None:
+            # Use routing
+            from core.provider_router import ProviderRouter
+            from core.task_types import TaskType
+            try:
+                router = ProviderRouter()
+                effective_provider = router.route(TaskType.BULK_ANALYSIS, profile)
+                console.print(f"[dim]Using profile '{profile}' → provider: {effective_provider}[/dim]\n")
+            except Exception as e:
+                console.print(f"[yellow]Warning: Routing failed: {e}[/yellow]")
+                console.print(f"[dim]Falling back to default provider: {Config.LLM_PROVIDER}[/dim]\n")
+                effective_provider = Config.LLM_PROVIDER
+        elif provider is None:
+            # No provider or profile specified, use default
+            effective_provider = Config.LLM_PROVIDER
+
         # Initialize components
-        console.print(f"🤖 Initializing AI components (provider: {provider}, language: {lang})...")
-        llm = LLMManager(provider=provider)
+        console.print(f"🤖 Initializing AI components (provider: {effective_provider}, language: {lang})...")
+        llm = LLMManager(provider=effective_provider)
         analyzer = ExerciseAnalyzer(llm, language=lang)
 
         # Initialize translation detector for language detection
@@ -638,18 +711,18 @@ def analyze(course, limit, provider, lang, force, parallel, batch_size):
             console.print(f"   ✓ Language detection enabled\n")
 
         # For embeddings, we still need Ollama (Groq/Anthropic don't provide embeddings)
-        embed_llm = LLMManager(provider="ollama") if provider in ["groq", "anthropic"] else llm
+        embed_llm = LLMManager(provider="ollama") if effective_provider in ["groq", "anthropic"] else llm
         vector_store = VectorStore(llm_manager=embed_llm)
 
         # Check if provider is ready
-        if provider == "ollama":
+        if effective_provider == "ollama":
             console.print(f"   Checking {llm.primary_model}...")
             if not llm.check_model_available(llm.primary_model):
                 console.print(f"[red]Model {llm.primary_model} not found![/red]")
                 console.print(f"[yellow]Run: ollama pull {llm.primary_model}[/yellow]\n")
                 return
             console.print(f"   ✓ {llm.primary_model} ready\n")
-        elif provider == "groq":
+        elif effective_provider == "groq":
             console.print(f"   Using Groq API with {llm.primary_model}")
             if not Config.GROQ_API_KEY:
                 console.print(f"[red]GROQ_API_KEY not set![/red]")
@@ -1162,7 +1235,11 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
               help='Use adaptive teaching (auto-select depth based on mastery, default: enabled)')
 @click.option('--strategy', is_flag=True,
               help='Include study strategy and metacognitive guidance')
-def learn(course, loop, lang, depth, no_concepts, adaptive, strategy):
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+              default=None, help='LLM provider (overrides profile routing)')
+@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
+              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, profile):
     """Learn core loops with AI tutor explanation (enhanced with WHY reasoning)."""
     from core.tutor import Tutor
     from models.llm_manager import LLMManager
@@ -1192,8 +1269,12 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy):
 
             course_code = found_course['code']
 
+        # Determine provider (adaptive uses PREMIUM, otherwise INTERACTIVE)
+        task_type = "premium" if adaptive else "interactive"
+        effective_provider = get_effective_provider(provider, profile, task_type)
+
         # Initialize tutor with enhanced learning
-        llm = LLMManager(provider=Config.LLM_PROVIDER)
+        llm = LLMManager(provider=effective_provider)
         tutor = Tutor(llm, language=lang)
 
         # Get enhanced explanation
@@ -1240,7 +1321,11 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy):
               help='Force a specific proof technique')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language (default: en)')
-def prove(course, exercise, interactive, technique, lang):
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+              default=None, help='LLM provider (overrides profile routing)')
+@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
+              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+def prove(course, exercise, interactive, technique, lang, provider, profile):
     """Practice mathematical proofs interactively with AI guidance."""
     from core.tutor import Tutor
     from core.proof_tutor import ProofTutor
@@ -1293,8 +1378,11 @@ def prove(course, exercise, interactive, technique, lang):
                     return
                 ex_id, ex_text, ex_type = result
 
+        # Determine provider (proof uses PREMIUM for step-by-step guidance)
+        effective_provider = get_effective_provider(provider, profile, "premium")
+
         # Initialize proof tutor
-        llm = LLMManager(provider="anthropic")
+        llm = LLMManager(provider=effective_provider)
         proof_tutor = ProofTutor(llm, language=lang)
 
         # Display exercise
@@ -1386,7 +1474,11 @@ def prove(course, exercise, interactive, technique, lang):
               help='Difficulty level')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language (default: en)')
-def practice(course, topic, difficulty, lang):
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+              default=None, help='LLM provider (overrides profile routing)')
+@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
+              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+def practice(course, topic, difficulty, lang, provider, profile):
     """Practice exercises interactively with AI feedback."""
     from core.tutor import Tutor
     from models.llm_manager import LLMManager
@@ -1409,8 +1501,11 @@ def practice(course, topic, difficulty, lang):
 
             course_code = found_course['code']
 
+        # Determine provider (practice uses INTERACTIVE)
+        effective_provider = get_effective_provider(provider, profile, "interactive")
+
         # Initialize tutor
-        llm = LLMManager(provider="anthropic")
+        llm = LLMManager(provider=effective_provider)
         tutor = Tutor(llm, language=lang)
 
         # Get practice exercise
@@ -1472,7 +1567,11 @@ def practice(course, topic, difficulty, lang):
               default='medium', help='Exercise difficulty')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language (default: en)')
-def generate(course, loop, difficulty, lang):
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+              default=None, help='LLM provider (overrides profile routing)')
+@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
+              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+def generate(course, loop, difficulty, lang, provider, profile):
     """Generate new practice exercises with AI."""
     from core.tutor import Tutor
     from models.llm_manager import LLMManager
@@ -1495,8 +1594,11 @@ def generate(course, loop, difficulty, lang):
 
             course_code = found_course['code']
 
+        # Determine provider (generate uses INTERACTIVE)
+        effective_provider = get_effective_provider(provider, profile, "interactive")
+
         # Initialize tutor
-        llm = LLMManager(provider="anthropic")
+        llm = LLMManager(provider=effective_provider)
         tutor = Tutor(llm, language=lang)
 
         # Generate exercise
@@ -1524,7 +1626,11 @@ def generate(course, loop, difficulty, lang):
 @click.option('--interactive', '-i', is_flag=True, help='Interactive proof practice mode')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Output language (default: en)')
-def prove(course, interactive, lang):
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+              default=None, help='LLM provider (overrides profile routing)')
+@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
+              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+def prove(course, interactive, lang, provider, profile):
     """Practice proof exercises with specialized proof guidance."""
     from core.proof_tutor import ProofTutor
     from models.llm_manager import LLMManager
@@ -1551,8 +1657,11 @@ def prove(course, interactive, lang):
             # Find proof exercises
             exercises = db.get_exercises_by_course(course_code)
 
+        # Determine provider (proof uses PREMIUM for step-by-step guidance)
+        effective_provider = get_effective_provider(provider, profile, "premium")
+
         # Initialize proof tutor
-        llm = LLMManager(provider="anthropic")
+        llm = LLMManager(provider=effective_provider)
         proof_tutor = ProofTutor(llm, language=lang)
 
         # Filter proof exercises
@@ -1667,7 +1776,11 @@ def prove(course, interactive, lang):
               help='Filter by exercise type (procedural=design/implementation, theory=analysis, proof=proofs)')
 @click.option('--lang', type=click.Choice(['en', 'it']), default='en',
               help='Language for feedback (default: en)')
-def quiz(course, questions, topic, loop, difficulty, review_only, procedure, multi_only, tags, exercise_type, lang):
+@click.option('--provider', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+              default=None, help='LLM provider (overrides profile routing)')
+@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
+              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+def quiz(course, questions, topic, loop, difficulty, review_only, procedure, multi_only, tags, exercise_type, lang, provider, profile):
     """Take an interactive quiz to test your knowledge."""
     from core.quiz_engine import QuizEngine
     from models.llm_manager import LLMManager
@@ -1692,8 +1805,11 @@ def quiz(course, questions, topic, loop, difficulty, review_only, procedure, mul
 
             course_code = found_course['code']
 
+        # Determine provider (quiz uses INTERACTIVE)
+        effective_provider = get_effective_provider(provider, profile, "interactive")
+
         # Initialize quiz engine
-        llm = LLMManager(provider="anthropic")
+        llm = LLMManager(provider=effective_provider)
         quiz_engine = QuizEngine(llm_manager=llm, language=lang)
 
         # Create quiz session
@@ -2887,7 +3003,9 @@ def rate_limits(provider, reset):
               help='Preview changes without updating database (default: true)')
 @click.option('--confidence-threshold', type=float, default=0.5,
               help='Minimum confidence to separate (0.0-1.0, default: 0.5)')
-def separate_solutions(course, dry_run, confidence_threshold):
+@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai']),
+              help='LLM provider (default: from config)')
+def separate_solutions(course, dry_run, confidence_threshold, provider):
     """Separate questions from solutions in exercises using LLM (works for any format/language)."""
     from core.solution_separator import process_course_solutions
     from models.llm_manager import LLMManager
@@ -2916,7 +3034,7 @@ def separate_solutions(course, dry_run, confidence_threshold):
         # Initialize LLM
         console.print("🤖 Initializing AI solution separator...")
         console.print("[dim]Using LLM-based detection (works for any format/language)[/dim]\n")
-        llm = LLMManager(provider="anthropic")
+        llm = LLMManager(provider=provider or Config.LLM_PROVIDER)
 
         # Process course
         console.print(f"📝 Analyzing exercises for {course_code}...\n")

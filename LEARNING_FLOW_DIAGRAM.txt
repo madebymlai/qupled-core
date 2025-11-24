@@ -1,0 +1,236 @@
+EXAMINA TUTOR - LEARNING FLOW ARCHITECTURE
+==========================================
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                    USER CALLS: tutor.learn()                        │
+│                                                                     │
+│  Parameters:                                                        │
+│    - course_code: str                                               │
+│    - core_loop_id: str                                              │
+│    - explain_concepts: bool = True                                  │
+│    - depth: str = "medium"                                          │
+│    - adaptive: bool = True                                          │
+│    - show_solutions: bool = True                                    │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DATABASE QUERIES (Tutor.learn)                   │
+│                                                                     │
+│  1. Fetch core loop + topic info                                   │
+│     SELECT cl.*, t.name, t.id FROM core_loops cl JOIN topics t...  │
+│                                                                     │
+│  2. Fetch theory materials                                          │
+│     db.get_learning_materials_by_topic(topic_id, 'theory')         │
+│                                                                     │
+│  3. Fetch worked examples                                           │
+│     db.get_learning_materials_by_topic(topic_id, 'worked_example') │
+│                                                                     │
+│  4. Fetch practice exercises                                        │
+│     db.get_exercises_by_course(course_code)                        │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    CONTENT ASSEMBLY FLOW                            │
+│                                                                     │
+│  ┌─────────────────────────────────────────────────────┐           │
+│  │  1. THEORY MATERIALS (if any)                       │           │
+│  │     _display_theory_materials()                     │           │
+│  │                                                     │           │
+│  │     Output:                                         │           │
+│  │       - Title: "THEORY MATERIALS"                   │           │
+│  │       - Introduction message                        │           │
+│  │       - For each theory material:                   │           │
+│  │         * Material title                            │           │
+│  │         * Source (PDF + page number)                │           │
+│  │         * Content                                   │           │
+│  │         * Separator                                 │           │
+│  └─────────────────────────────────────────────────────┘           │
+│                       │                                             │
+│                       ▼                                             │
+│  ┌─────────────────────────────────────────────────────┐           │
+│  │  2. WORKED EXAMPLES (if any)                        │           │
+│  │     _display_worked_examples()                      │           │
+│  │                                                     │           │
+│  │     Output:                                         │           │
+│  │       - Title: "WORKED EXAMPLES"                    │           │
+│  │       - Introduction message                        │           │
+│  │       - For each worked example:                    │           │
+│  │         * Example title                             │           │
+│  │         * Source (PDF + page number)                │           │
+│  │         * Complete worked solution                  │           │
+│  │         * "This is how it's done" note              │           │
+│  │         * Separator                                 │           │
+│  └─────────────────────────────────────────────────────┘           │
+│                       │                                             │
+│                       ▼                                             │
+│  ┌─────────────────────────────────────────────────────┐           │
+│  │  3. PREREQUISITE CONCEPTS (if enabled)              │           │
+│  │     ConceptExplainer.explain_prerequisites()        │           │
+│  │                                                     │           │
+│  │     Output:                                         │           │
+│  │       - Related concepts needed                     │           │
+│  │       - Based on depth level                        │           │
+│  └─────────────────────────────────────────────────────┘           │
+│                       │                                             │
+│                       ▼                                             │
+│  ┌─────────────────────────────────────────────────────┐           │
+│  │  4. LLM-GENERATED EXPLANATION                       │           │
+│  │     llm.generate() with enhanced prompt             │           │
+│  │                                                     │           │
+│  │     Output:                                         │           │
+│  │       - Big picture overview                        │           │
+│  │       - Step-by-step breakdown                      │           │
+│  │       - Common pitfalls                             │           │
+│  │       - Decision-making guidance                    │           │
+│  │       - Practice strategies                         │           │
+│  └─────────────────────────────────────────────────────┘           │
+│                       │                                             │
+│                       ▼                                             │
+│  ┌─────────────────────────────────────────────────────┐           │
+│  │  5. STUDY STRATEGIES (if enabled)                   │           │
+│  │     StudyStrategyManager.get_strategy()             │           │
+│  └─────────────────────────────────────────────────────┘           │
+│                       │                                             │
+│                       ▼                                             │
+│  ┌─────────────────────────────────────────────────────┐           │
+│  │  6. METACOGNITIVE TIPS (if enabled)                 │           │
+│  │     MetacognitiveStrategies.get_study_tips()        │           │
+│  └─────────────────────────────────────────────────────┘           │
+│                       │                                             │
+│                       ▼                                             │
+│  ┌─────────────────────────────────────────────────────┐           │
+│  │  7. ADAPTIVE RECOMMENDATIONS (if adaptive)          │           │
+│  │     AdaptiveTeachingManager.get_recommendations()   │           │
+│  └─────────────────────────────────────────────────────┘           │
+│                       │                                             │
+│                       ▼                                             │
+│  ┌─────────────────────────────────────────────────────┐           │
+│  │  8. OFFICIAL SOLUTIONS (if available)               │           │
+│  │     _format_official_solutions()                    │           │
+│  └─────────────────────────────────────────────────────┘           │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    RETURN TutorResponse                             │
+│                                                                     │
+│  TutorResponse(                                                     │
+│    content="[assembled content]",                                   │
+│    success=True,                                                    │
+│    metadata={                                                       │
+│      "core_loop": core_loop_id,                                     │
+│      "examples_count": 3,                                           │
+│      "theory_materials_count": 2,        # NEW                      │
+│      "worked_examples_count": 1,         # NEW                      │
+│      "has_theory": True,                 # NEW                      │
+│      "has_worked_examples": True,        # NEW                      │
+│      "depth": "medium",                                             │
+│      ...                                                            │
+│    }                                                                │
+│  )                                                                  │
+└─────────────────────────────────────────────────────────────────────┘
+
+
+PRACTICE FLOW WITH HINTS
+=========================
+
+┌─────────────────────────────────────────────────────────────────────┐
+│                   USER CALLS: tutor.practice()                      │
+│                                                                     │
+│  Parameters:                                                        │
+│    - course_code: str                                               │
+│    - topic: Optional[str]                                           │
+│    - difficulty: Optional[str]                                      │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    DATABASE QUERIES                                 │
+│                                                                     │
+│  1. Fetch exercises by course                                       │
+│     db.get_exercises_by_course(course_code)                        │
+│                                                                     │
+│  2. Filter by topic/difficulty (if specified)                       │
+│                                                                     │
+│  3. Select random exercise                                          │
+│                                                                     │
+│  4. Fetch linked materials (NEW)                                    │
+│     db.get_materials_for_exercise(exercise_id)                     │
+│                                                                     │
+│  5. Filter for worked examples                                      │
+│     [m for m in materials if m.type == 'worked_example']           │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    FORMAT OUTPUT                                    │
+│                                                                     │
+│  Exercise text                                                      │
+│  +                                                                  │
+│  Worked example hints (if any) - NEW                                │
+│                                                                     │
+│  Example output:                                                    │
+│  ────────────────────────────────────                               │
+│  Exercise 42: Design a finite state machine...                      │
+│                                                                     │
+│  ---                                                                │
+│  Hint: For a similar problem, see this worked example:              │
+│    "Mealy Machine Design Pattern"                                   │
+│  ────────────────────────────────────                               │
+└─────────────────────────────────────────────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│                    RETURN TutorResponse                             │
+│                                                                     │
+│  TutorResponse(                                                     │
+│    content="[exercise + hints]",                                    │
+│    success=True,                                                    │
+│    metadata={                                                       │
+│      "exercise_id": "...",                                          │
+│      "core_loop_id": "...",                                         │
+│      "has_worked_example_hints": True,   # NEW                      │
+│      "worked_example_count": 1,          # NEW                      │
+│      ...                                                            │
+│    }                                                                │
+│  )                                                                  │
+└─────────────────────────────────────────────────────────────────────┘
+
+
+FALLBACK BEHAVIOR (NO MATERIALS)
+=================================
+
+┌─────────────────────────────────────────────────────────────────────┐
+│  IF no theory materials exist:                                      │
+│    → Skip theory section, proceed to worked examples                │
+│                                                                     │
+│  IF no worked examples exist:                                       │
+│    → Skip worked examples section, proceed to prerequisites         │
+│                                                                     │
+│  IF no materials at all:                                            │
+│    → Use existing behavior (exercise-only learning)                 │
+│                                                                     │
+│  Result: BACKWARD COMPATIBLE                                        │
+│    - No breaking changes                                            │
+│    - Works with or without materials                                │
+│    - Theory/worked examples are enhancements, not requirements      │
+└─────────────────────────────────────────────────────────────────────┘
+
+
+KEY METHODS ADDED/MODIFIED
+===========================
+
+NEW METHODS:
+- _display_theory_materials(theory_materials, language)
+- _display_worked_examples(worked_examples, language)
+- _format_worked_example_hints(worked_examples, language)
+
+MODIFIED METHODS:
+- learn() - Added material fetching and display
+- practice() - Added worked example hints
+
+DATABASE INTEGRATION:
+- db.get_learning_materials_by_topic(topic_id, material_type)
+- db.get_materials_for_exercise(exercise_id)
