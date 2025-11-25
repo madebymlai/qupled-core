@@ -12,7 +12,13 @@
 - [x] Create core/progress_analyzer.py - Database-agnostic business logic
 - [x] Create core/answer_evaluator.py - Unified answer evaluation
 - [x] Add tests/test_progress_analyzer.py - 23 unit tests
-- [ ] Add tests/test_answer_evaluator.py - Unit tests for evaluator
+- [x] Add tests/test_answer_evaluator.py - 17 unit tests
+
+### Rollout Steps (requires git push)
+1. Push examina changes to GitHub: `git push origin master`
+2. Rebuild Docker: `docker compose up -d --build backend`
+3. Enable feature flags in `.env`
+4. Monitor logs for discrepancies
 
 ---
 
