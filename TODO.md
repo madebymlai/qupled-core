@@ -1,442 +1,112 @@
 # Examina - TODO
 
-## Active Development
+> CLI tool and examina-core library tasks. For web app, see `examina-cloud/TODO.md`
 
-### Phase 7 - Enhanced Learning System ✅ COMPLETED
+## Active / Pending
 
-**Core Features:**
-- ✅ Deep theory explanations with prerequisite concepts
-- ✅ Step-by-step reasoning with WHY for each step
-- ✅ Three depth levels (basic, medium, advanced)
-- ✅ Metacognitive learning strategies module (`core/metacognitive.py`)
-- ✅ Study tips per topic/difficulty (context-aware, research-backed)
-- ✅ Problem-solving frameworks (Polya, IDEAL, Feynman, Rubber Duck)
-- ✅ Self-assessment prompts (Bloom's taxonomy)
-- ✅ Retrieval practice suggestions (5 techniques)
-- ✅ Interactive proof practice mode (`prove` command)
+### Known Issues
+- **Groq rate limit**: Free tier (30 req/min) prevents analyzing large courses in one run
+- **API timeouts**: Enhanced learn with prerequisites may timeout - use `--no-concepts` flag
+- **Topic splitting**: `--delete-old` may fail due to foreign key constraints if topic has references
+- **examina-core packaging**: `from config import Config` fails when installed as package
 
-**Future Enhancements:**
-- [x] Integrate metacognitive tips into `learn` command UI ✅ (completed 2025-11-24)
-- [x] Display separated solutions during learning (when available) ✅ (completed 2025-11-24)
-- [x] Adaptive teaching based on mastery level ✅ (completed 2025-11-25)
-- [x] Track student understanding per topic ✅ (completed 2025-11-25)
-- [x] Detect knowledge gaps and fill proactively ✅ (completed 2025-11-25)
-- [x] Personalized learning paths ✅ (completed 2025-11-25)
+### Low Priority
+- [ ] Concept normalization - Minor: some topics use underscores vs spaces (cosmetic)
+- [ ] Interactive merge review for deduplication - Manual approve/reject (web feature)
+- [ ] Merge history tracking - Allow undo operations (web feature)
 
-## High Priority Improvements
-
-### Phase 3 - AI Analysis
-- [x] **Handle exam files with solutions** ✅ - Implemented generic solution separator (`separate-solutions` command)
-  - LLM-based Q+A detection (works for any format/language)
-  - Automatic separation with confidence scoring
-  - Tested on SO course (10 Q+A detected, 4 separated successfully)
-  - Tested on ADE SOLUZIONI (correctly identified 16 question-only exercises)
-- [x] **Provider-agnostic rate limiting tracker** ✅ (completed 2025-11-24)
-  - Sliding window algorithm (60-second windows)
-  - Thread-safe with persistent caching
-  - Works for ALL providers (anthropic, groq, ollama, openai, future)
-  - CLI command: `examina rate-limits`
-- [x] **Analysis Performance Optimization** ✅ (completed 2025-11-24)
-  - ✅ **Option 1 Complete**: Increased batch size (10 → 30) - 40% faster
-  - ✅ **Option 2 Complete**: Async/await with asyncio - 1.1-5x faster (v0.13.0)
-  - ✅ **Option 3 Complete**: Procedure pattern caching - 100% cache hit rate (v0.14.0)
-    - Embedding-based similarity matching with text validation
-    - Thread-safe for async/parallel analysis
-    - CLI command: `examina pattern-cache` (--stats, --build, --clear)
-    - 26.2 exercises/second with cached patterns
-  - **Remaining option (deferred to web):**
-    - ~~Option 4: Stream processing pipeline~~ → Moved to Phase 2 (Web API Layer)
-  - **Current performance**: 26+ ex/s with cache hits, 0.39-0.44 ex/s for new exercises
-  - **Recommendation**: Build cache first (`pattern-cache --build`), then analyze
-
-### Phase 6 - Multi-Core-Loop Support
-- [x] **Clean up orphaned core loops** - ✅ Added `--clean-orphans` flag to deduplicate command
-- [x] **Fix mis-categorized exercises** ✅ - Re-analyzed ADE course (B006802), created 123 exercise-core_loop linkages
-- [x] **Bilingual procedure deduplication** ✅ (completed 2025-11-24)
-  - LLM-based translation detection (ANY language pair)
-  - Removed 85 hardcoded translation pairs
-  - Automatic cross-language merging
-- [x] **Automatic language detection** ✅ (completed 2025-11-24)
-  - LLM-based language detection for procedures/topics
-  - ISO 639-1 code mapping
-  - Database columns: `language` in core_loops and topics
-  - CLI command: `examina detect-languages`
-- [x] **Strictly monolingual analysis mode** ✅ (completed 2025-11-24)
-  - Added `--monolingual` flag to analyze command
-  - Automatic primary language detection (from first 5 exercises)
-  - LLM-based procedure translation to primary language
-  - Prevents cross-language duplicate procedures
-  - All tests pass (4/4), fully documented
-
-### Phase 9 - Theory & Proof Support ✅ COMPLETED
-- [x] **Interactive proof practice mode** ✅ - Already implemented (`prove` command)
-- [x] **Tune theory detection threshold** ✅ (completed 2025-11-24)
-  - Lowered from 2 keywords → 1 keyword
-  - Added explicit prompt notes that 1 keyword is sufficient
-  - Expected to improve detection from 55% to 70%+
-- [x] Re-analyze existing exercises with Phase 9 detection ✅ (completed 2025-11-25)
-  - All existing exercises already have Phase 9 type detection applied
-  - 48 theory/hybrid exercises with categories detected
-- [x] Build theory concept dependency visualization ✅ (completed 2025-11-25)
-  - New CLI command: `examina concept-map --course CODE`
-  - Tree view of Topic → Core Loop hierarchy
-  - `--show-mastery` flag shows learning progress
-  - `--mermaid` flag outputs diagram format for rendering
-
-### Phase 10 - Learning Materials as First-Class Content 🚧 IN PROGRESS
-
-**Goal:** Lecture notes and slides become first-class learning materials, not forced into exercise format.
-
-**Design Document:** See [PHASE10_DESIGN.md](PHASE10_DESIGN.md) for complete design principles and contracts.
-
-**Conceptual Model:**
-- Topics / Core Loops → Abstract concepts ("FSM minimization", "Moore machine design")
-- Learning Materials → Theory sections, worked examples, references from notes/slides
-- Exercises → Practice problems / exam-style questions
-
-**Learning Flow:** Topic → theory → worked example → practice (default learning script, not optional)
-
-**Key Design Principles:**
-1. **Smart splitter = pure classifier** (segment/classify content, don't store)
-2. **Ingestion modes = document type** (`--material-type exams|notes` describes PDF, not algorithm)
-3. **Topic linking = symmetric treatment** (materials and exercises use same detection logic)
-4. **Tutor flow = explicit, configurable** (theory → example → practice is first-class, not "sometimes show notes")
-5. **Success = no regression + notes coverage** (exam pipeline unchanged, notes become usable)
-
-**Status:**
-
-- [x] **Database Schema** ✅ (completed 2025-11-24)
-  - `learning_materials` table (id, course_code, material_type, title, content, source_pdf, page_number)
-  - `material_topics` join table (many-to-many: materials ↔ topics)
-  - `material_exercise_links` table (link worked examples to practice exercises)
-  - Database methods: store, link, retrieve materials and relationships
-
-- [x] **Smart Splitter as Content Classifier** ✅ (completed 2025-11-24)
-  - Updated `_build_detection_prompt()` to classify as theory/worked_example/practice_exercise
-  - Updated `_parse_detection_response()` to return `DetectedContent` objects
-  - Updated `split_pdf_content()` to return BOTH exercises and learning_materials
-  - Pattern-based splitting preserved for structured exams (no regression)
-
-- [x] **Ingestion Mode: --material-type flag** ✅ (completed 2025-11-24)
-  - Added `--material-type exams|notes` flag to `ingest` command
-  - For `--material-type exams`: Pattern-based (default), optional `--smart-split`
-  - For `--material-type notes`: Smart splitting enabled automatically
-  - Stores learning_materials in database via new methods
-
-- [x] **Topic-Aware Material Linker** ✅ (completed 2025-11-24)
-  - `analyze_learning_material()` - mirrors exercise analysis
-  - `link_materials_to_topics()` - semantic matching to existing topics
-  - `link_worked_examples_to_exercises()` - similarity-based linking
-  - CLI command: `examina link-materials --course CODE`
-
-- [x] **Tutor: Theory → Worked Example → Practice Flow** ✅ (completed 2025-11-24)
-  - Enhanced `learn()` method with theory and worked example display
-  - Configurable parameters: show_theory, show_worked_examples, max_theory_sections, max_worked_examples
-  - Defaults from Config (SHOW_THEORY_BY_DEFAULT, MAX_THEORY_SECTIONS_IN_LEARN, etc.)
-  - Bilingual support (en/it) for theory and example display
-  - Graceful fallback when no materials exist
-
-**Refinements Completed (2025-11-24):**
-
-- [x] **Configuration System** ✅
-  - Added 7 Phase 10 config constants (LEARNING_MATERIALS_ENABLED, SHOW_THEORY_BY_DEFAULT, etc.)
-  - All configurable via environment variables
-  - Moved hardcoded 0.3 threshold to Config.WORKED_EXAMPLE_EXERCISE_SIMILARITY_THRESHOLD
-
-- [x] **Tutor Configurability** ✅
-  - Added show_theory, show_worked_examples, max_theory_sections, max_worked_examples parameters
-  - Theory → example → practice is default flow (not conditional)
-  - Documented in docstring and implementation
-
-- [x] **Database Method Enhancement** ✅
-  - Added limit parameter to get_learning_materials_by_topic()
-  - Tutor respects max limits when fetching materials
-
-**Design Constraints:**
-- ✅ No regression on existing exercise-based features (analysis, quiz, spaced repetition)
-- ✅ Default behavior for structured exams remains fast (pattern-based)
-- ✅ Smart splitting and learning materials are additive enhancements
-- ✅ Many-to-many relationships (materials ↔ topics, materials ↔ exercises)
-
-**Testing & Validation:**
-- [x] **End-to-End Testing** ✅ (completed 2025-11-24)
-  - Tested with 3-page Italian lecture notes (Appunti-AE-3pages.pdf)
-  - Successfully extracted 3 exercises, 20 materials (19 theory, 1 worked example)
-  - Verified Theory → LLM Explanation flow in learn command
-  - All design principles validated in production use
-  - See PHASE10_TESTING.md for detailed test results
-
-**Remaining Cleanup:**
-- [x] **Service Interface for SaaS Readiness** ✅ (completed 2025-11-24)
-  - Fixed hardcoded providers in CLI (cli.py:1196) and Tutor (tutor.py:37)
-  - Added consistent `--provider` flag to all commands (learn, prove, practice, etc.)
-  - Created stateless `ExaminaService` class wrapping core operations (core/service.py)
-  - Documented service interface for future web layer integration
-  - Goal achieved: Thin web layer can instantiate services with user preferences
+### Long-Term Goals
+- [ ] **Community Patterns** - Aggregate pattern data across users on same course/prof
+  - "Based on 47 students' uploads, Prof. Rossi loves FSM problems (89%)"
+  - Requires: privacy consent, enough user volume, anonymous aggregation
+  - Prerequisite: Multi-tenant web app with significant user base
 
 ---
 
-### Phase 11 - Provider Routing Architecture ✅ COMPLETED (2025-11-24)
+## Feature Tiers (Free vs Pro)
 
-**Goal:** Task-based routing to optimize cost and quality across different LLM providers.
-
-**Implementation:**
-
-- [x] **Task Type System** (`core/task_types.py`)
-  - Three task categories: BULK_ANALYSIS, INTERACTIVE, PREMIUM
-  - Different providers optimized for different use cases
-
-- [x] **Provider Router** (`core/provider_router.py`)
-  - Profile-based routing (Free/Pro/Local)
-  - Automatic fallback handling (API key missing only)
-  - Fail-fast design for transparency (no runtime fallback)
-
-- [x] **Provider Profiles** (`config/provider_profiles.yaml`)
-  - **Free:** DeepSeek for bulk, Groq for interactive, premium disabled
-  - **Pro:** DeepSeek for bulk, Anthropic for interactive/premium
-  - **Local:** Ollama only (privacy mode)
-
-- [x] **DeepSeek Integration**
-  - Added DeepSeek provider support (671B MoE model)
-  - $0.14/M tokens (10-20x cheaper than Anthropic)
-  - No rate limiting (high/unlimited RPM)
-  - Primary provider for bulk operations in Free/Pro profiles
-
-- [x] **CLI Integration**
-  - Added `--profile [free|pro|local]` flag to commands
-  - Backward compatible `--provider` flag still works
-  - Service layer supports both routing and direct provider usage
-
-- [x] **Testing & Validation**
-  - All routing tests pass (6/6 scenarios)
-  - Both profile-based and direct provider usage tested
-  - DeepSeek API verified working
-
-**Cost Impact:**
-- Bulk operations: 10-20x cost reduction vs Anthropic
-- Free tier sustainable with DeepSeek + Groq
-- Pro tier balances cost (DeepSeek bulk) + quality (Anthropic interactive)
-
-**Design Decisions:**
-- Fail-fast on provider failures (no silent fallback for cost/quality control)
-- Fallback only when API key missing (configuration issue, not runtime issue)
-- Profile-based routing encourages cost-aware usage patterns
-
----
-
-### Feature Tiers (Free vs Pro)
-
-**Design Decision:** Some features require significant LLM tokens and should be gated.
-
-**Free Tier Features:**
+**Free Tier:**
 - ✅ Exam ingestion (pattern-based splitting - no LLM)
 - ✅ Basic analysis (with procedure cache)
 - ✅ Quiz and learning modes
 - ✅ Progress tracking
 
-**Pro Tier Features:**
-- 📋 **Note/lecture ingestion** - Requires LLM-based smart splitting (high token cost)
-- 📋 **Advanced explanations** - Uses Anthropic for premium quality
-- 📋 **Unlimited analysis** - No rate limiting on bulk operations
-
-**Rationale:**
-- Notes are unstructured → require LLM to classify (theory/example/exercise)
-- Exams are structured → pattern-based splitting is free and fast
-- This keeps free tier sustainable while monetizing heavy LLM usage
+**Pro Tier:**
+- 📋 Note/lecture ingestion (LLM-based smart splitting)
+- 📋 Advanced explanations (Anthropic for premium quality)
+- 📋 Unlimited analysis (no rate limiting)
 
 ---
 
-## Future: Web Application Migration 🌐
+## Completed Phases (Archive)
 
-**IMPORTANT DESIGN PRINCIPLE:** All new code must be web-ready.
+<details>
+<summary>Phase 3 - AI Analysis ✅</summary>
 
-### Repository Strategy
+- Handle exam files with solutions (solution separator)
+- Provider-agnostic rate limiting tracker
+- Analysis Performance Optimization (26+ ex/s with cache)
+</details>
 
-**Two-Repo Architecture:**
+<details>
+<summary>Phase 6 - Multi-Core-Loop Support ✅</summary>
 
-#### 📂 Public Repo: `examina` (Current) - Open Source Tool
-**What stays here:**
-- ✅ CLI tool (`cli.py`)
-- ✅ Core analysis logic (`core/`, `storage/`, `models/`, `utils/`)
-- ✅ Local database (SQLite)
-- ✅ Local usage (BYO API keys)
-- ✅ MIT License (portfolio piece)
-- ✅ Documentation and examples
+- Clean up orphaned core loops
+- Bilingual procedure deduplication
+- Automatic language detection
+- Monolingual analysis mode
+</details>
 
-**Target audience:** Nerds, developers, power users, students who want to self-host
+<details>
+<summary>Phase 7 - Enhanced Learning System ✅</summary>
 
-**Value proposition:** "Run Examina locally for free with your own API keys"
+- Deep theory explanations with prerequisite concepts
+- Three depth levels (basic, medium, advanced)
+- Metacognitive learning strategies
+- Problem-solving frameworks (Polya, IDEAL, Feynman)
+- Interactive proof practice mode
+</details>
 
-#### 🔒 Private Repo: `examina-cloud` (Future) - SaaS Platform
-**What goes there:**
-- 🔐 Web app (frontend + backend API)
-- 🔐 Authentication and authorization
-- 🔐 Billing and subscription management
-- 🔐 Multi-user and team features
-- 🔐 Deployment scripts and infrastructure
-- 🔐 Monitoring, logging, and analytics
-- 🔐 Proprietary features and optimizations
+<details>
+<summary>Phase 9 - Theory & Proof Support ✅</summary>
 
-**Target audience:** Students who want convenience, non-technical users, institutions
+- Interactive proof practice mode (`prove` command)
+- Theory detection threshold tuning
+- Concept map visualization (`concept-map` command)
+</details>
 
-**Value proposition:** "Hosted Examina with accounts, payments, and polished UI"
+<details>
+<summary>Phase 10 - Learning Materials ✅</summary>
 
-### Migration Roadmap (Long-term)
+- Database schema for learning_materials
+- Smart splitter as content classifier
+- `--material-type exams|notes` flag
+- Topic-aware material linker
+- Tutor: Theory → Worked Example → Practice flow
+- Service interface for SaaS readiness
+</details>
 
-- [ ] **Phase 0: Repository Setup**
-  - Create private GitHub repo: `examina-cloud`
-  - Set up repo structure (frontend/, backend/, infrastructure/)
-  - Configure GitHub secrets (API keys, deployment configs)
-  - Set up dev environment (Docker, local dev stack)
-  - Invite team members (if any)
+<details>
+<summary>Phase 11 - Provider Routing ✅</summary>
 
-- [ ] **Phase 1: Core Library Extraction**
-  - Ensure all business logic is in `core/` (framework-agnostic)
-  - Create Python package: `examina-core` (installable via pip)
-  - Version and publish to PyPI (private or public)
-  - Private repo can import: `from examina_core import Analyzer, Tutor`
+- Task type system (BULK_ANALYSIS, INTERACTIVE, PREMIUM)
+- Provider router with profiles (Free/Pro/Local)
+- DeepSeek integration ($0.14/M tokens)
+- `--profile [free|pro|local]` flag
+</details>
 
-- [x] **Phase 2: API Layer** (Private Repo) ✅ IN PROGRESS
-  - [x] FastAPI REST API (examina-cloud/backend)
-  - [x] Wrap `examina-core` functions as API endpoints
-  - [x] JWT authentication (Phase 2.1)
-  - [ ] Rate limiting (per-user, not per-provider)
-  - [x] Multi-tenancy (user_id isolation)
-  - [x] **Phase 2.1: Core Setup** ✅ (2025-11-25)
-    - SQLAlchemy async models (User, Course, Topic, CoreLoop, Exercise, Quiz)
-    - JWT authentication middleware
-    - Dependency injection for Database, LLMManager
-    - Error handling and validation
-  - [x] **Phase 2.2: Read-Only Endpoints** ✅ (2025-11-25)
-    - GET /courses, /courses/{code}, /exercises, /progress
-  - [x] **Phase 2.3: Learning & Quiz** ✅ (2025-11-25)
-    - GET /learn/core-loop/{id}, /learn/practice
-    - POST /learn/practice/evaluate, /learn/generate
-    - POST /quiz/sessions, /quiz/sessions/{id}/answer, /quiz/sessions/{id}/complete
-  - [x] **Phase 2.4: Background Jobs** ✅ (2025-11-25)
-    - Celery + Redis for async task queue
-    - Background workers for PDF ingestion and analysis
-    - Job model and status tracking
-    - POST /ingest/upload, /analyze/start
-    - GET /jobs, /jobs/{id}
-    - Retry logic with exponential backoff
-  - [x] **Phase 2.5: Admin & Premium** ✅ (2025-11-25)
-    - [x] Step 1: Subscription model & schemas (foundation)
-    - [x] Step 2: Rate limiting infrastructure (Redis sliding window)
-    - [x] Step 3: Stripe integration service
-    - [x] Step 4: Billing endpoints (subscribe, portal, webhook)
-    - [x] Step 5: Admin endpoints (deduplicate, users, stats)
-    - [x] Step 6: Apply rate limits to LLM endpoints
+---
 
-- [ ] **Phase 2.5: UI/UX Design** (Figma)
-  - **Documentation:** See `examina-cloud/docs/` for design assets:
-    - [user-flow.md](../examina-cloud/docs/user-flow.md) - Guest-first UX flow, conversion triggers
-    - [figma-prompts.md](../examina-cloud/docs/figma-prompts.md) - Design philosophy + screen prompts
-  - **Design philosophy:** "Calm exam lab with warm soul" - reverse-engineering prof's patterns
-  - **Pattern frequency strategy:**
-    - Single exam: "Dominates this exam (5/8 exercises)" - within-exam frequency
-    - Multi exam: "Seen in 4/6 past exams" - cross-exam frequency
-    - Ghost state: "Upload more exams to see year-over-year patterns"
-  - [ ] Community patterns (future): Aggregate across users on same course/prof
-  - Create comprehensive Figma AI prompt covering all features:
-    - Course management (add, list, view info, concept map)
-    - Content ingestion (upload exams, notes, progress tracking)
-    - Analysis dashboard (progress, weak areas, patterns)
-    - Interactive learning (adaptive tutor, quiz, proof practice)
-    - Progress visualization (mastery levels, spaced repetition schedule)
-  - Define style options:
-    - **Academic/Professional** - Clean, minimal, focus on content
-    - **Gamified** - Progress bars, achievements, streaks
-    - **Modern SaaS** - Dashboard-centric, metrics-heavy
-  - Generate component library (buttons, cards, forms, charts)
-  - Create user flows for key journeys:
-    - New user onboarding → first course → first quiz
-    - Returning user → review session → progress check
-  - Mobile-responsive layouts
+## Web Migration
 
-- [ ] **Phase 3: Frontend** (Private Repo)
-  - React/Vue web UI (based on Figma designs)
-  - File upload and PDF processing
-  - Interactive quiz interface
-  - Progress dashboards
-  - Payment integration (Stripe/Paddle)
-  - **i18n:** Auto-detect language (Italian for IT users, English for rest)
-    - Browser locale detection + manual toggle
-    - All UI strings in translation files
-    - Landing page, dashboard, quiz UI bilingual
-    - [ ] Translate Figma designs from English to Italian (Claude can help)
-    - [ ] Create `en.json` / `it.json` translation files
+See `examina-cloud/TODO.md` for:
+- Phase 2: API Layer ✅ (mostly complete)
+- Phase 3: Frontend (React)
+- Phase 4: Database Migration
+- Phase 5: Deployment
 
-- [ ] **Phase 4: Database Migration** (Private Repo)
-  - User accounts system
-  - PostgreSQL with user_id foreign keys
-  - Data isolation per user
-  - Migration tools from SQLite (for self-hosted users)
-
-- [ ] **Phase 5: Deployment** (Private Repo)
-  - Docker containers
-    - ~~**Known issue:** Import errors in rate_limiter.py~~ ✅ Fixed
-    - **Known issue:** examina-core packaging - `from config import Config` fails when installed as package (needs proper package structure)
-  - Kubernetes/AWS ECS
-  - CI/CD pipeline (GitHub Actions)
-  - Monitoring (Sentry, DataDog)
-  - CDN for static assets
-
-### Web-Ready Design Guidelines
-
-**All new code MUST follow these principles:**
-
-1. **No Hardcoding** ✓ 
-   - No hardcoded course codes, provider names, or configuration
-   - All settings via environment variables or database
-
-2. **Separation of Concerns**
-   - Business logic in `core/` (reusable in web)
-   - CLI-specific code in `cli.py` only
-   - Database operations in `storage/` (abstract layer)
-
-3. **Stateless Operations**
-   - No global state or singletons
-   - Pass dependencies explicitly (dependency injection)
-   - Functions should be pure where possible
-
-4. **Multi-User Ready**
-   - Plan for `user_id` column in tables
-   - Avoid assumptions of single-user
-   - Consider data isolation and permissions
-
-5. **Async-Friendly**
-   - Avoid blocking operations where possible
-   - Consider async/await patterns
-   - Use connection pooling for databases
-
-6. **API-First Thinking**
-   - Functions should accept/return structured data (dicts, dataclasses)
-   - Avoid print() - use proper logging
-   - Return error codes, not sys.exit()
-
-## Long-Term Goals
-
-- [ ] **Community Patterns** - Aggregate pattern data across users on same course/prof
-  - "Based on 47 students' uploads, Prof. Rossi loves FSM problems (89%)"
-  - Requires: privacy consent, enough user volume, anonymous aggregation
-  - Massive moat once achieved - competitors can't replicate
-  - Prerequisite: Multi-tenant web app with significant user base
-
-## Low Priority / Future
-
-- [x] Language detection for procedures ✅ - Already implemented in Phase 6 (detect-languages, --monolingual)
-- [ ] Concept normalization - Minor: some topics use underscores vs spaces (cosmetic, doesn't affect functionality)
-- [ ] Interactive merge review for deduplication - Manual approve/reject (web feature)
-- [ ] Merge history tracking - Allow undo operations (web feature)
-- [x] Core loop similarity tuning ✅ - Reviewed: 9 similar names are legitimate distinct procedures (e.g., POS vs SOP minimization)
-
-## Known Issues
-
-- **Groq rate limit**: Free tier (30 req/min) prevents analyzing large courses in one run
-- **API timeouts**: Enhanced learn with prerequisites may timeout - use `--no-concepts` flag
-- **Topic splitting**: `--delete-old` may fail due to foreign key constraints if topic has references
+---
 
 ## Notes
 
-For completed phases and detailed implementation history, see [CHANGELOG.md](CHANGELOG.md).
+For detailed implementation history, see [CHANGELOG.md](CHANGELOG.md).
