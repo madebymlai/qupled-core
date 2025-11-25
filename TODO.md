@@ -1,5 +1,7 @@
 # Examina - TODO
 
+> `[ ]` = pending, `[x]` = complete, `📋` = planned
+
 > CLI tool and examina-core library tasks. For web app, see `examina-cloud/TODO.md`
 
 ## ✅ Completed: Business Logic Extraction (v0.15.0)
