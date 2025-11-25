@@ -17,16 +17,6 @@
 
 ## Pending
 
-### For Web Features (examina-cloud)
-
-> Backend features that need examina-core support
-
-- [ ] **Source Type Classifier** - LLM-based detection of document type
-  - Types: `exam | exercise_sheet | homework` (notes have separate Pro upload screen)
-  - Input: First 3-5 pages only (header/footer usually sufficient)
-  - Output: type + confidence score
-  - Used by: examina-cloud `/ingest/detect-type` endpoint
-
 ### Known Issues
 - **Groq rate limit**: Free tier (30 req/min) prevents analyzing large courses in one run
 - **API timeouts**: Enhanced learn with prerequisites may timeout - use `--no-concepts` flag
@@ -56,7 +46,6 @@
 
 **Pro Tier:**
 - 📋 Note/lecture ingestion (smart splitting with LLM, 50 page limit)
-- 📋 Source type auto-detection (exam vs exercise_sheet vs homework)
 - 📋 Advanced explanations (Anthropic for premium quality)
 - 📋 Unlimited analysis (no rate limiting)
 
