@@ -320,13 +320,13 @@ Respond in JSON format with:
   "confidence": 0.0-1.0,  // your confidence in this analysis
   "procedures": [  // ALL distinct procedures/algorithms required (NEW: can be multiple!)
     {{
-      "name": "procedure name",  // e.g., "Mealy Machine Design", "SOP to POS Conversion"
+      "name": "procedure name",  // e.g., "[Entity] Design", "[Entity A] to [Entity B] Conversion"
       "type": "design|transformation|verification|minimization|analysis|other",
       "steps": ["step 1", "step 2", ...],  // solving steps for this procedure
       "point_number": 1,  // which numbered point (1, 2, 3, etc.) - null if not applicable
       "transformation": {{  // ONLY if type=transformation
-        "source_format": "format name",  // e.g., "Mealy Machine", "SOP"
-        "target_format": "format name"   // e.g., "Moore Machine", "POS"
+        "source_format": "format name",  // source entity/format from exercise
+        "target_format": "format name"   // target entity/format from exercise
       }}
     }}
   ],
@@ -339,8 +339,8 @@ Respond in JSON format with:
     "requires_explanation": true/false
   }},
   "theory_category": "definition|theorem|axiom|property|explanation|derivation|concept|null",  // Phase 9.2: Theory category
-  "theorem_name": "specific theorem name if asking about a theorem",  // Phase 9.2: e.g., "Teorema di Diagonalizzazione"
-  "concept_id": "normalized_concept_id",  // Phase 9.2: e.g., "autovalori_autovettori"
+  "theorem_name": "specific theorem name if asking about a theorem",  // Phase 9.2: exact name from exercise
+  "concept_id": "normalized_concept_id",  // Phase 9.2: snake_case version of concept name
   "prerequisite_concepts": ["concept_id_1", "concept_id_2"]  // Phase 9.2: concepts needed to understand this
 }}
 
@@ -386,7 +386,7 @@ MULTI-PROCEDURE DETECTION:
 - Each distinct procedure should have its own entry in "procedures" array
 - Set "point_number" to indicate which numbered point it belongs to
 - If exercise requires multiple procedures (e.g., "design AND verify"), list ALL of them
-- For transformations/conversions (Mealy→Moore, SOP→POS, etc.), set type="transformation" and fill "transformation" object
+- For transformations/conversions (A→B, X→Y, etc.), set type="transformation" and fill "transformation" object
 
 PROCEDURE NAMING (CRITICAL - be specific, not generic!):
 Procedure names must include the SPECIFIC ENTITY being acted upon, not category/topic names.
@@ -2069,16 +2069,15 @@ TOPIC NAMING RULES (CRITICAL):
 
 MATERIAL TYPE CLASSIFICATION:
 - **theory**: Definitions, theorems, explanations, conceptual content
-  * Examples: "Definition of eigenvalues", "Properties of vector spaces"
+  * Contains definitions, properties, explanations without computations
   * No step-by-step computations
 
 - **worked_example**: Step-by-step solution showing how to solve a problem
-  * Examples: "Computing eigenvalues of a matrix", "Designing a Mealy machine"
-  * Shows the execution of a procedure/algorithm
+  * Shows the execution of a procedure/algorithm with steps
   * Should identify the procedure and extract steps
 
 - **reference**: Tables, formulas, reference material without explanations
-  * Examples: "Table of Fourier transforms", "Formula sheet"
+  * Summary tables, formula sheets, quick reference content
 
 Respond ONLY with valid JSON, no other text.
 """
