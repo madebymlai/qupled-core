@@ -423,77 +423,67 @@ CAN BE MERGED (same procedure, name variations):
 - Same algorithm with abbreviation: Full name = common abbreviation
 
 EXERCISE TYPE CLASSIFICATION (Phase 9.1):
+Classify based on WHAT the exercise asks the student to do. Use your language understanding - these patterns apply in ANY language.
+
 - **procedural**: Exercise requires applying an algorithm/procedure to solve a problem
-  * Pattern: "Design...", "Calculate...", "Solve...", "Convert...", "Implement..."
+  * Asks to design, calculate, solve, convert, implement, construct, build, compute
   * Has clear input → process → output structure
   * Focuses on HOW to solve (execution of steps)
 
 - **theory**: Exercise asks for definitions, explanations, or conceptual understanding
-  * Pattern: "Define...", "What is...", "Explain...", "Describe..."
+  * Asks to define, explain, describe, state what something is, clarify a concept
   * Asks for understanding, not computation
   * No procedural work required
-  * NOTE: Even ONE theory keyword (define, explain, what is, etc.) is sufficient to classify as theory
 
 - **proof**: Exercise requires proving a theorem, property, or statement
-  * KEYWORDS to detect (Italian): "dimostra", "dimostrare", "dimostrazione", "provare", "prova che"
-  * KEYWORDS to detect (English): "prove", "proof", "show that", "demonstrate that", "verify that"
+  * Asks to prove, demonstrate, show that something is true, verify a property
   * Requires logical reasoning and mathematical proof structure
   * May ask to prove theorems, properties, or general statements
 
-- **hybrid**: Exercise combines multiple types (e.g., prove something AND apply it to compute)
-  * Has both procedural and theory/proof components
-  * Pattern: "Prove... and then use it to..."
+- **hybrid**: Exercise combines multiple types
+  * Has both procedural AND theory/proof components
+  * Example: "Prove X, then use it to calculate Y"
 
-PROOF KEYWORD DETECTION:
-- Scan the exercise text for proof keywords in BOTH Italian and English
-- If found, classify as "proof" or "hybrid" (if also has procedural component)
-- Store detected keywords in "proof_keywords" array
-- Set type_confidence higher (0.9+) when proof keywords are explicitly present
+IMPORTANT: Detect exercise type from semantic meaning, not keyword matching. The LLM understands all languages.
 
 THEORY QUESTION CATEGORIZATION (Phase 9.2):
 For exercises with exercise_type="theory" or "hybrid", categorize into specific theory categories.
-NOTE: Presence of even ONE theory keyword from any category below is sufficient for classification.
+Detect category from semantic meaning - the LLM understands all languages.
 
 **definition**: Asks for a formal definition of a concept, term, or object
-  * Keywords (IT): "definisci", "definizione", "cos'è", "cosa si intende per"
-  * Keywords (EN): "define", "definition", "what is", "what does ... mean"
-  * Pattern: "Give the definition of X"
-  * Set concept_id to normalized name of the concept
+  * Asks WHAT something IS (not how it works or why)
+  * Requests a precise, formal characterization
+  * Set concept_id to normalized name of the concept being defined
 
 **theorem**: Asks to state, explain, or apply a specific theorem
-  * Keywords (IT): "enunciare", "teorema", "enunciato"
-  * Keywords (EN): "state the theorem", "theorem", "proposition"
-  * Pattern: "State theorem X", "Explain theorem Y"
+  * References a named theorem, proposition, or lemma
+  * Asks to state the content of a known mathematical/scientific result
   * Set theorem_name to specific theorem name
   * Set concept_id to theorem identifier
 
 **axiom**: Asks about axioms, postulates, or fundamental properties
-  * Keywords (IT): "assioma", "assiomi", "proprietà fondamentale", "postulato"
-  * Keywords (EN): "axiom", "axioms", "postulate", "fundamental property"
-  * Pattern: "List the axioms of X"
+  * Asks about foundational assumptions that are accepted without proof
+  * Refers to starting points or basic principles of a system
   * Set concept_id to axiom system
 
 **property**: Asks about properties, characteristics, or conditions
-  * Keywords (IT): "proprietà", "caratteristica", "condizione"
-  * Keywords (EN): "property", "characteristic", "condition"
-  * Pattern: "What properties does X have?"
+  * Asks what attributes or characteristics something has
+  * Focuses on features, qualities, or conditions that hold
   * Set concept_id to property being discussed
 
 **explanation**: Asks to explain HOW or WHY something works
-  * Keywords (IT): "spiega", "spiegare", "come funziona", "perché", "illustra"
-  * Keywords (EN): "explain", "how does", "why", "illustrate", "describe how"
-  * Pattern: "Explain how X works", "Why does Y happen?"
+  * Asks for understanding of mechanisms or causation
+  * Requires describing a process or reasoning
   * Set concept_id to concept being explained
 
 **derivation**: Asks to derive or show how to obtain a result
-  * Keywords (IT): "deriva", "derivare", "come si ottiene", "ricava"
-  * Keywords (EN): "derive", "obtain", "show how to get"
-  * Pattern: "Derive formula X", "Show how to obtain Y"
+  * Asks to show the steps to arrive at a formula or result
+  * Requires mathematical manipulation to obtain something
   * Set concept_id to formula/result being derived
 
 **concept**: General conceptual question not fitting other categories
   * Use for understanding checks, conceptual comparisons, relationships
-  * Pattern: "What is the relationship between X and Y?"
+  * Asks about relationships between concepts
   * Set concept_id to main concept discussed
 
 PREREQUISITE CONCEPT DETECTION (CRITICAL - for ALL exercise types):
@@ -2385,7 +2375,7 @@ Respond ONLY with valid JSON, no other text.
             return True
 
         # Check if topic is main words from course name
-        # e.g., "Algebra Lineare" contains "Algebra"
+        # e.g., course "Topic A B" contains topic "Topic A"
         course_words = set(course_norm.split())
         topic_words = set(topic_norm.split())
 
