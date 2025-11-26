@@ -388,6 +388,20 @@ MULTI-PROCEDURE DETECTION:
 - If exercise requires multiple procedures (e.g., "design AND verify"), list ALL of them
 - For transformations/conversions (Mealy→Moore, SOP→POS, etc.), set type="transformation" and fill "transformation" object
 
+PROCEDURE NAMING (CRITICAL - be specific, not generic!):
+Procedure names must include the SPECIFIC ENTITY being acted upon, not category/topic names.
+
+Pattern: [Action Type] + [Specific Entity from Exercise Text]
+
+How to identify the entity:
+1. Find the concrete noun in the exercise that the action operates on
+2. It should be a specific name that appears in the exercise text
+3. NOT a broad category that could contain multiple different things
+
+Test: "Does this exact name appear in the exercise as the thing being worked on?"
+- YES → Use it in the procedure name
+- NO → You're using a category name, look for the actual entity
+
 PROCEDURE IDENTITY RULES (CRITICAL - when to keep separate vs merge):
 Two procedures are THE SAME if they:
 - Solve the EXACT same problem type with the SAME algorithm
