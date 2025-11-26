@@ -106,7 +106,7 @@ class ExerciseAnalyzer:
 
         Args:
             llm_manager: LLM manager instance
-            language: Output language for analysis ("en" or "it")
+            language: Output language for analysis (any ISO 639-1 code, e.g., "en", "de", "zh")
             monolingual: Enable strictly monolingual mode (all procedures in single language)
             procedure_cache: Optional ProcedureCache instance for pattern caching (Option 3 optimization)
         """
@@ -151,6 +151,18 @@ class ExerciseAnalyzer:
                 print("[INFO] Semantic matching not available, using string similarity")
             else:
                 print("[INFO] Semantic matching disabled in config, using string similarity")
+
+    def _language_instruction(self, action: str = "Respond") -> str:
+        """Generate dynamic language instruction for any language."""
+        return f"{action} in {self.language.upper()} language."
+
+    def _lang_instruction(self) -> str:
+        """Generate language instruction phrase for any language."""
+        return f"in {self.language.upper()} language"
+
+    def _language_name(self) -> str:
+        """Get full language name for prompts."""
+        return self.language.upper()
 
     def analyze_exercise(self, exercise_text: str, course_name: str,
                         previous_exercise: Optional[str] = None,
@@ -293,14 +305,9 @@ Does this exercise appear to be a continuation or sub-part of the previous one?
         if existing_context:
             base_prompt += self._build_context_section(existing_context)
 
-        # Add language instruction
-        language_instruction = {
-            "it": "IMPORTANTE: Rispondi in ITALIANO. Tutti i nomi di topic, procedure e step devono essere in italiano.",
-            "en": "IMPORTANT: Respond in ENGLISH. All topic names, procedures and steps must be in English."
-        }
-
+        # Add language instruction (supports any ISO 639-1 language)
         base_prompt += f"""
-{language_instruction.get(self.language, language_instruction["en"])}
+IMPORTANT: {self._language_instruction("Respond")} All topic names, procedures and steps must be in {self._language_name()} language.
 
 Respond in JSON format with:
 {{
@@ -672,8 +679,8 @@ CONTEXT RULES (CRITICAL):
             Primary language code (e.g., "english", "italian")
         """
         if not self.translation_detector:
-            # Fallback to analysis language if no detector
-            return "english" if self.language == "en" else "italian"
+            # Fallback to analysis language if no detector (supports any language)
+            return self.language
 
         # Sample first few exercises to detect language
         sample_size = min(5, len(exercises))
@@ -694,10 +701,9 @@ CONTEXT RULES (CRITICAL):
             print(f"[INFO] Detected primary course language: {primary_lang} (from {sample_size} exercises)")
             return primary_lang
         else:
-            # Fallback to analysis language
-            fallback = "english" if self.language == "en" else "italian"
-            print(f"[INFO] Could not detect language, using fallback: {fallback}")
-            return fallback
+            # Fallback to analysis language (supports any language)
+            print(f"[INFO] Could not detect language, using fallback: {self.language}")
+            return self.language
 
     def _translate_procedure(self, procedure_info: ProcedureInfo, target_language: str) -> ProcedureInfo:
         """Translate a procedure to target language.
@@ -2007,12 +2013,6 @@ No markdown code blocks, just JSON."""
         Returns:
             Prompt string
         """
-        # Language instruction
-        language_instruction = {
-            "it": "IMPORTANTE: Rispondi in ITALIANO. Tutti i nomi di topic devono essere in italiano.",
-            "en": "IMPORTANT: Respond in ENGLISH. All topic names must be in English."
-        }
-
         prompt = f"""You are analyzing learning materials (theory or worked examples) for the course: {course_name}.
 
 Your task is to analyze this material and determine:
@@ -2025,7 +2025,7 @@ MATERIAL TEXT:
 {material_text[:3000]}
 ```
 
-{language_instruction.get(self.language, language_instruction["en"])}
+IMPORTANT: {self._language_instruction("Respond")} All topic names must be in {self._language_name()} language.
 
 Respond in JSON format with:
 {{
@@ -2411,7 +2411,6 @@ Respond ONLY with valid JSON, no other text.
             ])
 
             # Build clustering prompt
-            lang_instruction = "in Italian" if self.language == "it" else "in English"
             prompt = f"""You are analyzing core loops (procedural problem-solving patterns) from the topic "{topic_name}".
 
 These {len(core_loops)} core loops are currently grouped together but are too diverse.
@@ -2423,7 +2422,7 @@ Core loops to cluster:
 Requirements:
 - Create {Config.TOPIC_CLUSTER_MIN}-{Config.TOPIC_CLUSTER_MAX} clusters
 - Each core loop must appear in exactly ONE cluster
-- Give each cluster a specific, descriptive topic name {lang_instruction}
+- Give each cluster a specific, descriptive topic name {self._lang_instruction()}
 - Topic names should reflect the mathematical/algorithmic concept, NOT be generic
 - Group by semantic similarity (what concepts/techniques are being practiced)
 

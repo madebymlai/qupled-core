@@ -30,12 +30,12 @@
 - [ ] Interactive merge review for deduplication - Manual approve/reject (web feature)
 - [ ] Merge history tracking - Allow undo operations (web feature)
 
-### Multilanguage Support
-> Initial support: Italian/English. Architecture should support adding languages easily.
-- [ ] Add `--language` flag for CLI output language (it/en)
-- [ ] Store detected language in exercise metadata
-- [ ] Localize AI prompts based on exercise language
-- [ ] Export language-aware explanations
+### Multilanguage Support ✅
+> Supports ANY language via dynamic LLM prompts. No hardcoded language restrictions.
+- [x] Add `--language` flag for CLI output language (any ISO 639-1 code)
+- [x] Store detected language in exercise metadata
+- [x] Dynamic AI prompts - LLM outputs in requested language
+- [x] Language-agnostic architecture (no hardcoded translations)
 
 ### Long-Term Goals
 - [ ] **Community Patterns** - Aggregate pattern data across users on same course/prof

@@ -32,7 +32,7 @@ class Tutor:
 
         Args:
             llm_manager: LLM manager instance
-            language: Output language ("en" or "it")
+            language: Output language (any ISO 639-1 code, e.g., "en", "de", "zh")
         """
         self.llm = llm_manager or LLMManager(provider=Config.LLM_PROVIDER)
         self.language = language
@@ -40,6 +40,18 @@ class Tutor:
         self.strategy_manager = StudyStrategyManager(language=language)
         self.proof_tutor = ProofTutor(llm_manager=self.llm, language=language)
         self.metacognitive = MetacognitiveStrategies()
+
+    def _language_instruction(self, action: str = "Respond") -> str:
+        """Generate dynamic language instruction for any language.
+
+        Args:
+            action: The action verb (e.g., "Respond", "Create", "Explain")
+
+        Returns:
+            Language instruction string that works for any ISO 639-1 code
+        """
+        # LLM understands any ISO 639-1 language code
+        return f"{action} in {self.language.upper()} language."
 
     def learn(self, course_code: str,
               core_loop_id: str,
@@ -447,12 +459,7 @@ class Tutor:
     def _build_learn_prompt(self, core_loop: Dict[str, Any],
                            examples: List[Dict[str, Any]]) -> str:
         """Build prompt for learning explanation."""
-        language_instruction = {
-            "it": "Rispondi in ITALIANO.",
-            "en": "Respond in ENGLISH."
-        }
-
-        prompt = f"""{language_instruction.get(self.language, language_instruction["en"])}
+        prompt = f"""{self._language_instruction("Respond")}
 
 You are an AI tutor helping students learn problem-solving procedures.
 
@@ -479,11 +486,6 @@ Make it pedagogical and clear for students learning this for the first time.
                                      examples: List[Dict[str, Any]],
                                      depth: str = "medium") -> str:
         """Build enhanced prompt with deep WHY reasoning."""
-        language_instruction = {
-            "it": "Rispondi in ITALIANO.",
-            "en": "Respond in ENGLISH."
-        }
-
         depth_instructions = {
             "basic": "Keep explanations simple and concise. Focus on the core concepts.",
             "medium": "Provide balanced explanations with WHY reasoning and practical examples.",
@@ -492,7 +494,7 @@ Make it pedagogical and clear for students learning this for the first time.
 
         depth_instruction = depth_instructions.get(depth, depth_instructions["medium"])
 
-        prompt = f"""{language_instruction.get(self.language, language_instruction["en"])}
+        prompt = f"""{self._language_instruction("Respond")}
 
 You are an expert educator helping students DEEPLY understand a problem-solving procedure.
 
@@ -542,16 +544,11 @@ Guidelines:
     def _build_evaluation_prompt(self, exercise_text: str, user_answer: str,
                                  procedure: Optional[str], provide_hints: bool) -> str:
         """Build prompt for answer evaluation."""
-        language_instruction = {
-            "it": "Rispondi in ITALIANO.",
-            "en": "Respond in ENGLISH."
-        }
-
         hint_instruction = ""
         if provide_hints:
             hint_instruction = "\n3. Provide progressive hints to guide them toward the solution"
 
-        prompt = f"""{language_instruction.get(self.language, language_instruction["en"])}
+        prompt = f"""{self._language_instruction("Respond")}
 
 You are an AI tutor evaluating a student's answer.
 
@@ -577,12 +574,7 @@ Respond in a friendly, pedagogical tone.
                                  examples: List[Dict[str, Any]],
                                  difficulty: str) -> str:
         """Build prompt for exercise generation."""
-        language_instruction = {
-            "it": "Crea un esercizio in ITALIANO.",
-            "en": "Create an exercise in ENGLISH."
-        }
-
-        prompt = f"""{language_instruction.get(self.language, language_instruction["en"])}
+        prompt = f"""{self._language_instruction("Create an exercise")}
 
 You are creating a new practice exercise.
 

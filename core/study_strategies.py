@@ -25,7 +25,7 @@ class StudyStrategyManager:
         Initialize the study strategy manager.
 
         Args:
-            language: Output language ("en" or "it")
+            language: Output language (any ISO 639-1 code, e.g., "en", "de", "zh")
         """
         self.language = language
         self.llm_manager = None
@@ -38,6 +38,10 @@ class StudyStrategyManager:
         except Exception as e:
             print(f"[ERROR] Could not initialize LLM manager: {e}")
             raise RuntimeError("LLM manager required for strategy generation")
+
+    def _lang_instruction(self) -> str:
+        """Generate language instruction phrase for any language."""
+        return f"in {self.language.upper()} language"
 
     def get_strategy_for_core_loop(self, core_loop_name: str, difficulty: str = "medium") -> Optional[Dict]:
         """
@@ -174,8 +178,6 @@ class StudyStrategyManager:
 
     def _build_strategy_generation_prompt(self, core_loop_name: str, difficulty: str) -> str:
         """Build prompt for LLM to generate study strategy."""
-        lang_instruction = "in Italian" if self.language == "it" else "in English"
-
         return f"""Generate a comprehensive study strategy for learning "{core_loop_name}" at {difficulty} difficulty level.
 
 Output a JSON structure with these exact fields:
@@ -223,7 +225,7 @@ Output a JSON structure with these exact fields:
 }}
 
 Requirements:
-- All text {lang_instruction}
+- All text {self._lang_instruction()}
 - Focus on HOW to learn and think about the problem, not just WHAT
 - Include metacognitive strategies (self-questioning, monitoring understanding)
 - Make tips actionable and specific to {core_loop_name}

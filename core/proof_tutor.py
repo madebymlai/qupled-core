@@ -92,10 +92,18 @@ class ProofTutor:
 
         Args:
             llm_manager: LLM manager instance
-            language: Output language ("en" or "it")
+            language: Output language (any ISO 639-1 code, e.g., "en", "de", "zh")
         """
         self.llm = llm_manager or LLMManager(provider="anthropic")
         self.language = language
+
+    def _language_instruction(self, action: str = "Respond") -> str:
+        """Generate dynamic language instruction for any language."""
+        return f"{action} in {self.language.upper()} language."
+
+    def _lang_instruction(self) -> str:
+        """Generate language instruction phrase for any language."""
+        return f"in {self.language.upper()} language"
 
     def is_proof_exercise(self, exercise_text: str) -> bool:
         """Check if exercise is a proof question.
@@ -148,12 +156,7 @@ class ProofTutor:
         Returns:
             ProofAnalysis with proof structure
         """
-        language_instruction = {
-            "it": "Rispondi in ITALIANO.",
-            "en": "Respond in ENGLISH."
-        }
-
-        prompt = f"""{language_instruction.get(self.language, language_instruction["en"])}
+        prompt = f"""{self._language_instruction("Respond")}
 
 You are an expert mathematics and computer science educator analyzing a proof exercise.
 
@@ -258,12 +261,7 @@ Respond in JSON format:
         # Get proof technique info
         technique = self.PROOF_TECHNIQUES.get(analysis.technique_suggested)
 
-        language_instruction = {
-            "it": "Rispondi in ITALIANO.",
-            "en": "Respond in ENGLISH."
-        }
-
-        prompt = f"""{language_instruction.get(self.language, language_instruction["en"])}
+        prompt = f"""{self._language_instruction("Respond")}
 
 You are an expert educator teaching a student how to approach and solve a PROOF exercise.
 
@@ -362,11 +360,6 @@ Make your explanation clear, pedagogical, and mathematically rigorous while rema
         # Analyze the proof
         analysis = self.analyze_proof(course_code, exercise_text)
 
-        language_instruction = {
-            "it": "Rispondi in ITALIANO.",
-            "en": "Respond in ENGLISH."
-        }
-
         hint_instruction = ""
         if provide_hints:
             hint_instruction = """
@@ -376,7 +369,7 @@ If the proof has errors, provide progressive hints:
 - Hint 3: Suggest the correct approach
 """
 
-        prompt = f"""{language_instruction.get(self.language, language_instruction["en"])}
+        prompt = f"""{self._language_instruction("Respond")}
 
 You are an expert educator evaluating a student's proof.
 
@@ -537,15 +530,13 @@ Be encouraging but rigorous. Focus on helping the student learn, not just gradin
         Returns:
             Dictionary with steps and guidance
         """
-        lang_instruction = "in Italian" if self.language == "it" else "in English"
-
         prompt = f"""Provide step-by-step guidance for proving this statement using {technique} proof.
 
 Exercise: {exercise_text}
 
 Proof Technique: {technique}
 
-Provide a structured outline of proof steps ({lang_instruction}):
+Provide a structured outline of proof steps ({self._lang_instruction()}):
 1. What to assume/start with
 2. Key logical steps to take
 3. What definitions/theorems to use
@@ -592,15 +583,13 @@ Each step should guide thinking, not provide complete answers.
         Returns:
             Hint text
         """
-        lang_instruction = "in Italian" if self.language == "it" else "in English"
-
         prompt = f"""Provide a helpful hint for step {step_number} of this proof.
 
 Exercise: {exercise_text}
 Technique: {technique}
 Step: {step_number}
 
-Give a hint that helps the student think through this step without giving away the answer ({lang_instruction}).
+Give a hint that helps the student think through this step without giving away the answer ({self._lang_instruction()}).
 The hint should:
 - Point to relevant definitions or theorems
 - Suggest what to consider or look for
@@ -630,15 +619,13 @@ Keep it brief (2-3 sentences).
         Returns:
             Full proof in markdown format
         """
-        lang_instruction = "in Italian" if self.language == "it" else "in English"
-
         prompt = f"""Provide a complete, rigorous proof for this statement using {technique} proof.
 
 Exercise: {exercise_text}
 
 Proof Technique: {technique}
 
-Provide a complete formal proof ({lang_instruction}) with:
+Provide a complete formal proof ({self._lang_instruction()}) with:
 1. Clear statement of what we're proving
 2. Setup (definitions, assumptions, given information)
 3. Step-by-step proof with justifications

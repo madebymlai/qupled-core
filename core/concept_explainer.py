@@ -234,10 +234,14 @@ class ConceptExplainer:
 
         Args:
             llm_manager: LLM manager for generating explanations
-            language: Output language (en or it)
+            language: Output language (any ISO 639-1 code, e.g., "en", "de", "zh")
         """
         self.llm = llm_manager or LLMManager(provider="anthropic")
         self.language = language
+
+    def _language_instruction(self, action: str = "Respond") -> str:
+        """Generate dynamic language instruction for any language."""
+        return f"{action} in {self.language.upper()} language."
 
     def get_prerequisites(self, core_loop_name: str) -> List[Concept]:
         """Get prerequisite concepts for a core loop.
@@ -382,18 +386,13 @@ class ConceptExplainer:
         Returns:
             Deep explanation with WHY reasoning
         """
-        language_instruction = {
-            "it": "Rispondi in ITALIANO.",
-            "en": "Respond in ENGLISH."
-        }
-
         prerequisites = self.get_prerequisites(core_loop_name)
         prereq_context = ""
         if prerequisites:
             prereq_names = [c.name for c in prerequisites if c.importance == 1]
             prereq_context = f"\nPrerequisite concepts: {', '.join(prereq_names)}"
 
-        prompt = f"""{language_instruction.get(self.language, language_instruction["en"])}
+        prompt = f"""{self._language_instruction("Respond")}
 
 You are an expert educator explaining a technical procedure to students.
 
