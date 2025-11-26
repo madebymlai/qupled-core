@@ -4,19 +4,6 @@
 
 > CLI tool and examina-core library tasks. For web app, see `examina-cloud/TODO.md`
 
-## ✅ Completed: Business Logic Extraction (v0.15.0)
-
-- [x] Create core/dto/mastery.py - DTOs for mastery calculation
-- [x] Create core/dto/progress.py - DTOs for progress tracking
-- [x] Create core/ports/mastery_repository.py - Abstract interface
-- [x] Create core/progress_analyzer.py - Database-agnostic business logic
-- [x] Create core/answer_evaluator.py - Unified answer evaluation
-- [x] Add tests/test_progress_analyzer.py - 23 unit tests
-- [x] Add tests/test_answer_evaluator.py - 17 unit tests
-- [x] Shadow mode rollout complete (2025-11-25)
-
----
-
 ## Pending
 
 ### Known Issues
@@ -29,13 +16,6 @@
 - [ ] Concept normalization - Minor: some topics use underscores vs spaces (cosmetic)
 - [ ] Interactive merge review for deduplication - Manual approve/reject (web feature)
 - [ ] Merge history tracking - Allow undo operations (web feature)
-
-### Multilanguage Support ✅
-> Supports ANY language via dynamic LLM prompts. No hardcoded language restrictions.
-- [x] Add `--language` flag for CLI output language (any ISO 639-1 code)
-- [x] Store detected language in exercise metadata
-- [x] Dynamic AI prompts - LLM outputs in requested language
-- [x] Language-agnostic architecture (no hardcoded translations)
 
 ### Long-Term Goals
 - [ ] **Community Patterns** - Aggregate pattern data across users on same course/prof
@@ -115,6 +95,28 @@
 - Provider router with profiles (Free/Pro/Local)
 - DeepSeek integration ($0.14/M tokens)
 - `--profile [free|pro|local]` flag
+</details>
+
+<details>
+<summary>Business Logic Extraction (v0.15.0) ✅ (2025-11-25)</summary>
+
+- core/dto/mastery.py - DTOs for mastery calculation
+- core/dto/progress.py - DTOs for progress tracking
+- core/ports/mastery_repository.py - Abstract interface
+- core/progress_analyzer.py - Database-agnostic business logic
+- core/answer_evaluator.py - Unified answer evaluation
+- tests/test_progress_analyzer.py - 23 unit tests
+- tests/test_answer_evaluator.py - 17 unit tests
+- Shadow mode rollout complete
+</details>
+
+<details>
+<summary>Multilanguage Support ✅ (2025-11-26)</summary>
+
+- `--language` flag for CLI output language (any ISO 639-1 code)
+- Store detected language in exercise metadata
+- Dynamic AI prompts - LLM outputs in requested language
+- Language-agnostic architecture (no hardcoded translations)
 </details>
 
 ---
