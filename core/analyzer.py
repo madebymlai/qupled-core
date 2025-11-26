@@ -475,10 +475,13 @@ NOTE: Presence of even ONE theory keyword from any category below is sufficient 
   * Pattern: "What is the relationship between X and Y?"
   * Set concept_id to main concept discussed
 
-PREREQUISITE CONCEPT DETECTION:
-- Identify concepts that must be understood to answer the question
-- Set prerequisite_concepts to list of foundational concepts needed to understand this one
-- List 1-5 most important prerequisite concepts as normalized IDs
+PREREQUISITE CONCEPT DETECTION (CRITICAL - for ALL exercise types):
+- Identify theoretical concepts, methods, or techniques used in this exercise
+- Set prerequisite_concepts for BOTH procedural AND theory exercises
+- For procedural exercises: extract the underlying concepts the procedure applies
+- For theory exercises: extract foundational concepts needed to understand this one
+- List 3-7 most important concepts as normalized IDs
+- ALWAYS fill this field - every exercise uses theoretical concepts!
 
 CONCEPT ID NORMALIZATION:
 - Convert concept names to lowercase IDs with underscores
