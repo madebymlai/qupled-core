@@ -38,21 +38,33 @@ def detect_synonyms(
     if len(unique_names) < 2:
         return []
 
-    prompt = f"""Given these knowledge item names from a course, identify groups of SYNONYMS (different names for the SAME concept).
+    prompt = f"""Given these knowledge item names from a course, identify groups of DUPLICATES (different names for the SAME concept).
 
 Names:
 {chr(10).join(f"- {name}" for name in unique_names)}
 
-RULES:
-1. Only group items that mean EXACTLY the same thing (abbreviations, alternate spellings, full names)
-2. Different types/variants of the same category are NOT synonyms
-3. Parent-child relationships are NOT synonyms (a category is NOT a synonym of its member)
-4. Abbreviations and their expansions ARE synonyms (e.g., "X" and "X method" for the same thing)
+MERGE AGGRESSIVELY - group items if they refer to the same underlying concept:
 
-Return a JSON array of arrays, where each inner array contains synonymous names.
+1. MERGE if same base concept with different suffixes:
+   - "mips_calculation" = "mips_calculation_procedure" = "mips_calculation_method"
+   - "boolean_function" = "boolean_function_minimization" (if minimization is THE main procedure)
+
+2. MERGE abbreviations with full names:
+   - "DFS" = "depth_first_search"
+   - "CPI" = "cycles_per_instruction"
+
+3. MERGE alternate phrasings:
+   - "flip_flop_output_waveform" = "flip_flop_waveform_analysis"
+   - "decimal_to_binary" = "binary_conversion_from_decimal"
+
+4. DO NOT MERGE if truly different concepts:
+   - "d_flip_flop" vs "d_latch" (different components)
+   - "boolean_function" vs "karnaugh_map" (different concepts, even if related)
+
+Return a JSON array of arrays, where each inner array contains names that should be merged.
 Only include groups with 2+ names. Names not in any group are unique concepts.
 
-Return ONLY the JSON array, no explanation. Return [] if no synonyms found."""
+Return ONLY the JSON array, no explanation. Return [] if no duplicates found."""
 
     try:
         response = llm.generate(
