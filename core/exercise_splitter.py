@@ -130,11 +130,13 @@ class Marker:
 
 @dataclass
 class MarkerPattern:
-    """Pattern for exercise markers detected by LLM."""
-    keyword: str              # e.g., "Esercizio", "Exercise", "Problem"
-    has_sub_markers: bool     # Whether document has sub-questions
-    sub_format: Optional[str] # e.g., "numbered" (1., 2.) or "lettered" (a), b))
-    solution_keyword: Optional[str] = None  # e.g., "Soluzione", "Solution", "Answer"
+    """Pattern for exercise markers detected by LLM.
+
+    LLM returns actual regex patterns for language-agnostic detection.
+    """
+    exercise_pattern: str                   # Regex for exercise markers (e.g., "Esercizio\\s+(\\d+)")
+    sub_pattern: Optional[str] = None       # Regex for sub-markers (e.g., "([a-z])\\s*[).]")
+    solution_pattern: Optional[str] = None  # Keyword or regex for solutions (e.g., "Soluzione")
 
 
 @dataclass
@@ -161,7 +163,7 @@ def _detect_pattern_with_llm(
     """Use LLM to detect exercise markers in document.
 
     Two modes:
-    1. Pattern detection: LLM identifies a keyword pattern (e.g., "Esercizio")
+    1. Pattern detection: LLM returns regex patterns for exercise/sub-markers
     2. Explicit markers: LLM lists the first few words of each exercise
 
     Args:
@@ -171,23 +173,37 @@ def _detect_pattern_with_llm(
     Returns:
         DetectionResult with either pattern or explicit markers, None if detection fails
     """
-    prompt = """Analyze this exam/exercise document and identify the structure.
+    prompt = """Analyze this exam/exercise document and return REGEX PATTERNS for parsing.
 
 TEXT SAMPLE:
 ---
 {text}
 ---
 
-Identify:
-1. The KEYWORD used before exercise/problem numbers (appears multiple times with different numbers)
-2. Whether exercises have sub-questions (like a), b) or 1., 2. within each)
-3. If the document contains solutions, the KEYWORD used before solution sections
+Identify the exact patterns used and return Python regex patterns:
+
+1. EXERCISE_PATTERN - Regex matching exercise markers. Must have a capture group for the exercise number.
+   Examples:
+   - "Esercizio\\s+(\\d+)" matches "Esercizio 1", "Esercizio 2"
+   - "Problem\\s+(\\d+)" matches "Problem 1", "Problem 2"
+   - "(\\d+)\\." matches "1.", "2." (if no keyword, just numbers)
+
+2. SUB_PATTERN - Regex matching sub-question markers (if any). Should have capture group(s).
+   Examples:
+   - "([a-z])\\s*[).]" matches "a)", "b.", "c)" (Latin letters)
+   - "([а-я])\\s*[).]" matches "а)", "б)" (Cyrillic letters)
+   - "(\\d+)\\s*[).]" matches "1)", "2." (numbered sub-questions)
+   - "(\\d+)([a-z])\\s*[).]" matches "1a)", "2b)" (combined: 2 groups = parent + sub)
+   - "[-•*]\\s+" matches "- ", "• " (bullets, no capture group needed)
+
+3. SOLUTION_PATTERN - Keyword or regex for solution sections (if any).
+   Examples: "Soluzione", "Solution", "Answer", "Ответ"
 
 Return ONLY valid JSON:
-{{"mode": "pattern", "keyword": "detected keyword or null", "has_sub_markers": true/false, "sub_format": "lettered" or "numbered" or null, "solution_keyword": "detected solution keyword or null"}}
+{{"mode": "pattern", "exercise_pattern": "regex string", "sub_pattern": "regex string or null", "solution_pattern": "keyword or null"}}
 
-If no consistent exercise keyword pattern exists, return the first 3-5 words of each exercise:
-{{"mode": "explicit", "markers": ["first words of exercise 1", "first words of exercise 2", ...]}}"""
+If NO consistent pattern exists, return first 3-5 words of each exercise:
+{{"mode": "explicit", "markers": ["first words of ex 1", "first words of ex 2", ...]}}"""
 
     try:
         llm_response = llm_manager.generate(
@@ -195,8 +211,18 @@ If no consistent exercise keyword pattern exists, return the first 3-5 words of 
             temperature=0.0,
         )
 
+        # Check if the response was successful
+        if hasattr(llm_response, 'success') and not llm_response.success:
+            error_msg = getattr(llm_response, 'error', 'Unknown error')
+            logger.warning(f"LLM pattern detection failed: {error_msg}")
+            return None
+
         # Extract text from LLMResponse object
         response = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
+
+        if not response or not response.strip():
+            logger.warning("LLM returned empty response for pattern detection")
+            return None
 
         # Parse JSON response
         # Handle potential markdown code blocks
@@ -217,17 +243,31 @@ If no consistent exercise keyword pattern exists, return the first 3-5 words of 
                 return DetectionResult(explicit_markers=markers)
             return None
 
-        # Pattern mode
-        keyword = data.get("keyword")
-        if not keyword:
+        # Pattern mode - LLM returns regex patterns
+        exercise_pattern = data.get("exercise_pattern")
+        if not exercise_pattern:
             return None
+
+        # Validate the regex patterns
+        try:
+            re.compile(exercise_pattern)
+        except re.error as e:
+            logger.warning(f"Invalid exercise_pattern from LLM: {exercise_pattern} - {e}")
+            return None
+
+        sub_pattern = data.get("sub_pattern")
+        if sub_pattern:
+            try:
+                re.compile(sub_pattern)
+            except re.error as e:
+                logger.warning(f"Invalid sub_pattern from LLM: {sub_pattern} - {e}")
+                sub_pattern = None  # Continue without sub-pattern
 
         return DetectionResult(
             pattern=MarkerPattern(
-                keyword=keyword,
-                has_sub_markers=data.get("has_sub_markers", False),
-                sub_format=data.get("sub_format"),
-                solution_keyword=data.get("solution_keyword"),
+                exercise_pattern=exercise_pattern,
+                sub_pattern=sub_pattern,
+                solution_pattern=data.get("solution_pattern"),
             )
         )
 
@@ -323,7 +363,7 @@ def _find_all_markers(
     full_text: str,
     pattern: MarkerPattern,
 ) -> Tuple[List[Marker], List[Tuple[int, int]]]:
-    """Find all exercise markers in document using detected pattern.
+    """Find all exercise markers in document using LLM-provided regex patterns.
 
     Handles three document formats:
     1. Embedded solutions (no keyword): All text belongs to exercises
@@ -332,7 +372,7 @@ def _find_all_markers(
 
     Args:
         full_text: Complete document text
-        pattern: Detected marker pattern from LLM
+        pattern: Detected marker pattern from LLM (contains regex patterns)
 
     Returns:
         Tuple of (List of Marker objects sorted by position, List of solution ranges)
@@ -340,28 +380,33 @@ def _find_all_markers(
     markers: List[Marker] = []
     solution_ranges: List[Tuple[int, int]] = []  # (start, end) of solution sections
 
-    # Build regex for parent markers: keyword + number
-    keyword_escaped = re.escape(pattern.keyword)
-    parent_regex = re.compile(
-        rf'(?:^|\n)\s*({keyword_escaped})\s+(\d+)',
-        re.IGNORECASE | re.MULTILINE
-    )
+    # Use LLM-provided regex for parent markers
+    # Wrap with (?:^|\n)\s* if not already anchored
+    exercise_pattern = pattern.exercise_pattern
+    if not exercise_pattern.startswith(('(?:^', '^', '\\A')):
+        exercise_pattern = rf'(?:^|\n)\s*{exercise_pattern}'
+
+    try:
+        parent_regex = re.compile(exercise_pattern, re.IGNORECASE | re.MULTILINE)
+    except re.error as e:
+        logger.error(f"Failed to compile exercise_pattern: {pattern.exercise_pattern} - {e}")
+        return [], []
 
     # Find all parent (exercise) markers - collect raw matches first
     raw_parent_markers: List[Tuple[int, str, str, int]] = []  # (start, marker_text, number, question_start)
     for match in parent_regex.finditer(full_text):
+        # Extract exercise number from first capture group
+        number = match.group(1) if match.lastindex and match.lastindex >= 1 else "?"
         raw_parent_markers.append((
             match.start(),
             match.group(0).strip(),
-            match.group(2),
+            number,
             match.end(),
         ))
 
-    # Find solution section positions (if solution keyword detected)
-    # Solution sections extend from solution keyword to end of text
-    # (Format 3: appendix where all solutions are at the end)
-    if pattern.solution_keyword:
-        sol_escaped = re.escape(pattern.solution_keyword)
+    # Find solution section positions (if solution pattern detected)
+    if pattern.solution_pattern:
+        sol_escaped = re.escape(pattern.solution_pattern)
         sol_regex = re.compile(
             rf'(?:^|\n)\s*({sol_escaped})',
             re.IGNORECASE | re.MULTILINE
@@ -369,7 +414,7 @@ def _find_all_markers(
 
         for match in sol_regex.finditer(full_text):
             sol_start = match.start()
-            sol_match_end = match.end()  # End of current match (to search for next)
+            sol_match_end = match.end()
 
             # Check if there are MORE solution keywords after this one
             next_sol_match = sol_regex.search(full_text, sol_match_end)
@@ -385,7 +430,6 @@ def _find_all_markers(
                         break
             else:
                 # Format 3 (appendix) OR last solution in Format 2
-                # Solution extends to end of text
                 sol_end = len(full_text)
 
             solution_ranges.append((sol_start, sol_end))
@@ -410,46 +454,59 @@ def _find_all_markers(
             question_start=question_start,
         ))
 
-    # Find sub-markers if present
+    # Find sub-markers using LLM-provided pattern
     # IMPORTANT: Only look for sub-markers AFTER the first parent marker
-    # to avoid treating numbered instructions (page headers) as sub-questions
-    first_parent_pos = markers[0].start_position if markers else len(full_text)
+    # EXCEPTION: If no parent markers found (combined format), allow all sub-markers
+    first_parent_pos = markers[0].start_position if markers else 0  # 0 = allow all subs
 
-    if pattern.has_sub_markers and pattern.sub_format:
-        if pattern.sub_format == "lettered":
-            sub_regex = re.compile(
-                r'(?:^|\n)\s*([a-z])\s*[)\.]',
-                re.MULTILINE
-            )
-        else:  # numbered
-            sub_regex = re.compile(
-                r'(?:^|\n)\s*(\d+)\s*[)\.](?!\d)',
-                re.MULTILINE
-            )
+    if pattern.sub_pattern:
+        # Wrap with (?:^|\n)\s* if not already anchored
+        sub_pattern_str = pattern.sub_pattern
+        if not sub_pattern_str.startswith(('(?:^', '^', '\\A')):
+            sub_pattern_str = rf'(?:^|\n)\s*{sub_pattern_str}'
 
-        for match in sub_regex.finditer(full_text):
-            start_pos = match.start()
+        try:
+            sub_regex = re.compile(sub_pattern_str, re.MULTILINE)
+        except re.error as e:
+            logger.warning(f"Failed to compile sub_pattern: {pattern.sub_pattern} - {e}")
+            sub_regex = None
 
-            # Skip sub-markers before the first exercise keyword
-            # (these are typically numbered instructions in page headers)
-            if start_pos < first_parent_pos:
-                continue
+        if sub_regex:
+            for match in sub_regex.finditer(full_text):
+                start_pos = match.start()
 
-            # Skip sub-markers in solution sections
-            if _is_in_solution_section(start_pos):
-                continue
+                # Skip sub-markers before the first exercise keyword
+                if start_pos < first_parent_pos:
+                    continue
 
-            marker_text = match.group(0).strip()
-            number = match.group(1)
-            question_start = match.end()
+                # Skip sub-markers in solution sections
+                if _is_in_solution_section(start_pos):
+                    continue
 
-            markers.append(Marker(
-                marker_type=MarkerType.SUB,
-                marker_text=marker_text,
-                number=number,
-                start_position=start_pos,
-                question_start=question_start,
-            ))
+                marker_text = match.group(0).strip()
+
+                # Extract sub-marker value from capture groups
+                # If 2 groups: combined format (parent_num, sub_letter) - use group 2
+                # If 1 group: standard format - use group 1
+                # If 0 groups: bullets - use sequential numbering
+                if match.lastindex and match.lastindex >= 2:
+                    # Combined format: first group is parent, second is sub
+                    number = match.group(2)
+                elif match.lastindex and match.lastindex >= 1:
+                    number = match.group(1)
+                else:
+                    # No capture groups (bullets) - will be numbered later
+                    number = "•"
+
+                question_start = match.end()
+
+                markers.append(Marker(
+                    marker_type=MarkerType.SUB,
+                    marker_text=marker_text,
+                    number=number,
+                    start_position=start_pos,
+                    question_start=question_start,
+                ))
 
     # Sort by position
     markers.sort(key=lambda m: m.start_position)
@@ -504,19 +561,17 @@ def _build_hierarchy(markers: List[Marker], full_text: str) -> List[ExerciseNode
                 if in_restart_sequence:
                     continue
 
-                # Detect restart: if sequence restarts (1 after 4, or 'a' after 'd')
+                # Detect restart: if sequence value drops (4→1 or d→a)
                 sub_value = 0
-                is_start = False
                 try:
                     sub_value = int(marker.number)
-                    is_start = (sub_value == 1)
                 except ValueError:
-                    # Lettered marker (a, b, c...)
+                    # Lettered marker - convert to ordinal value
                     if len(marker.number) == 1 and marker.number.isalpha():
-                        sub_value = ord(marker.number.lower()) - ord('a') + 1
-                        is_start = (marker.number.lower() == 'a')
+                        sub_value = ord(marker.number.lower())
 
-                if is_start and highest_sub_value > 0:
+                # Restart detected if value drops significantly (not sequential)
+                if highest_sub_value > 0 and sub_value < highest_sub_value:
                     # Sequence restarted - skip this and all subsequent
                     in_restart_sequence = True
                     continue
@@ -636,12 +691,12 @@ def _extract_solutions(
         exercises: List of exercises (will be modified in place)
         full_text: Complete document text
         solution_ranges: List of (start, end) tuples for solution sections
-        pattern: Marker pattern with keyword and solution_keyword
+        pattern: Marker pattern with exercise_pattern and solution_pattern
 
     Returns:
         Exercises with solution field populated
     """
-    if not solution_ranges or not pattern.solution_keyword:
+    if not solution_ranges or not pattern.solution_pattern:
         return exercises
 
     # Determine format based on number of solution sections vs exercises
@@ -669,14 +724,16 @@ def _extract_interleaved_solutions(
 
     Each solution section follows an exercise and contains answers for that exercise.
     """
-    # Build regex for sub-markers in solutions
-    if pattern.has_sub_markers and pattern.sub_format:
-        if pattern.sub_format == "lettered":
-            sub_regex = re.compile(r'(?:^|\n)\s*([a-z])\s*[)\.]', re.MULTILINE)
-        else:
-            sub_regex = re.compile(r'(?:^|\n)\s*(\d+)\s*[)\.](?!\d)', re.MULTILINE)
-    else:
-        sub_regex = None
+    # Build regex for sub-markers in solutions using LLM-provided pattern
+    sub_regex = None
+    if pattern.sub_pattern:
+        sub_pattern_str = pattern.sub_pattern
+        if not sub_pattern_str.startswith(('(?:^', '^', '\\A')):
+            sub_pattern_str = rf'(?:^|\n)\s*{sub_pattern_str}'
+        try:
+            sub_regex = re.compile(sub_pattern_str, re.MULTILINE)
+        except re.error:
+            sub_regex = None
 
     # Group exercises by parent number
     exercises_by_parent: Dict[str, List[Exercise]] = {}
@@ -739,21 +796,25 @@ def _extract_appendix_solutions(
     sol_start, sol_end = solution_range
     solution_text = full_text[sol_start:sol_end]
 
-    # Build regex to find exercise markers in solution section
-    keyword_escaped = re.escape(pattern.keyword)
-    exercise_regex = re.compile(
-        rf'(?:^|\n)\s*({keyword_escaped})\s+(\d+)',
-        re.IGNORECASE | re.MULTILINE
-    )
+    # Build regex to find exercise markers in solution section using LLM pattern
+    exercise_pattern = pattern.exercise_pattern
+    if not exercise_pattern.startswith(('(?:^', '^', '\\A')):
+        exercise_pattern = rf'(?:^|\n)\s*{exercise_pattern}'
+    try:
+        exercise_regex = re.compile(exercise_pattern, re.IGNORECASE | re.MULTILINE)
+    except re.error:
+        return  # Can't extract without valid exercise pattern
 
-    # Build regex for sub-markers
-    if pattern.has_sub_markers and pattern.sub_format:
-        if pattern.sub_format == "lettered":
-            sub_regex = re.compile(r'(?:^|\n)\s*([a-z])\s*[)\.]', re.MULTILINE)
-        else:
-            sub_regex = re.compile(r'(?:^|\n)\s*(\d+)\s*[)\.](?!\d)', re.MULTILINE)
-    else:
-        sub_regex = None
+    # Build regex for sub-markers using LLM pattern
+    sub_regex = None
+    if pattern.sub_pattern:
+        sub_pattern_str = pattern.sub_pattern
+        if not sub_pattern_str.startswith(('(?:^', '^', '\\A')):
+            sub_pattern_str = rf'(?:^|\n)\s*{sub_pattern_str}'
+        try:
+            sub_regex = re.compile(sub_pattern_str, re.MULTILINE)
+        except re.error:
+            sub_regex = None
 
     # Find all exercise markers in solution section
     exercise_matches = list(exercise_regex.finditer(solution_text))
@@ -762,7 +823,8 @@ def _extract_appendix_solutions(
     solution_map: Dict[str, Dict[str, str]] = {}
 
     for i, match in enumerate(exercise_matches):
-        ex_num = match.group(2)
+        # Exercise number is in the first capture group of LLM pattern
+        ex_num = match.group(1) if match.lastindex and match.lastindex >= 1 else str(i + 1)
         ex_start = match.end()
         # End at next exercise marker or end of solution section
         ex_end = exercise_matches[i + 1].start() if i + 1 < len(exercise_matches) else len(solution_text)
@@ -994,9 +1056,9 @@ class ExerciseSplitter:
             # Mode 1: Pattern-based detection
             pattern = detection.pattern
             logger.info(
-                f"Pattern detected: keyword='{pattern.keyword}', "
-                f"has_sub={pattern.has_sub_markers}, sub_format={pattern.sub_format}"
-                + (f", solution_keyword='{pattern.solution_keyword}'" if pattern.solution_keyword else "")
+                f"Pattern detected: exercise='{pattern.exercise_pattern}'"
+                + (f", sub='{pattern.sub_pattern}'" if pattern.sub_pattern else "")
+                + (f", solution='{pattern.solution_pattern}'" if pattern.solution_pattern else "")
             )
             markers, solution_ranges = _find_all_markers(full_text, pattern)
             if solution_ranges:
