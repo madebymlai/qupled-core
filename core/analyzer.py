@@ -62,7 +62,6 @@ class AnalysisResult:
     is_valid_exercise: bool
     is_fragment: bool
     should_merge_with_previous: bool
-    topic: Optional[str]
     difficulty: Optional[str]
     variations: Optional[List[str]]
     confidence: float
@@ -197,9 +196,8 @@ class ExerciseAnalyzer:
             course_name: Course name for context
             previous_exercise: Previous exercise text (for merge detection)
             existing_context: Optional dict with existing entities for context-aware analysis:
-                - topics: List[dict] with {"name": str, "procedure_count": int}
                 - procedures: List[dict] with {"name": str, "type": str}
-                - concepts: List[dict] with {"name": str, "type": str, "topic": str}
+                - concepts: List[dict] with {"name": str, "type": str}
 
         Returns:
             AnalysisResult with classification
@@ -304,7 +302,6 @@ class ExerciseAnalyzer:
             is_valid_exercise=data.get("is_valid_exercise", True),
             is_fragment=data.get("is_fragment", False),
             should_merge_with_previous=data.get("should_merge_with_previous", False),
-            topic=data.get("topic"),
             difficulty=data.get("difficulty"),
             variations=data.get("variations", []),
             confidence=data.get("confidence", 0.5),
@@ -329,7 +326,7 @@ class ExerciseAnalyzer:
             exercise_text: Exercise text
             course_name: Course name
             previous_exercise: Previous exercise (for merge detection)
-            existing_context: Optional dict with existing topics/procedures/concepts
+            existing_context: Optional dict with existing procedures/concepts
 
         Returns:
             Prompt string
@@ -364,7 +361,7 @@ Does this exercise appear to be a continuation or sub-part of the previous one?
 
         # Add language instruction (supports any ISO 639-1 language)
         base_prompt += f"""
-IMPORTANT: {self._language_instruction("Respond")} All topic names, procedures and steps must be in {self._language_name()} language.
+IMPORTANT: {self._language_instruction("Respond")} All procedure names and steps must be in {self._language_name()} language.
 
 Respond in JSON format with:
 {{
@@ -418,39 +415,7 @@ Respond in JSON format with:
 IMPORTANT ANALYSIS GUIDELINES:
 - If text contains only exam rules (like "NON si può usare la calcolatrice"), mark as NOT valid exercise
 - If text is clearly a sub-question (starts with "1.", "2.") right after numbered list, it's a fragment
-- Core loop/procedure is the ALGORITHM/PROCEDURE to solve, not just the topic
-
-TOPIC NAMING RULES (CRITICAL):
-- NEVER use the course name "{course_name}" as the topic - it's too generic!
-- Topics should be at CHAPTER/UNIT level - like a section in a textbook or syllabus
-- Topic = PROBLEM DOMAIN (what kind of problems), Procedure = SOLUTION METHOD (how to solve)
-
-TOPIC GRANULARITY TEST:
-Ask: "Would this topic have 3-10 related procedures/methods?"
-- If YES → Good topic level (chapter-level)
-- If only 1 procedure possible → Too specific! Find the broader problem domain
-- If 50+ procedures → Too broad! Split into subtopics
-
-TOPIC vs PROCEDURE PATTERN:
-A TOPIC is a problem domain (broad category).
-A PROCEDURE is a specific method/algorithm used to solve problems in that domain.
-
-Pattern: One topic can have MULTIPLE related procedures:
-- Topic: [Broad Problem Domain]
-  - Procedure: [Method A for this domain]
-  - Procedure: [Method B for this domain]
-  - Procedure: [Conversion between formats in this domain]
-  - Procedure: [Verification/checking in this domain]
-
-BAD TOPIC NAMES (too granular - these should be procedures!):
-- A specific technique name → Should be a procedure under broader topic
-- A single formula/law → Should be a procedure under analysis topic
-- A single conversion method → Should be a procedure under broader topic
-
-GOOD TOPIC NAMES (chapter-level):
-- Broad categories that appear in course syllabus
-- Topics that have multiple related methods/procedures
-- Problem domains, not individual solution techniques
+- Core loop/procedure is the ALGORITHM/PROCEDURE to solve
 
 MULTI-PROCEDURE DETECTION:
 - If exercise has numbered points (1., 2., 3.), analyze EACH point separately
@@ -667,27 +632,12 @@ Respond ONLY with valid JSON, no other text.
         """Build the context section for the prompt with existing entities.
 
         Args:
-            existing_context: Dict with topics, procedures, concepts lists
+            existing_context: Dict with procedures, concepts lists
 
         Returns:
             Formatted context string for the prompt
         """
         sections = []
-
-        # Add existing topics
-        topics = existing_context.get("topics", [])
-        if topics:
-            topic_lines = []
-            for t in topics[:20]:  # Limit to avoid prompt bloat
-                name = t.get("name", t) if isinstance(t, dict) else t
-                count = t.get("procedure_count", 0) if isinstance(t, dict) else 0
-                if count:
-                    topic_lines.append(f"  - {name} ({count} procedures)")
-                else:
-                    topic_lines.append(f"  - {name}")
-            sections.append(f"""
-EXISTING TOPICS in this course (PREFER these if exercise fits):
-{chr(10).join(topic_lines)}""")
 
         # Add existing procedures
         procedures = existing_context.get("procedures", [])
@@ -708,11 +658,7 @@ EXISTING PROCEDURES (PREFER these if exercise uses same method):
             for c in concepts[:20]:  # Limit to avoid prompt bloat
                 name = c.get("name", c) if isinstance(c, dict) else c
                 ctype = c.get("type", "unknown") if isinstance(c, dict) else "unknown"
-                topic = c.get("topic", "") if isinstance(c, dict) else ""
-                if topic:
-                    concept_lines.append(f"  - {name} (type: {ctype}, topic: {topic})")
-                else:
-                    concept_lines.append(f"  - {name} (type: {ctype})")
+                concept_lines.append(f"  - {name} (type: {ctype})")
             sections.append(f"""
 EXISTING CONCEPTS (PREFER these for theory questions):
 {chr(10).join(concept_lines)}""")
@@ -720,13 +666,10 @@ EXISTING CONCEPTS (PREFER these for theory questions):
         if sections:
             context_rules = """
 CONTEXT RULES (CRITICAL):
-1. PREFER existing topic if exercise fits semantically - do NOT create similar/duplicate topics
-2. PREFER existing procedure if solving same problem with same method
-3. PREFER existing concept if asking about same theoretical entity
-4. Create NEW topic only if exercise doesn't fit ANY existing topic
-5. Create NEW procedure only if method is genuinely different
-6. When in doubt, USE EXISTING names over creating new ones
-7. Topics should be CHAPTER-LEVEL (containing 3-10 related procedures), not individual techniques"""
+1. PREFER existing procedure if solving same problem with same method
+2. PREFER existing concept if asking about same theoretical entity
+3. Create NEW procedure only if method is genuinely different
+4. When in doubt, USE EXISTING names over creating new ones"""
             return "".join(sections) + context_rules
 
         return ""
