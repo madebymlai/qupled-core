@@ -19,6 +19,31 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+def _strip_inline_flags(pattern: str) -> Tuple[str, int]:
+    """Strip inline regex flags and return (clean_pattern, flags).
+
+    LLM may return patterns with inline flags like (?i), (?m), (?s).
+    We strip these and return appropriate re flags instead.
+    """
+    flags = 0
+    # Match inline flags at start or anywhere in pattern
+    inline_flag_pattern = r'\(\?([imslux]+)\)'
+
+    def replace_flags(match):
+        nonlocal flags
+        for char in match.group(1):
+            if char == 'i':
+                flags |= re.IGNORECASE
+            elif char == 'm':
+                flags |= re.MULTILINE
+            elif char == 's':
+                flags |= re.DOTALL
+        return ''
+
+    clean_pattern = re.sub(inline_flag_pattern, replace_flags, pattern)
+    return clean_pattern, flags
+
+
 @dataclass
 class Exercise:
     """Represents a single exercise extracted from a PDF."""
@@ -135,9 +160,14 @@ class MarkerPattern:
     LLM returns actual regex patterns for language-agnostic detection.
     """
     exercise_pattern: str                   # Regex for exercise markers (e.g., "Esercizio\\s+(\\d+)")
-    sub_pattern: Optional[str] = None       # Regex for sub-markers (e.g., "([a-z])\\s*[).]")
+    sub_patterns: Optional[List[str]] = None  # Regex patterns for sub-markers (e.g., ["([a-z])\\s*[).]", "(\\d+)\\.\\s"])
     solution_pattern: Optional[str] = None  # Keyword or regex for solutions (e.g., "Soluzione")
     sub_triggers: Optional[List[str]] = None  # Phrases that precede numbered sub-questions
+
+    @property
+    def sub_pattern(self) -> Optional[str]:
+        """Backward compatibility: return first sub_pattern if any."""
+        return self.sub_patterns[0] if self.sub_patterns else None
 
 
 @dataclass
@@ -197,19 +227,22 @@ Identify the exact patterns used and return Python regex patterns:
    - "keyword\\s+(\\d+)" matches "Keyword 1", "Keyword 2" (any language keyword)
    - "(\\d+)\\." matches "1.", "2." (if no keyword, just numbers)
 
-2. SUB_PATTERN - Regex matching sub-question markers (if any). Should have capture group(s).
+2. SUB_PATTERNS - Array of regex patterns for sub-question markers. Include ALL patterns if document uses multiple styles.
    Examples:
-   - "([a-z])\\s*[).]" matches "a)", "b.", "c)" (Latin letters)
-   - "(\\d+)\\s*[).]" matches "1)", "2." (numbered sub-questions)
-   - "(\\d+)([a-z])\\s*[).]" matches "1a)", "2b)" (combined: 2 groups = parent + sub)
-   - "[-•*]\\s+" matches "- ", "• " (bullets, no capture group needed)
+   - ["([a-z])\\s*[).]"] matches "a)", "b.", "c)" (Latin letters)
+   - ["(\\d+)\\.\\s"] matches "1. ", "2. " (numbered sub-questions)
+   - ["([a-z])\\s*[).]", "(\\d+)\\.\\s"] matches BOTH letter and numbered sub-questions
+   - ["[-•*]\\s+"] matches "- ", "• " (bullets)
+   IMPORTANT: If document has BOTH letter (a, b, c) AND numbered (1., 2., 3.) sub-questions, return BOTH patterns!
 
 3. SOLUTION_PATTERN - Keyword or regex for solution sections (if any).
 
-4. SUB_TRIGGERS - Phrases that PRECEDE sub-questions. Only needed if sub_pattern could match exercise markers (e.g., both are "number + punctuation" with no keyword). Return null if patterns are unambiguous.
+4. SUB_TRIGGERS - Phrases that PRECEDE sub-questions. Only needed if sub_patterns could match exercise markers (e.g., both are "number + punctuation" with no keyword). Return null if patterns are unambiguous.
+
+IMPORTANT: Do NOT include inline flags like (?i), (?m), (?s) in patterns. Case-insensitivity and multiline matching are applied automatically.
 
 Return ONLY valid JSON:
-{{"mode": "pattern", "exercise_pattern": "regex string", "sub_pattern": "regex string or null", "solution_pattern": "keyword or null", "sub_triggers": ["array of regex strings"] or null}}
+{{"mode": "pattern", "exercise_pattern": "regex string", "sub_patterns": ["array of regex strings"] or null, "solution_pattern": "keyword or null", "sub_triggers": ["array of regex strings"] or null}}
 
 If NO consistent pattern exists, return explicit markers with question boundaries:
 {{"mode": "explicit", "exercises": [
@@ -289,13 +322,24 @@ IMPORTANT for end_marker:
             logger.warning(f"Invalid exercise_pattern from LLM: {exercise_pattern} - {e}")
             return None
 
-        sub_pattern = data.get("sub_pattern")
-        if sub_pattern:
-            try:
-                re.compile(sub_pattern)
-            except re.error as e:
-                logger.warning(f"Invalid sub_pattern from LLM: {sub_pattern} - {e}")
-                sub_pattern = None  # Continue without sub-pattern
+        # Parse sub_patterns - support both array (new) and single string (legacy)
+        sub_patterns_raw = data.get("sub_patterns") or data.get("sub_pattern")
+        sub_patterns: Optional[List[str]] = None
+        if sub_patterns_raw:
+            # Normalize to list
+            if isinstance(sub_patterns_raw, str):
+                sub_patterns_raw = [sub_patterns_raw]
+
+            # Validate each pattern
+            valid_patterns = []
+            for sp in sub_patterns_raw:
+                if sp:
+                    try:
+                        re.compile(sp)
+                        valid_patterns.append(sp)
+                    except re.error as e:
+                        logger.warning(f"Invalid sub_pattern from LLM: {sp} - {e}")
+            sub_patterns = valid_patterns if valid_patterns else None
 
         # Parse sub_triggers - validate each regex
         sub_triggers = data.get("sub_triggers")
@@ -315,7 +359,7 @@ IMPORTANT for end_marker:
         return DetectionResult(
             pattern=MarkerPattern(
                 exercise_pattern=exercise_pattern,
-                sub_pattern=sub_pattern,
+                sub_patterns=sub_patterns,
                 solution_pattern=data.get("solution_pattern"),
                 sub_triggers=sub_triggers,
             )
@@ -585,13 +629,18 @@ def _find_all_markers(
     solution_ranges: List[Tuple[int, int]] = []  # (start, end) of solution sections
 
     # Use LLM-provided regex for parent markers
+    # Strip any inline flags LLM may have included (e.g., (?i), (?m))
+    exercise_pattern, inline_flags = _strip_inline_flags(pattern.exercise_pattern)
+
     # Wrap with (?:^|\n)\s* if not already anchored
-    exercise_pattern = pattern.exercise_pattern
     if not exercise_pattern.startswith(('(?:^', '^', '\\A')):
         exercise_pattern = rf'(?:^|\n)\s*{exercise_pattern}'
 
+    # Combine inline flags with our defaults (IGNORECASE, MULTILINE)
+    compile_flags = re.IGNORECASE | re.MULTILINE | inline_flags
+
     try:
-        parent_regex = re.compile(exercise_pattern, re.IGNORECASE | re.MULTILINE)
+        parent_regex = re.compile(exercise_pattern, compile_flags)
     except re.error as e:
         logger.error(f"Failed to compile exercise_pattern: {pattern.exercise_pattern} - {e}")
         return [], []
@@ -658,47 +707,54 @@ def _find_all_markers(
             question_start=question_start,
         ))
 
-    # Find sub-markers using LLM-provided pattern
+    # Find sub-markers using LLM-provided patterns (may be multiple)
     # IMPORTANT: Only look for sub-markers AFTER the first parent marker
     # EXCEPTION: If no parent markers found (combined format), allow all sub-markers
     first_parent_pos = markers[0].start_position if markers else 0  # 0 = allow all subs
 
-    if pattern.sub_pattern:
-        # Fix decimal matching issue: add (?!\d) after \d+\. patterns
-        sub_pattern_str = _fix_decimal_pattern(pattern.sub_pattern)
+    # Build trigger regexes if provided by LLM, but only use them if patterns are truly ambiguous
+    trigger_regexes = []
+    if pattern.sub_triggers:
+        # Check if patterns are truly ambiguous
+        # If exercise_pattern has a keyword prefix (letters before capture group), patterns are unambiguous
+        exercise_has_keyword = bool(re.match(r'^[a-zA-Z\\]', pattern.exercise_pattern)
+                                   and '\\d' in pattern.exercise_pattern
+                                   and '\\s' in pattern.exercise_pattern)
 
-        # Wrap with (?:^|\n)\s* if not already anchored
-        if not sub_pattern_str.startswith(('(?:^', '^', '\\A')):
-            sub_pattern_str = rf'(?:^|\n)\s*{sub_pattern_str}'
+        if not exercise_has_keyword:
+            # Patterns might be ambiguous, use triggers
+            for trigger in pattern.sub_triggers:
+                try:
+                    trigger_regexes.append(re.compile(trigger, re.IGNORECASE))
+                except re.error:
+                    pass
 
-        try:
-            sub_regex = re.compile(sub_pattern_str, re.MULTILINE)
-        except re.error as e:
-            logger.warning(f"Failed to compile sub_pattern: {pattern.sub_pattern} - {e}")
-            sub_regex = None
+    # Track positions we've already added to avoid duplicates from multiple patterns
+    seen_positions: set[int] = set()
 
-        # Build trigger regexes if provided by LLM, but only use them if patterns are truly ambiguous
-        # Patterns are ambiguous if sub_pattern could match exercise_pattern text
-        # (e.g., both are "number + punctuation" with no distinguishing keyword)
-        trigger_regexes = []
-        if pattern.sub_triggers:
-            # Check if patterns are truly ambiguous
-            # If exercise_pattern has a keyword prefix (letters before capture group), patterns are unambiguous
-            exercise_has_keyword = bool(re.match(r'^[a-zA-Z\\]', pattern.exercise_pattern)
-                                       and '\\d' in pattern.exercise_pattern
-                                       and '\\s' in pattern.exercise_pattern)
+    if pattern.sub_patterns:
+        for sub_pattern_raw in pattern.sub_patterns:
+            # Strip inline flags and fix decimal matching issue
+            sub_pattern_str, sub_inline_flags = _strip_inline_flags(sub_pattern_raw)
+            sub_pattern_str = _fix_decimal_pattern(sub_pattern_str)
 
-            if not exercise_has_keyword:
-                # Patterns might be ambiguous, use triggers
-                for trigger in pattern.sub_triggers:
-                    try:
-                        trigger_regexes.append(re.compile(trigger, re.IGNORECASE))
-                    except re.error:
-                        pass
+            # Wrap with (?:^|\n)\s* if not already anchored
+            if not sub_pattern_str.startswith(('(?:^', '^', '\\A')):
+                sub_pattern_str = rf'(?:^|\n)\s*{sub_pattern_str}'
 
-        if sub_regex:
+            try:
+                sub_compile_flags = re.MULTILINE | sub_inline_flags
+                sub_regex = re.compile(sub_pattern_str, sub_compile_flags)
+            except re.error as e:
+                logger.warning(f"Failed to compile sub_pattern: {sub_pattern_raw} - {e}")
+                continue  # Skip this pattern, try next one
+
             for match in sub_regex.finditer(full_text):
                 start_pos = match.start()
+
+                # Skip if we've already added a marker at this position
+                if start_pos in seen_positions:
+                    continue
 
                 # Skip sub-markers before the first exercise keyword
                 if start_pos < first_parent_pos:
@@ -747,6 +803,7 @@ def _find_all_markers(
                     start_position=start_pos,
                     question_start=question_start,
                 ))
+                seen_positions.add(start_pos)
 
     # Sort by position
     markers.sort(key=lambda m: m.start_position)
@@ -866,23 +923,41 @@ def _expand_exercises(
     for parent in hierarchy:
         counter += 1
         parent_num = parent.marker.number
+        page_num = get_page_number(parent.marker.start_position)
+
+        # Always emit the parent exercise first
+        parent_exercise_id = _generate_exercise_id(
+            course_code, source_pdf, page_num, counter
+        )
+        exercises.append(Exercise(
+            id=parent_exercise_id,
+            text=parent.question_text,
+            page_number=page_num,
+            exercise_number=parent_num,
+            has_images=False,
+            image_data=[],
+            has_latex=False,
+            latex_content=None,
+            source_pdf=source_pdf,
+        ))
 
         if parent.children:
-            # Parent has sub-questions - emit each sub with context
+            # Parent has sub-questions - emit each with just the sub-question text
             for child in parent.children:
                 counter += 1
-                # Prepend context to make sub-question standalone
-                full_text = f"{child.context}\n\n{child.question_text}".strip()
+                # Only include the sub-question text, not the parent context
+                # Parent text is accessible via parent_exercise_number relationship
+                sub_text = child.question_text.strip()
 
-                page_num = get_page_number(child.marker.start_position)
+                child_page_num = get_page_number(child.marker.start_position)
                 exercise_id = _generate_exercise_id(
-                    course_code, source_pdf, page_num, counter
+                    course_code, source_pdf, child_page_num, counter
                 )
 
                 exercises.append(Exercise(
                     id=exercise_id,
-                    text=full_text,
-                    page_number=page_num,
+                    text=sub_text,
+                    page_number=child_page_num,
                     exercise_number=f"{parent_num}.{child.marker.number}",
                     has_images=False,  # Will be enriched later
                     image_data=[],
@@ -893,24 +968,6 @@ def _expand_exercises(
                     sub_question_marker=child.marker.number,
                     is_sub_question=True,
                 ))
-        else:
-            # Parent has no sub-questions - emit as single exercise
-            page_num = get_page_number(parent.marker.start_position)
-            exercise_id = _generate_exercise_id(
-                course_code, source_pdf, page_num, counter
-            )
-
-            exercises.append(Exercise(
-                id=exercise_id,
-                text=parent.question_text,
-                page_number=page_num,
-                exercise_number=parent_num,
-                has_images=False,
-                image_data=[],
-                has_latex=False,
-                latex_content=None,
-                source_pdf=source_pdf,
-            ))
 
     return exercises
 
@@ -967,11 +1024,11 @@ def _extract_interleaved_solutions(
     # Build regex for sub-markers in solutions using LLM-provided pattern
     sub_regex = None
     if pattern.sub_pattern:
-        sub_pattern_str = pattern.sub_pattern
+        sub_pattern_str, sub_inline_flags = _strip_inline_flags(pattern.sub_pattern)
         if not sub_pattern_str.startswith(('(?:^', '^', '\\A')):
             sub_pattern_str = rf'(?:^|\n)\s*{sub_pattern_str}'
         try:
-            sub_regex = re.compile(sub_pattern_str, re.MULTILINE)
+            sub_regex = re.compile(sub_pattern_str, re.MULTILINE | sub_inline_flags)
         except re.error:
             sub_regex = None
 
@@ -1037,22 +1094,22 @@ def _extract_appendix_solutions(
     solution_text = full_text[sol_start:sol_end]
 
     # Build regex to find exercise markers in solution section using LLM pattern
-    exercise_pattern = pattern.exercise_pattern
+    exercise_pattern, ex_inline_flags = _strip_inline_flags(pattern.exercise_pattern)
     if not exercise_pattern.startswith(('(?:^', '^', '\\A')):
         exercise_pattern = rf'(?:^|\n)\s*{exercise_pattern}'
     try:
-        exercise_regex = re.compile(exercise_pattern, re.IGNORECASE | re.MULTILINE)
+        exercise_regex = re.compile(exercise_pattern, re.IGNORECASE | re.MULTILINE | ex_inline_flags)
     except re.error:
         return  # Can't extract without valid exercise pattern
 
     # Build regex for sub-markers using LLM pattern
     sub_regex = None
     if pattern.sub_pattern:
-        sub_pattern_str = pattern.sub_pattern
+        sub_pattern_str, sub_inline_flags = _strip_inline_flags(pattern.sub_pattern)
         if not sub_pattern_str.startswith(('(?:^', '^', '\\A')):
             sub_pattern_str = rf'(?:^|\n)\s*{sub_pattern_str}'
         try:
-            sub_regex = re.compile(sub_pattern_str, re.MULTILINE)
+            sub_regex = re.compile(sub_pattern_str, re.MULTILINE | sub_inline_flags)
         except re.error:
             sub_regex = None
 
@@ -1309,9 +1366,12 @@ class ExerciseSplitter:
         elif detection.pattern:
             # Mode 1: Pattern-based detection
             pattern = detection.pattern
+            sub_info = ""
+            if pattern.sub_patterns:
+                sub_info = f", sub_patterns={pattern.sub_patterns}"
             logger.info(
                 f"Pattern detected: exercise='{pattern.exercise_pattern}'"
-                + (f", sub='{pattern.sub_pattern}'" if pattern.sub_pattern else "")
+                + sub_info
                 + (f", solution='{pattern.solution_pattern}'" if pattern.solution_pattern else "")
             )
             markers, solution_ranges = _find_all_markers(full_text, pattern)
@@ -1686,7 +1746,12 @@ class ExerciseSplitter:
         if len(exercise.text.strip()) < min_length:
             return False
 
-        # Check if it's not just a header
+        # Sub-questions can be shorter (e.g., "La capacita' di agire")
+        # They get context from their parent exercise
+        if exercise.is_sub_question:
+            return True
+
+        # Parent exercises need at least 5 words to avoid headers
         if len(exercise.text.split()) < 5:
             return False
 
