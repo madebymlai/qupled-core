@@ -193,10 +193,16 @@ TEXT SAMPLE:
 Identify the exact patterns used and return Python regex patterns:
 
 1. EXERCISE_PATTERN - Regex matching exercise markers. Must have a capture group for the exercise number.
-   Format: "keyword\\s+(\\d+)" or "(\\d+)\\." if no keyword.
+   Examples:
+   - "keyword\\s+(\\d+)" matches "Keyword 1", "Keyword 2" (any language keyword)
+   - "(\\d+)\\." matches "1.", "2." (if no keyword, just numbers)
 
 2. SUB_PATTERN - Regex matching sub-question markers (if any). Should have capture group(s).
-   Format: "([a-z])\\s*[).]" for letters, "(\\d+)\\s*[).]" for numbers, "[-•*]\\s+" for bullets.
+   Examples:
+   - "([a-z])\\s*[).]" matches "a)", "b.", "c)" (Latin letters)
+   - "(\\d+)\\s*[).]" matches "1)", "2." (numbered sub-questions)
+   - "(\\d+)([a-z])\\s*[).]" matches "1a)", "2b)" (combined: 2 groups = parent + sub)
+   - "[-•*]\\s+" matches "- ", "• " (bullets, no capture group needed)
 
 3. SOLUTION_PATTERN - Keyword or regex for solution sections (if any).
 
@@ -671,17 +677,24 @@ def _find_all_markers(
             logger.warning(f"Failed to compile sub_pattern: {pattern.sub_pattern} - {e}")
             sub_regex = None
 
-        # Build trigger regexes if provided by LLM
-        # LLM returns sub_triggers when sub_pattern could conflict with exercise_pattern
-        # (e.g., both use numbers, or both use letters)
-        # Trust LLM's judgment - if triggers provided, use them
+        # Build trigger regexes if provided by LLM, but only use them if patterns are truly ambiguous
+        # Patterns are ambiguous if sub_pattern could match exercise_pattern text
+        # (e.g., both are "number + punctuation" with no distinguishing keyword)
         trigger_regexes = []
         if pattern.sub_triggers:
-            for trigger in pattern.sub_triggers:
-                try:
-                    trigger_regexes.append(re.compile(trigger, re.IGNORECASE))
-                except re.error:
-                    pass
+            # Check if patterns are truly ambiguous
+            # If exercise_pattern has a keyword prefix (letters before capture group), patterns are unambiguous
+            exercise_has_keyword = bool(re.match(r'^[a-zA-Z\\]', pattern.exercise_pattern)
+                                       and '\\d' in pattern.exercise_pattern
+                                       and '\\s' in pattern.exercise_pattern)
+
+            if not exercise_has_keyword:
+                # Patterns might be ambiguous, use triggers
+                for trigger in pattern.sub_triggers:
+                    try:
+                        trigger_regexes.append(re.compile(trigger, re.IGNORECASE))
+                    except re.error:
+                        pass
 
         if sub_regex:
             for match in sub_regex.finditer(full_text):
@@ -870,7 +883,7 @@ def _expand_exercises(
                     id=exercise_id,
                     text=full_text,
                     page_number=page_num,
-                    exercise_number=f"{parent_num}{child.marker.number}",
+                    exercise_number=f"{parent_num}.{child.marker.number}",
                     has_images=False,  # Will be enriched later
                     image_data=[],
                     has_latex=False,
