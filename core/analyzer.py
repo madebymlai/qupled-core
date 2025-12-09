@@ -158,7 +158,8 @@ class ExerciseAnalyzer:
 
     def analyze_exercise(self, exercise_text: str, course_name: str,
                         previous_exercise: Optional[str] = None,
-                        existing_context: Optional[Dict[str, Any]] = None) -> AnalysisResult:
+                        existing_context: Optional[Dict[str, Any]] = None,
+                        parent_context: Optional[str] = None) -> AnalysisResult:
         """Analyze a single exercise.
 
         Args:
@@ -168,13 +169,14 @@ class ExerciseAnalyzer:
             existing_context: Optional dict with existing entities for context-aware analysis:
                 - procedures: List[dict] with {"name": str, "type": str}
                 - concepts: List[dict] with {"name": str, "type": str}
+            parent_context: Optional context from parent exercise (for sub-questions)
 
         Returns:
             AnalysisResult with classification
         """
         # Build prompt
         prompt = self._build_analysis_prompt(
-            exercise_text, course_name, previous_exercise, existing_context
+            exercise_text, course_name, previous_exercise, existing_context, parent_context
         )
 
         # Call LLM
@@ -220,7 +222,8 @@ class ExerciseAnalyzer:
 
     def _build_analysis_prompt(self, exercise_text: str, course_name: str,
                                previous_exercise: Optional[str],
-                               existing_context: Optional[Dict[str, Any]] = None) -> str:
+                               existing_context: Optional[Dict[str, Any]] = None,
+                               parent_context: Optional[str] = None) -> str:
         """Build prompt for exercise analysis.
 
         Args:
@@ -228,10 +231,32 @@ class ExerciseAnalyzer:
             course_name: Course name
             previous_exercise: Previous exercise (for merge detection)
             existing_context: Optional dict with existing procedures/concepts
+            parent_context: Optional context from parent exercise (for sub-questions)
 
         Returns:
             Prompt string
         """
+        # Build exercise section - with or without parent context
+        if parent_context:
+            exercise_section = f"""CONTEXT (background info from parent exercise - do NOT analyze this, just use it):
+```
+{parent_context}
+```
+
+QUESTION TO ANALYZE (this is the actual sub-question to focus on):
+```
+{exercise_text[:2000]}
+```
+
+IMPORTANT: Focus your analysis on the QUESTION above, not the CONTEXT.
+The knowledge item name should reflect the specific sub-question topic, not the generic parent topic.
+The context provides data/setup; the question specifies what to do with it."""
+        else:
+            exercise_section = f"""EXERCISE TEXT:
+```
+{exercise_text[:2000]}
+```"""
+
         base_prompt = f"""You are analyzing exam exercises for the course: {course_name}.
 
 Your task is to analyze this text and determine:
@@ -239,10 +264,7 @@ Your task is to analyze this text and determine:
 2. Is it a fragment that should be merged with other parts?
 3. What is the core skill/knowledge being tested?
 
-EXERCISE TEXT:
-```
-{exercise_text[:2000]}
-```
+{exercise_section}
 """
 
         if previous_exercise:
@@ -300,9 +322,9 @@ KNOWLEDGE TYPE:
 - MEMORIZE/KNOW (a fact) → fact
 
 NAMING:
-- Name the CONCEPT being tested, not the TASK being performed
-- Ask: "What would a textbook chapter about this be titled?"
-- The name should make sense outside this exercise context
+- Name the TECHNIQUE or CONCEPT being tested, not the problem scenario
+- Ask: "What would a student study to solve this?"
+- The name should appear in a textbook INDEX for this subject area
 - If multiple concepts are tested, pick the primary one
 
 VARIATION:
