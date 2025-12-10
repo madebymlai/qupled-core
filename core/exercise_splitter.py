@@ -190,7 +190,6 @@ class MarkerPattern:
     exercise_pattern: str                   # Regex for exercise markers (e.g., "Esercizio\\s+(\\d+)")
     sub_patterns: Optional[List[str]] = None  # Regex patterns for sub-markers (e.g., ["([a-z])\\s*[).]", "(\\d+)\\.\\s"])
     solution_pattern: Optional[str] = None  # Keyword or regex for solutions (e.g., "Soluzione")
-    sub_triggers: Optional[List[str]] = None  # Phrases that precede numbered sub-questions
 
     @property
     def sub_pattern(self) -> Optional[str]:
@@ -268,12 +267,10 @@ Identify the exact patterns used and return Python regex patterns:
 
 3. SOLUTION_PATTERN - Keyword or regex for solution sections (if any).
 
-4. SUB_TRIGGERS - Phrases that PRECEDE sub-questions. Only needed if sub_patterns could match exercise markers (e.g., both are "number + punctuation" with no keyword). Return null if patterns are unambiguous.
-
 IMPORTANT: Do NOT include inline flags like (?i), (?m), (?s) in patterns. Case-insensitivity and multiline matching are applied automatically.
 
 Return ONLY valid JSON:
-{{"mode": "pattern", "exercise_pattern": "regex string", "sub_patterns": ["array of regex strings"] or null, "solution_pattern": "keyword or null", "sub_triggers": ["array of regex strings"] or null}}
+{{"mode": "pattern", "exercise_pattern": "regex string", "sub_patterns": ["array of regex strings"] or null, "solution_pattern": "keyword or null"}}
 
 If NO consistent pattern exists, return explicit markers with question boundaries:
 {{"mode": "explicit", "exercises": [
@@ -372,27 +369,11 @@ IMPORTANT for end_marker:
                         logger.warning(f"Invalid sub_pattern from LLM: {sp} - {e}")
             sub_patterns = valid_patterns if valid_patterns else None
 
-        # Parse sub_triggers - validate each regex
-        sub_triggers = data.get("sub_triggers")
-        if sub_triggers and isinstance(sub_triggers, list):
-            valid_triggers = []
-            for trigger in sub_triggers:
-                if trigger:
-                    try:
-                        re.compile(trigger)
-                        valid_triggers.append(trigger)
-                    except re.error as e:
-                        logger.warning(f"Invalid sub_trigger from LLM: {trigger} - {e}")
-            sub_triggers = valid_triggers if valid_triggers else None
-        else:
-            sub_triggers = None
-
         return DetectionResult(
             pattern=MarkerPattern(
                 exercise_pattern=exercise_pattern,
                 sub_patterns=sub_patterns,
                 solution_pattern=data.get("solution_pattern"),
-                sub_triggers=sub_triggers,
             )
         )
 
