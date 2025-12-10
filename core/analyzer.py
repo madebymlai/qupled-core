@@ -158,7 +158,8 @@ class ExerciseAnalyzer:
 
     def analyze_exercise(self, exercise_text: str, course_name: str,
                         previous_exercise: Optional[str] = None,
-                        existing_context: Optional[Dict[str, Any]] = None) -> AnalysisResult:
+                        existing_context: Optional[Dict[str, Any]] = None,
+                        parent_context: Optional[str] = None) -> AnalysisResult:
         """Analyze a single exercise.
 
         Args:
@@ -168,13 +169,14 @@ class ExerciseAnalyzer:
             existing_context: Optional dict with existing entities for context-aware analysis:
                 - procedures: List[dict] with {"name": str, "type": str}
                 - concepts: List[dict] with {"name": str, "type": str}
+            parent_context: Optional context from parent exercise (for sub-questions)
 
         Returns:
             AnalysisResult with classification
         """
         # Build prompt
         prompt = self._build_analysis_prompt(
-            exercise_text, course_name, previous_exercise, existing_context
+            exercise_text, course_name, previous_exercise, existing_context, parent_context
         )
 
         # Call LLM
@@ -220,7 +222,8 @@ class ExerciseAnalyzer:
 
     def _build_analysis_prompt(self, exercise_text: str, course_name: str,
                                previous_exercise: Optional[str],
-                               existing_context: Optional[Dict[str, Any]] = None) -> str:
+                               existing_context: Optional[Dict[str, Any]] = None,
+                               parent_context: Optional[str] = None) -> str:
         """Build prompt for exercise analysis.
 
         Args:
@@ -228,6 +231,7 @@ class ExerciseAnalyzer:
             course_name: Course name
             previous_exercise: Previous exercise (for merge detection)
             existing_context: Optional dict with existing procedures/concepts
+            parent_context: Optional context from parent exercise (for sub-questions)
 
         Returns:
             Prompt string
@@ -253,6 +257,16 @@ PREVIOUS EXERCISE:
 ```
 
 Does this exercise appear to be a continuation or sub-part of the previous one?
+"""
+
+        if parent_context:
+            base_prompt += f"""
+PARENT CONTEXT (this is a sub-question):
+```
+{parent_context[:1000]}
+```
+
+Use this context to understand what topic/scenario this sub-question belongs to.
 """
 
         # Add existing context if provided (Phase 3: Context Injection)
@@ -360,7 +374,7 @@ CONTEXT RULES (CRITICAL):
 1. PREFER existing procedure if solving same problem with same method
 2. PREFER existing concept if asking about same theoretical entity
 3. Create NEW procedure only if method is genuinely different
-4. When in doubt, USE EXISTING names over creating new ones"""
+4. Only reuse existing name if it's a close match, not a broad category"""
             return "".join(sections) + context_rules
 
         return ""

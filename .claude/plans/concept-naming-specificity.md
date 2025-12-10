@@ -1,18 +1,18 @@
 # Concept Naming Specificity Fix
 
 ## Summary
-Fix the analyzer prompt to produce specific concept names instead of broad categories. Currently generating generic names because NAMING section says "textbook chapter" which is too broad. The fix is simple: clarify that names should be TECHNIQUES from a textbook INDEX, not problem scenarios.
+Fix the analyzer to produce specific concept names instead of broad categories. Root cause: CONTEXT RULES rule 4 said "USE EXISTING names over creating new ones" which caused the first generic name to cascade to all subsequent exercises.
 
-## Files to Modify
-- `core/analyzer.py` - Update NAMING section in `_build_analysis_prompt` method (lines 324-328)
+## Files Modified
+- `core/analyzer.py` - Changed CONTEXT RULES rule 4 (line 377) + added parent_context parameter
 
-## Steps
-1. Update NAMING section (lines 324-328) to add: "Name the TECHNIQUE or CONCEPT being tested, not the problem scenario", "Ask: What would a student study to solve this?", "The name should appear in a textbook INDEX for this subject area"
-2. Test by re-analyzing a course with force=True and verify concept names are technique-based
+## Changes Made
+1. Changed CONTEXT RULES rule 4 from "When in doubt, USE EXISTING names over creating new ones" to "Only reuse existing name if it's a close match, not a broad category"
+2. Added `parent_context` parameter to `analyze_exercise` and `_build_analysis_prompt` methods for sub-question context
 
-## Edge Cases
-- Word problems with elaborate scenarios - the INDEX guidance helps focus on technique
-- Sub-questions already handled well by existing parent_context logic (lines 251-253)
+## Results
+- Before: Generic names like `concurrent_programming`, `concurrency_control`
+- After: Specific names like `Java Monitor Synchronization`, `Semaphore-based Synchronization Problems`, `dining_philosophers_semaphore_solution`
 
-## Dependencies
-- Step 2 depends on Step 1
+## Testing
+Re-analyzed PC course with force=True - new analyses produce specific technique-based names
