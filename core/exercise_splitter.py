@@ -673,6 +673,7 @@ def _get_second_pass_results(
    Good context: data, values, parameters, scenario setup that sub-questions reference.
    If parent also contains its own question, include a brief summary of that question.
    Return null if: sub-questions are independent and don't need shared info to be understood.
+   IMPORTANT: Always return context_summary in ENGLISH, even if source text is in another language.
 
 EXERCISES:
 {exercises_text}
@@ -1120,8 +1121,8 @@ def _expand_exercises(
 
         if parent.children:
             # Parent with children - DON'T emit parent as separate exercise
-            # Use context_summary (from second-pass) or fallback to full question_text
-            parent_ctx = getattr(parent, "context_summary", None) or parent.question_text
+            # Use context_summary from second-pass (null means context not needed)
+            parent_ctx = getattr(parent, "context_summary", None)
 
             for child in parent.children:
                 sub_text = child.question_text.strip()
