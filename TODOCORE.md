@@ -12,11 +12,13 @@
 - **Topic splitting**: `--delete-old` may fail due to foreign key constraints if topic has references
 - **examina-core packaging**: `from config import Config` fails when installed as package
 - **LLMExerciseSplitter**: ~~Strict text matching fails~~ Fixed with multi-page search + 6-strategy fuzzy matching + LLM-provided regex patterns (language-agnostic). Remaining: cross-page solution matching.
+- ~~**Circular import in Docker**~~: Fixed with lazy import of RateLimitTracker in llm_manager.py
 
 ### Low Priority
 - [ ] Concept normalization - Minor: some topics use underscores vs spaces (cosmetic)
 - [ ] Interactive merge review for deduplication - Manual approve/reject (web feature)
 - [ ] Merge history tracking - Allow undo operations (web feature)
+- [ ] Image upload with OCR - pytesseract dependency exists but unused; users can use scanner apps for now
 
 ### Long-Term Goals
 - [ ] **Community Patterns** - Aggregate pattern data across users on same course/prof

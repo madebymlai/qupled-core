@@ -20,7 +20,8 @@ except ImportError:
     AIOHTTP_AVAILABLE = False
 
 from config import Config
-from core.rate_limiter import RateLimitTracker
+# NOTE: RateLimitTracker imported lazily in __init__ to avoid circular import
+# Chain: models.llm_manager → core.rate_limiter → core/__init__ → core.analyzer → models.llm_manager
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,8 @@ class LLMManager:
         self.cache_hits = 0
         self.cache_misses = 0
 
-        # Initialize rate limiter
+        # Initialize rate limiter (lazy import to avoid circular dependency)
+        from core.rate_limiter import RateLimitTracker
         self.rate_limiter = RateLimitTracker(Config.PROVIDER_RATE_LIMITS)
         logger.debug(f"Initialized LLMManager with provider '{provider}' and rate limiting")
 
