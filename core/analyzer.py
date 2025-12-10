@@ -63,9 +63,6 @@ class KnowledgeItemInfo:
     name: str  # snake_case identifier
     knowledge_type: str  # definition, theorem, proof, procedure, fact, formula, algorithm, etc.
     learning_approach: Optional[str] = None  # procedural, conceptual, factual, analytical
-    content: Optional[Dict[str, Any]] = None  # Flexible JSON content based on type
-    parent_name: Optional[str] = None  # Abstract parent if this is a variation
-    variation_parameter: Optional[str] = None  # What makes this specific (e.g., "2x2 matrix")
 
 
 @dataclass
@@ -206,9 +203,6 @@ class ExerciseAnalyzer:
                 name=item_data.get("name", "unknown"),
                 knowledge_type=item_data.get("knowledge_type", "key_concept"),
                 learning_approach=item_data.get("learning_approach"),
-                content=item_data.get("content"),
-                parent_name=item_data.get("parent_name"),
-                variation_parameter=item_data.get("variation_parameter"),
             ))
 
         return AnalysisResult(
@@ -419,9 +413,6 @@ CONTEXT RULES (CRITICAL):
                     name=ki.get('name', 'unknown'),
                     knowledge_type=ki.get('knowledge_type', 'key_concept'),
                     learning_approach=ki.get('learning_approach'),
-                    content=ki.get('content'),
-                    parent_name=ki.get('parent_name'),
-                    variation_parameter=ki.get('variation_parameter'),
                 ))
 
         return AnalysisResult(
