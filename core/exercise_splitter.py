@@ -186,9 +186,13 @@ class MarkerPattern:
     """Pattern for exercise markers detected by LLM.
 
     LLM returns actual regex patterns for language-agnostic detection.
+
+    Note: sub_patterns is no longer returned from pattern detection (Call 1).
+    Per-exercise sub_patterns are now determined in Call 3 after parent boundaries
+    are known, to avoid false positives from inline conditions like "i) X or ii) Y".
     """
     exercise_pattern: str                   # Regex for exercise markers (e.g., "Esercizio\\s+(\\d+)")
-    sub_patterns: Optional[List[str]] = None  # Regex patterns for sub-markers (e.g., ["([a-z])\\s*[).]", "(\\d+)\\.\\s"])
+    sub_patterns: Optional[List[str]] = None  # DEPRECATED: Now determined per-exercise in Call 3
     solution_pattern: Optional[str] = None  # Keyword or regex for solutions (e.g., "Soluzione")
 
     @property
@@ -254,23 +258,12 @@ Identify the exact patterns used and return Python regex patterns:
    - "keyword\\s+(\\d+)" matches "Keyword 1", "Keyword 2" (any language keyword)
    - "(\\d+)\\." matches "1.", "2." (if no keyword, just numbers)
 
-2. SUB_PATTERNS - Array of regex patterns for sub-question markers. Include ALL patterns if document uses multiple styles.
-   Examples:
-   - ["([a-z])\\s*[).]"] matches "a)", "b.", "c)" (Latin letters)
-   - ["(\\d+)\\.\\s"] matches "1. ", "2. " (numbered sub-questions)
-   - ["([a-z])\\s*[).]", "(\\d+)\\.\\s"] matches BOTH letter and numbered sub-questions
-   - ["[-•*]\\s+"] matches "- ", "• " (bullets)
-   - ["(\\d+)([a-z])\\s*[).]"] matches "1a)", "2b." (COMBINED: number+letter, use when sub-markers include parent number)
-   - ["([a-z])(\\d+)\\s*[).]"] matches "a1)", "b2." (COMBINED: letter+number variant)
-   IMPORTANT: If document has BOTH letter (a, b, c) AND numbered (1., 2., 3.) sub-questions, return BOTH patterns!
-   IMPORTANT: If sub-markers include the parent number (like "1a", "2a" instead of just "a", "b"), use COMBINED format!
-
-3. SOLUTION_PATTERN - Keyword or regex for solution sections (if any).
+2. SOLUTION_PATTERN - Keyword or regex for solution sections (if any).
 
 IMPORTANT: Do NOT include inline flags like (?i), (?m), (?s) in patterns. Case-insensitivity and multiline matching are applied automatically.
 
 Return ONLY valid JSON:
-{{"mode": "pattern", "exercise_pattern": "regex string", "sub_patterns": ["array of regex strings"] or null, "solution_pattern": "keyword or null"}}
+{{"mode": "pattern", "exercise_pattern": "regex string", "solution_pattern": "keyword or null"}}
 
 If NO consistent pattern exists, return explicit markers with question boundaries:
 {{"mode": "explicit", "exercises": [
@@ -350,29 +343,13 @@ IMPORTANT for end_marker:
             logger.warning(f"Invalid exercise_pattern from LLM: {exercise_pattern} - {e}")
             return None
 
-        # Parse sub_patterns - support both array (new) and single string (legacy)
-        sub_patterns_raw = data.get("sub_patterns") or data.get("sub_pattern")
-        sub_patterns: Optional[List[str]] = None
-        if sub_patterns_raw:
-            # Normalize to list
-            if isinstance(sub_patterns_raw, str):
-                sub_patterns_raw = [sub_patterns_raw]
-
-            # Validate each pattern
-            valid_patterns = []
-            for sp in sub_patterns_raw:
-                if sp:
-                    try:
-                        re.compile(sp)
-                        valid_patterns.append(sp)
-                    except re.error as e:
-                        logger.warning(f"Invalid sub_pattern from LLM: {sp} - {e}")
-            sub_patterns = valid_patterns if valid_patterns else None
+        # sub_patterns no longer returned from pattern detection (Call 1)
+        # Per-exercise sub_patterns determined in Call 3 after parent boundaries known
 
         return DetectionResult(
             pattern=MarkerPattern(
                 exercise_pattern=exercise_pattern,
-                sub_patterns=sub_patterns,
+                sub_patterns=None,  # Determined per-exercise in Call 3
                 solution_pattern=data.get("solution_pattern"),
             )
         )
@@ -501,6 +478,129 @@ def _create_exercises_from_boundaries(
             latex_content=None,
             source_pdf=pdf_content.file_path.name,
         ))
+
+    return exercises
+
+
+def _create_exercises_from_explicit_boundaries(
+    boundaries: List[ExerciseBoundary],
+    explicit_subs: Dict[str, List[Dict[str, str]]],
+    full_text: str,
+    pdf_content: "PDFContent",
+    course_code: str,
+    page_lookup: Dict[int, int],
+) -> List[Exercise]:
+    """Create Exercise objects from explicit boundaries with sub-question support.
+
+    Args:
+        boundaries: List of exercise boundaries with start/end positions
+        explicit_subs: Dict mapping exercise number to list of sub-question dicts
+        full_text: Complete document text
+        pdf_content: PDF content for metadata
+        course_code: Course code for ID generation
+        page_lookup: Mapping of char positions to page numbers
+
+    Returns:
+        List of Exercise objects including sub-questions
+    """
+    exercises: List[Exercise] = []
+
+    def get_page_number(char_pos: int) -> int:
+        """Find page number for a character position."""
+        page = 1
+        for pos, pg in sorted(page_lookup.items()):
+            if pos <= char_pos:
+                page = pg
+            else:
+                break
+        return page
+
+    for i, boundary in enumerate(boundaries):
+        parent_num = boundary.number
+
+        # Determine parent end position
+        if boundary.end_pos:
+            parent_end = boundary.end_pos
+        elif i + 1 < len(boundaries):
+            parent_end = boundaries[i + 1].start_pos
+        else:
+            parent_end = len(full_text)
+
+        parent_text = full_text[boundary.start_pos:parent_end].strip()
+        page_num = get_page_number(boundary.start_pos)
+
+        # Check for sub-questions
+        subs = explicit_subs.get(parent_num, [])
+
+        if subs:
+            # Parent has sub-questions - create sub-question exercises
+            for sub_idx, sub in enumerate(subs, start=1):
+                sub_num = str(sub_idx)  # Auto-generate: 1, 2, 3...
+                start_marker = sub.get("start_marker", "")
+                end_marker = sub.get("end_marker", "")
+
+                if not start_marker:
+                    continue
+
+                # Find start position
+                start_pos = _fuzzy_find(parent_text, start_marker)
+                if start_pos < 0:
+                    logger.warning(f"Could not find sub-question start: {start_marker[:30]}...")
+                    continue
+
+                # Find end position
+                if end_marker:
+                    end_pos = _fuzzy_find(parent_text, end_marker, start_from=start_pos)
+                    if end_pos >= 0:
+                        end_pos += len(end_marker)  # Include end_marker in text
+                    else:
+                        end_pos = len(parent_text)
+                else:
+                    end_pos = len(parent_text)
+
+                sub_text = parent_text[start_pos:end_pos].strip()
+                if not sub_text:
+                    continue
+
+                abs_pos = boundary.start_pos + start_pos
+                sub_page = get_page_number(abs_pos)
+                ex_num = f"{parent_num}.{sub_num}"
+
+                exercise_id = _generate_exercise_id(
+                    course_code, pdf_content.file_path.name, ex_num, abs_pos
+                )
+
+                exercises.append(Exercise(
+                    id=exercise_id,
+                    text=sub_text,
+                    page_number=sub_page,
+                    exercise_number=ex_num,
+                    has_images=False,
+                    image_data=[],
+                    has_latex=False,
+                    latex_content=None,
+                    source_pdf=pdf_content.file_path.name,
+                    parent_exercise_number=parent_num,
+                    sub_question_marker=sub_num,
+                    is_sub_question=True,
+                ))
+        else:
+            # No sub-questions - create single exercise
+            exercise_id = _generate_exercise_id(
+                course_code, pdf_content.file_path.name, page_num, i + 1
+            )
+
+            exercises.append(Exercise(
+                id=exercise_id,
+                text=parent_text,
+                page_number=page_num,
+                exercise_number=parent_num,
+                has_images=False,
+                image_data=[],
+                has_latex=False,
+                latex_content=None,
+                source_pdf=pdf_content.file_path.name,
+            ))
 
     return exercises
 
@@ -724,6 +824,235 @@ CRITICAL:
 
     # Fall back to rough ends
     return {m.number: rough_ends[m.number] for m in parent_markers}
+
+
+def _get_per_exercise_sub_patterns(
+    parent_markers: List[Marker],
+    full_text: str,
+    parent_boundaries: Dict[str, Tuple[int, int]],
+    llm_manager: "LLMManager",
+) -> Dict[str, Optional[List[str]]]:
+    """Determine sub_patterns for each exercise individually (Call 3).
+
+    This replaces the global sub_patterns from Call 1. By analyzing each
+    exercise's full text, we can distinguish real sub-questions from
+    inline conditions like "i) X or ii) Y".
+
+    Args:
+        parent_markers: List of parent exercise markers
+        full_text: Full document text
+        parent_boundaries: Dict of exercise_number -> (start, end) positions
+        llm_manager: LLM for detection
+
+    Returns:
+        Dict mapping exercise_number -> list of sub_patterns (or None if no subs)
+    """
+    if not parent_markers or not parent_boundaries:
+        return {}
+
+    logger.info(f"Detecting per-exercise sub_patterns for {len(parent_markers)} exercises...")
+
+    # Build exercise texts for LLM
+    MAX_EXERCISE_CHARS = 15000  # ~4k tokens per exercise
+    exercises_text_parts = []
+
+    for marker in parent_markers:
+        num = marker.number
+        if num not in parent_boundaries:
+            continue
+
+        start, end = parent_boundaries[num]
+        exercise_text = full_text[start:end].strip()
+
+        # Truncate if too long (keep start and end where sub-patterns likely appear)
+        original_len = len(exercise_text)
+        if original_len > MAX_EXERCISE_CHARS:
+            half = MAX_EXERCISE_CHARS // 2
+            exercise_text = exercise_text[:half] + "\n...[truncated]...\n" + exercise_text[-half:]
+            logger.info(f"Exercise {num} text truncated from {original_len} to {MAX_EXERCISE_CHARS} chars")
+
+        exercises_text_parts.append(f"Exercise {num}:\n---\n{exercise_text}\n---")
+
+    if not exercises_text_parts:
+        return {}
+
+    exercises_text = "\n\n".join(exercises_text_parts)
+
+    prompt = f"""For each exercise below, determine if it contains sub-questions.
+
+Sub-questions are SEPARATE TASKS requiring SEPARATE ANSWERS.
+
+EXERCISES:
+{exercises_text}
+
+Return JSON with per-exercise sub_patterns (regex patterns to match sub-question markers).
+
+Regex pattern examples:
+- ["([a-z])\\\\s*[).]"] matches "a)", "b.", "c)" (letter markers)
+- ["(\\\\d+)\\\\.\\\\s"] matches "1. ", "2. " (numbered markers)
+- ["[-•*]\\\\s+"] matches "- ", "• ", "* " (bullets)
+- ["(\\\\d+)([a-z])\\\\s*[).]"] matches "1a)", "1b)", "2a)" (number+letter)
+- ["([a-z])(\\\\d+)\\\\s*[).]"] matches "a1)", "a2)", "b1)" (letter+number)
+- null if no sub-questions
+
+{{"results": [
+  {{"number": "<exercise_number>", "sub_patterns": ["<regex>"] or null}}
+]}}
+
+Return null for sub_patterns if exercise has no sub-questions."""
+
+    try:
+        llm_response = llm_manager.generate(prompt, temperature=0.0)
+        response_text = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
+
+        # Parse JSON from response
+        json_match = re.search(r'\{[\s\S]*\}', response_text)
+        if not json_match:
+            logger.warning("No JSON found in sub_patterns response")
+            return {}
+
+        data = json.loads(json_match.group())
+        results_list = data.get("results", [])
+
+        # Convert to dict and validate patterns
+        results: Dict[str, Optional[List[str]]] = {}
+        for item in results_list:
+            num = item.get("number")
+            patterns = item.get("sub_patterns")
+
+            if not num:
+                continue
+
+            if patterns is None:
+                results[num] = None
+                logger.debug(f"Exercise {num}: no sub-questions")
+                continue
+
+            # Validate each pattern
+            valid_patterns = []
+            for p in patterns:
+                if not p:
+                    continue
+                try:
+                    re.compile(p)
+                    valid_patterns.append(p)
+                except re.error as e:
+                    logger.warning(f"Invalid sub_pattern for exercise {num}: {p} - {e}")
+
+            results[num] = valid_patterns if valid_patterns else None
+            if valid_patterns:
+                logger.info(f"Exercise {num}: sub_patterns={valid_patterns}")
+            else:
+                logger.debug(f"Exercise {num}: no valid sub-patterns")
+
+        # Summary
+        with_subs = sum(1 for p in results.values() if p)
+        logger.info(f"Sub-pattern detection complete: {with_subs}/{len(parent_markers)} exercises have sub-questions")
+
+        return results
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse sub_patterns response: {e}")
+        return {}
+    except Exception as e:
+        logger.warning(f"Per-exercise sub_pattern detection failed: {e}")
+        return {}
+
+
+def _get_explicit_sub_questions(
+    boundaries: List["ExerciseBoundary"],
+    full_text: str,
+    llm_manager: "LLMManager",
+) -> Dict[str, List[Dict[str, str]]]:
+    """Get explicit sub-question markers for explicit mode (Call 3 explicit).
+
+    Uses same format as explicit parent exercises: start_marker to locate each sub.
+
+    Args:
+        boundaries: List of exercise boundaries
+        full_text: Full document text
+        llm_manager: LLM for detection
+
+    Returns:
+        Dict mapping exercise_number -> list of sub-question dicts from LLM
+    """
+    if not boundaries:
+        return {}
+
+    logger.info(f"Detecting explicit sub-questions for {len(boundaries)} exercises...")
+
+    # Build exercise texts for LLM
+    MAX_EXERCISE_CHARS = 15000
+    exercises_text_parts = []
+
+    for boundary in boundaries:
+        num = boundary.number
+        start = boundary.start_pos
+        end = boundary.end_pos if boundary.end_pos else len(full_text)
+        exercise_text = full_text[start:end].strip()
+
+        if len(exercise_text) > MAX_EXERCISE_CHARS:
+            half = MAX_EXERCISE_CHARS // 2
+            exercise_text = exercise_text[:half] + "\n...[truncated]...\n" + exercise_text[-half:]
+
+        exercises_text_parts.append(f"Exercise {num}:\n---\n{exercise_text}\n---")
+
+    if not exercises_text_parts:
+        return {}
+
+    exercises_text = "\n\n".join(exercises_text_parts)
+
+    prompt = f"""For each exercise below, identify sub-questions if any.
+
+Sub-questions are SEPARATE TASKS requiring SEPARATE ANSWERS.
+
+EXERCISES:
+{exercises_text}
+
+Return JSON:
+{{"results": [
+  {{"number": "<exercise_number>", "sub_questions": [
+    {{"start_marker": "first ~40 chars", "end_marker": "last ~40 chars"}}
+  ] or null}}
+]}}
+
+Return null for sub_questions if exercise has no sub-questions."""
+
+    try:
+        llm_response = llm_manager.generate(prompt, temperature=0.0)
+        response_text = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
+
+        json_match = re.search(r'\{[\s\S]*\}', response_text)
+        if not json_match:
+            logger.warning("No JSON found in explicit sub-questions response")
+            return {}
+
+        data = json.loads(json_match.group())
+        results_list = data.get("results", [])
+
+        results: Dict[str, List[Dict[str, str]]] = {}
+        for item in results_list:
+            num = item.get("number")
+            subs = item.get("sub_questions")
+
+            if not num or not subs:
+                continue
+
+            # Pass through whatever LLM returned
+            results[num] = subs
+            logger.info(f"Exercise {num}: {len(subs)} explicit sub-questions")
+
+        with_subs = len(results)
+        logger.info(f"Explicit sub-question detection complete: {with_subs}/{len(boundaries)} exercises have sub-questions")
+
+        return results
+
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse explicit sub-questions response: {e}")
+        return {}
+    except Exception as e:
+        logger.warning(f"Explicit sub-question detection failed: {e}")
+        return {}
 
 
 def _get_second_pass_results(
@@ -1003,25 +1332,26 @@ def _find_all_markers(
 
 def _find_sub_markers_in_boundaries(
     full_text: str,
-    sub_patterns: List[str],
+    sub_patterns_by_exercise: Dict[str, Optional[List[str]]],
     parent_boundaries: Dict[str, Tuple[int, int]],  # parent_number -> (start_pos, end_pos)
     solution_ranges: List[Tuple[int, int]],
 ) -> List[Marker]:
-    """Find sub-markers within parent exercise boundaries.
+    """Find sub-markers within parent exercise boundaries using per-exercise patterns.
 
-    Uses boundary-based detection instead of sub_triggers heuristic.
-    Only finds sub-markers within [parent_start, parent_end] for each parent.
+    Uses boundary-based detection with per-exercise sub_patterns.
+    Only finds sub-markers within [parent_start, parent_end] for each parent,
+    using patterns specific to that exercise.
 
     Args:
         full_text: Complete document text
-        sub_patterns: List of regex patterns for sub-question markers
+        sub_patterns_by_exercise: Dict mapping parent number to list of sub_patterns (or None)
         parent_boundaries: Dict mapping parent number to (start, end) positions
         solution_ranges: List of (start, end) positions for solution sections
 
     Returns:
         List of sub-question Marker objects
     """
-    if not sub_patterns or not parent_boundaries:
+    if not sub_patterns_by_exercise or not parent_boundaries:
         return []
 
     def _is_in_solution_section(pos: int) -> bool:
@@ -1034,62 +1364,74 @@ def _find_sub_markers_in_boundaries(
     markers: List[Marker] = []
     seen_positions: set[int] = set()
 
-    # Build list of (parent_num, start, end) sorted by start position
-    sorted_parents = sorted(
-        [(num, start, end) for num, (start, end) in parent_boundaries.items()],
-        key=lambda x: x[1]
-    )
-
-    for sub_pattern_raw in sub_patterns:
-        # Strip inline flags and fix decimal matching issue
-        sub_pattern_str, sub_inline_flags = _strip_inline_flags(sub_pattern_raw)
-        sub_pattern_str = _fix_decimal_pattern(sub_pattern_str)
-
-        # Don't anchor sub-patterns - they may appear inline after parent marker
-        # e.g., "(3) (a) Question text..." where (a) follows (3) on same line
-
-        try:
-            sub_compile_flags = re.MULTILINE | sub_inline_flags
-            sub_regex = re.compile(sub_pattern_str, sub_compile_flags)
-        except re.error as e:
-            logger.warning(f"Failed to compile sub_pattern: {sub_pattern_raw} - {e}")
+    # Process each parent with its specific sub_patterns
+    for parent_num, (pstart, pend) in parent_boundaries.items():
+        # Get patterns for this specific exercise
+        sub_patterns = sub_patterns_by_exercise.get(parent_num)
+        if not sub_patterns:
+            # No sub-patterns for this exercise - skip
             continue
 
-        for match in sub_regex.finditer(full_text):
-            start_pos = match.start()
+        # Extract just this parent's text for searching
+        parent_text = full_text[pstart:pend]
 
-            # Skip if we've already added a marker at this position
-            if start_pos in seen_positions:
+        # Collect matches for this parent first (to handle bullet numbering)
+        parent_matches = []
+
+        for sub_pattern_raw in sub_patterns:
+            # Strip inline flags and fix decimal matching issue
+            sub_pattern_str, sub_inline_flags = _strip_inline_flags(sub_pattern_raw)
+            sub_pattern_str = _fix_decimal_pattern(sub_pattern_str)
+
+            # Don't anchor sub-patterns - they may appear inline after parent marker
+            # e.g., "(3) (a) Question text..." where (a) follows (3) on same line
+
+            try:
+                sub_compile_flags = re.MULTILINE | sub_inline_flags
+                sub_regex = re.compile(sub_pattern_str, sub_compile_flags)
+            except re.error as e:
+                logger.warning(f"Failed to compile sub_pattern: {sub_pattern_raw} - {e}")
                 continue
 
-            # Skip sub-markers in solution sections
-            if _is_in_solution_section(start_pos):
-                continue
+            for match in sub_regex.finditer(parent_text):
+                # Convert to absolute position in full_text
+                relative_pos = match.start()
+                start_pos = pstart + relative_pos
 
-            # Check if this position falls within any parent's boundary
-            parent_num = None
-            for pnum, pstart, pend in sorted_parents:
-                if pstart <= start_pos < pend:
-                    parent_num = pnum
-                    break
+                # Skip if we've already added a marker at this position
+                if start_pos in seen_positions:
+                    continue
 
-            if parent_num is None:
-                # Not within any parent boundary - skip
-                continue
+                # Skip sub-markers in solution sections
+                if _is_in_solution_section(start_pos):
+                    continue
 
-            marker_text = match.group(0).strip()
+                marker_text = match.group(0).strip()
 
-            # Extract sub-marker value from capture groups
-            if match.lastindex and match.lastindex >= 2:
-                # Combined format: first group is parent, second is sub
-                number = match.group(2)
-            elif match.lastindex and match.lastindex >= 1:
-                number = match.group(1)
-            else:
-                # No capture groups (bullets) - will be numbered later
-                number = "•"
+                # Extract sub-marker value from capture groups
+                if match.lastindex and match.lastindex >= 2:
+                    # Combined format: first group is parent, second is sub
+                    number = match.group(2)
+                elif match.lastindex and match.lastindex >= 1:
+                    number = match.group(1)
+                else:
+                    # No capture groups (bullets) - mark for auto-numbering
+                    number = None
 
-            question_start = match.end()
+                question_start = pstart + match.end()
+                parent_matches.append((start_pos, marker_text, number, question_start))
+                seen_positions.add(start_pos)
+
+        # Sort matches by position within this parent
+        parent_matches.sort(key=lambda x: x[0])
+
+        # Auto-number bullets sequentially per parent
+        bullet_counter = 0
+        for start_pos, marker_text, number, question_start in parent_matches:
+            if number is None:
+                # Bullet - assign sequential number
+                bullet_counter += 1
+                number = str(bullet_counter)
 
             markers.append(Marker(
                 marker_type=MarkerType.SUB,
@@ -1098,7 +1440,6 @@ def _find_sub_markers_in_boundaries(
                 start_position=start_pos,
                 question_start=question_start,
             ))
-            seen_positions.add(start_pos)
 
     # Sort by position
     markers.sort(key=lambda m: m.start_position)
@@ -1682,8 +2023,15 @@ class ExerciseSplitter:
                 f"Using explicit exercises: {len(detection.explicit_exercises)} exercises with end markers"
             )
             boundaries = _find_explicit_exercises(full_text, detection.explicit_exercises)
-            exercises = _create_exercises_from_boundaries(
-                boundaries, full_text, pdf_content, course_code, page_lookup
+
+            # Get explicit sub-questions if second_pass_llm available
+            if second_pass_llm:
+                explicit_subs = _get_explicit_sub_questions(boundaries, full_text, second_pass_llm)
+            else:
+                explicit_subs = {}
+
+            exercises = _create_exercises_from_explicit_boundaries(
+                boundaries, explicit_subs, full_text, pdf_content, course_code, page_lookup
             )
             # Enrich with page data and return
             exercises = self._enrich_with_page_data(exercises, pdf_content)
@@ -1699,12 +2047,8 @@ class ExerciseSplitter:
         elif detection.pattern:
             # Mode 1: Pattern-based detection with boundary-based sub detection
             pattern = detection.pattern
-            sub_info = ""
-            if pattern.sub_patterns:
-                sub_info = f", sub_patterns={pattern.sub_patterns}"
             logger.info(
                 f"Pattern detected: exercise='{pattern.exercise_pattern}'"
-                + sub_info
                 + (f", solution='{pattern.solution_pattern}'" if pattern.solution_pattern else "")
             )
 
@@ -1719,9 +2063,9 @@ class ExerciseSplitter:
 
             logger.info(f"Found {len(parent_markers)} parent markers")
 
-            # Step 3b: Get parent end positions from Sonnet (call 1)
-            if second_pass_llm and pattern.sub_patterns:
-                logger.info("Getting parent end markers from Sonnet...")
+            # Step 3b: Get parent end positions (Call 2: boundary_llm)
+            if second_pass_llm:
+                logger.info("Getting parent end markers...")
                 parent_end_positions = _get_parent_end_markers(
                     parent_markers, full_text, second_pass_llm
                 )
@@ -1734,20 +2078,30 @@ class ExerciseSplitter:
                     end = parent_end_positions.get(marker.number, len(full_text))
                     parent_boundaries[marker.number] = (start, end)
 
-                # Step 3c: Find sub markers within boundaries
-                logger.info("Finding sub-markers within parent boundaries...")
-                sub_markers = _find_sub_markers_in_boundaries(
-                    full_text, pattern.sub_patterns, parent_boundaries, solution_ranges
+                # Step 3c: Get per-exercise sub_patterns (Call 3: sub_pattern_llm)
+                sub_patterns_by_exercise = _get_per_exercise_sub_patterns(
+                    parent_markers, full_text, parent_boundaries, second_pass_llm
                 )
-                logger.info(f"Found {len(sub_markers)} sub-markers")
 
-                # Combine and sort all markers
-                markers = sorted(
-                    parent_markers + sub_markers,
-                    key=lambda m: m.start_position
-                )
+                # Step 3d: Find sub markers within boundaries using per-exercise patterns
+                if sub_patterns_by_exercise:
+                    logger.info("Finding sub-markers within parent boundaries...")
+                    sub_markers = _find_sub_markers_in_boundaries(
+                        full_text, sub_patterns_by_exercise, parent_boundaries, solution_ranges
+                    )
+                    logger.info(f"Found {len(sub_markers)} sub-markers")
+
+                    # Combine and sort all markers
+                    markers = sorted(
+                        parent_markers + sub_markers,
+                        key=lambda m: m.start_position
+                    )
+                else:
+                    # No sub-patterns for any exercise
+                    logger.info("No sub-patterns detected for any exercise")
+                    markers = parent_markers
             else:
-                # No second pass LLM or no sub_patterns - just use parent markers
+                # No second pass LLM - just use parent markers
                 markers = parent_markers
 
         if not markers:
