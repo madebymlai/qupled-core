@@ -229,22 +229,20 @@ class DetectionResult:
     has_solutions: bool = False  # Whether document contains solutions
 
 
-def _detect_pattern_with_llm(
+def _detect_exercises(
     text_sample: str,
     llm_manager: "LLMManager",
 ) -> Optional[DetectionResult]:
-    """Use LLM to detect exercise markers in document.
+    """Call 1: Detect parent exercises in document.
 
-    Two modes:
-    1. Pattern detection: LLM returns regex patterns for exercise/sub-markers
-    2. Explicit markers: LLM lists the first few words of each exercise
+    LLM identifies main exercises by returning the unique text that starts each one.
 
     Args:
-        text_sample: First ~10k chars of document
+        text_sample: First ~30k chars of document
         llm_manager: LLM manager for inference
 
     Returns:
-        DetectionResult with either pattern or explicit markers, None if detection fails
+        DetectionResult with exercise markers and has_solutions flag, None if detection fails
     """
     prompt = """Identify MAIN EXERCISES in this exam document.
 
@@ -286,7 +284,7 @@ If no clear exercise divisions:
 
         data = json.loads(response)
 
-        # Always explicit mode - exercises is list of start marker strings
+        # Parse exercises list (start marker strings)
         exercises = data.get("exercises")
         if not exercises:
             logger.warning("No exercises found in document")
@@ -813,7 +811,7 @@ def _fuzzy_rfind(text: str, search_term: str, end_before: int = None) -> int:
 
 
 # ============================================================================
-# SECOND-PASS: End markers and parent context generation
+# CALL 2: PARENT END MARKERS
 # ============================================================================
 
 
@@ -822,15 +820,15 @@ def _get_parent_end_markers(
     full_text: str,
     llm_manager: "LLMManager",
 ) -> Dict[str, int]:
-    """Get end positions for each parent exercise using LLM.
+    """Call 2: Get end positions for each parent exercise.
 
-    Sonnet call 1: Determines where each parent exercise's question ends.
-    This defines boundaries for sub-question detection.
+    Determines where each parent exercise's question ends, before next exercise
+    or trailing junk. Uses rfind to find last occurrence of end marker.
 
     Args:
         parent_markers: List of parent exercise markers
         full_text: Complete document text
-        llm_manager: LLM manager (should be Sonnet for quality)
+        llm_manager: LLM manager for end marker detection
 
     Returns:
         Dict mapping parent number to end position (character offset)
@@ -944,142 +942,8 @@ CRITICAL:
     return {m.number: rough_ends[m.number] for m in parent_markers}
 
 
-def _get_per_exercise_sub_patterns(
-    parent_markers: List[Marker],
-    full_text: str,
-    parent_boundaries: Dict[str, Tuple[int, int]],
-    llm_manager: "LLMManager",
-) -> Dict[str, Optional[List[str]]]:
-    """Determine sub_patterns for each exercise individually (Call 3).
-
-    This replaces the global sub_patterns from Call 1. By analyzing each
-    exercise's full text, we can distinguish real sub-questions from
-    inline conditions like "i) X or ii) Y".
-
-    Args:
-        parent_markers: List of parent exercise markers
-        full_text: Full document text
-        parent_boundaries: Dict of exercise_number -> (start, end) positions
-        llm_manager: LLM for detection
-
-    Returns:
-        Dict mapping exercise_number -> list of sub_patterns (or None if no subs)
-    """
-    if not parent_markers or not parent_boundaries:
-        return {}
-
-    logger.info(f"Detecting per-exercise sub_patterns for {len(parent_markers)} exercises...")
-
-    # Build exercise texts for LLM
-    MAX_EXERCISE_CHARS = 15000  # ~4k tokens per exercise
-    exercises_text_parts = []
-
-    for marker in parent_markers:
-        num = marker.number
-        if num not in parent_boundaries:
-            continue
-
-        start, end = parent_boundaries[num]
-        exercise_text = full_text[start:end].strip()
-
-        # Truncate if too long (keep start and end where sub-patterns likely appear)
-        original_len = len(exercise_text)
-        if original_len > MAX_EXERCISE_CHARS:
-            half = MAX_EXERCISE_CHARS // 2
-            exercise_text = exercise_text[:half] + "\n...[truncated]...\n" + exercise_text[-half:]
-            logger.info(f"Exercise {num} text truncated from {original_len} to {MAX_EXERCISE_CHARS} chars")
-
-        exercises_text_parts.append(f"Exercise {num}:\n---\n{exercise_text}\n---")
-
-    if not exercises_text_parts:
-        return {}
-
-    exercises_text = "\n\n".join(exercises_text_parts)
-
-    prompt = f"""For each exercise below, determine if it contains sub-questions.
-
-Sub-questions are SEPARATE TASKS requiring SEPARATE ANSWERS.
-NOT sub-questions: definitions, lists of values, inline conditions, examples.
-
-EXERCISES:
-{exercises_text}
-
-Return JSON with per-exercise sub_patterns (regex patterns to match sub-question markers).
-
-Regex pattern examples:
-- ["([a-z])\\\\s*[).]"] matches "a)", "b.", "c)" (letter markers)
-- ["(\\\\d+)\\\\.\\\\s"] matches "1. ", "2. " (numbered markers)
-- ["[-•*]\\\\s+"] matches "- ", "• ", "* " (bullets)
-- ["(\\\\d+)([a-z])\\\\s*[).]"] matches "1a)", "1b)", "2a)" (number+letter)
-- ["([a-z])(\\\\d+)\\\\s*[).]"] matches "a1)", "a2)", "b1)" (letter+number)
-- null if no sub-questions
-
-{{"results": [
-  {{"number": "<exercise_number>", "sub_patterns": ["<regex>"] or null}}
-]}}
-
-Return null for sub_patterns if exercise has no sub-questions."""
-
-    try:
-        llm_response = llm_manager.generate(prompt, temperature=0.0)
-        response_text = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
-
-        # Parse JSON from response
-        json_match = re.search(r'\{[\s\S]*\}', response_text)
-        if not json_match:
-            logger.warning("No JSON found in sub_patterns response")
-            return {}
-
-        data = json.loads(json_match.group())
-        results_list = data.get("results", [])
-
-        # Convert to dict and validate patterns
-        results: Dict[str, Optional[List[str]]] = {}
-        for item in results_list:
-            num = item.get("number")
-            patterns = item.get("sub_patterns")
-
-            if not num:
-                continue
-
-            if patterns is None:
-                results[num] = None
-                logger.debug(f"Exercise {num}: no sub-questions")
-                continue
-
-            # Validate each pattern
-            valid_patterns = []
-            for p in patterns:
-                if not p:
-                    continue
-                try:
-                    re.compile(p)
-                    valid_patterns.append(p)
-                except re.error as e:
-                    logger.warning(f"Invalid sub_pattern for exercise {num}: {p} - {e}")
-
-            results[num] = valid_patterns if valid_patterns else None
-            if valid_patterns:
-                logger.info(f"Exercise {num}: sub_patterns={valid_patterns}")
-            else:
-                logger.debug(f"Exercise {num}: no valid sub-patterns")
-
-        # Summary
-        with_subs = sum(1 for p in results.values() if p)
-        logger.info(f"Sub-pattern detection complete: {with_subs}/{len(parent_markers)} exercises have sub-questions")
-
-        return results
-
-    except json.JSONDecodeError as e:
-        logger.warning(f"Failed to parse sub_patterns response: {e}")
-        return {}
-    except Exception as e:
-        logger.warning(f"Per-exercise sub_pattern detection failed: {e}")
-        return {}
-
-
 # ============================================================================
-# EXPLICIT SUB-QUESTION DETECTION (Full-Sentence Mode)
+# SUB-QUESTION DETECTION
 # ============================================================================
 
 
@@ -1274,17 +1138,17 @@ def _find_explicit_subs(
     return markers
 
 
-def _get_explicit_sub_questions(
+def _get_sub_start_markers(
     boundaries: List["ExerciseBoundary"],
     full_text: str,
     llm_manager: "LLMManager",
 ) -> Dict[str, List[Dict[str, str]]]:
-    """Get explicit sub-question markers for explicit mode (Call 3 explicit).
+    """Call 3: Get sub-question start markers.
 
-    Uses same format as explicit parent exercises: start_marker to locate each sub.
+    LLM identifies sub-questions by returning the start text of each one.
 
     Args:
-        boundaries: List of exercise boundaries
+        boundaries: List of parent exercise boundaries
         full_text: Full document text
         llm_manager: LLM for detection
 
@@ -1294,7 +1158,7 @@ def _get_explicit_sub_questions(
     if not boundaries:
         return {}
 
-    logger.info(f"Detecting explicit sub-questions for {len(boundaries)} exercises...")
+    logger.info(f"Getting sub-question start markers for {len(boundaries)} exercises (Call 3)...")
 
     # Build exercise texts for LLM
     MAX_EXERCISE_CHARS = 15000
@@ -1380,13 +1244,14 @@ Return JSON in SAME ORDER as exercises above:
         return {}
 
 
-def _get_explicit_end_markers(
+def _get_sub_end_markers(
     exercises: List[Exercise],
     llm_manager: "LLMManager",
 ) -> List[Exercise]:
-    """Call 4 for explicit mode: get end markers to trim exercise text.
+    """Call 4: Get end markers to trim exercise text.
 
     Removes trailing artifacts (page numbers, form fields, etc.) from exercise text.
+    Uses rfind to find last occurrence of end marker.
 
     Args:
         exercises: List of Exercise objects with potentially noisy text
@@ -1466,135 +1331,109 @@ IMPORTANT: end_marker must be EXACT text from the exercise, used to find where t
         return exercises
 
 
-def _get_second_pass_results(
+def _get_context_summaries(
     hierarchy: List["ExerciseNode"],
     llm_manager: "LLMManager",
-) -> Optional[Dict[str, Dict[str, str]]]:
-    """Second LLM pass: get end markers AND context summaries.
+) -> Optional[Dict[str, str]]:
+    """Call 5: Get context summaries for parent exercises.
 
-    Uses Sonnet (or other high-quality model) for better instruction following.
+    For parent exercises with children, extracts shared context that sub-questions
+    need but don't have in their own text (data, parameters, scenario setup).
 
-    Returns dict mapping exercise number to:
-    - For sub-questions and standalone: {"end_marker": "..."}
-    - For parents with children: {"context_summary": "..."}
+    Args:
+        hierarchy: List of exercise nodes
+        llm_manager: LLM for context extraction
+
+    Returns:
+        Dict mapping exercise number to context_summary string, None if failed
     """
-    # Build context showing each extracted exercise
-    exercises_info = []
+    # Only collect parent exercises with children
+    parents_info = []
 
-    def collect_exercises(nodes: List["ExerciseNode"], parent_num: str = ""):
+    def collect_parents(nodes: List["ExerciseNode"], parent_num: str = ""):
         for node in nodes:
             num = node.marker.number
             full_num = f"{parent_num}.{num}" if parent_num else num
 
-            # Show text preview (first 500 chars for context, last 200 for end detection)
-            text = node.question_text
-            if len(text) > 700:
-                text_preview = text[:500] + "\n...[middle truncated]...\n" + text[-200:]
-            else:
-                text_preview = text
-
             has_children = len(node.children) > 0
-            is_sub = node.parent is not None
 
-            exercises_info.append({
-                "number": full_num,
-                "type": "sub-question" if is_sub else ("parent_with_children" if has_children else "standalone"),
-                "has_children": has_children,
-                "text": text_preview,
-            })
+            if has_children:
+                # Show first 800 chars of parent text
+                text = node.question_text
+                text_preview = text[:800] if len(text) > 800 else text
 
-            # Recurse for children
+                parents_info.append({
+                    "number": full_num,
+                    "text": text_preview,
+                })
+
+            # Recurse for nested parents
             if node.children:
-                collect_exercises(node.children, full_num)
+                collect_parents(node.children, full_num)
 
-    collect_exercises(hierarchy)
+    collect_parents(hierarchy)
 
-    if not exercises_info:
+    if not parents_info:
         return None
 
-    # Build prompt with differentiated output based on type
+    logger.info(f"Getting context summaries for {len(parents_info)} parent exercises (Call 5)...")
+
     exercises_text = "\n\n".join([
-        f"EXERCISE {ex['number']} (type: {ex['type']}):\n\"\"\"\n{ex['text']}\n\"\"\""
-        for ex in exercises_info
+        f"EXERCISE {ex['number']}:\n\"\"\"\n{ex['text']}\n\"\"\""
+        for ex in parents_info
     ])
 
-    prompt = f"""I extracted exercises from an exam PDF. For each one, return either:
+    prompt = f"""For each parent exercise below, extract the shared context that its sub-questions need.
 
-1. For "sub-question" or "standalone" exercises:
-   Return "end_marker": the LAST 40-60 characters of the actual question (before junk like form fields, page numbers, exam instructions)
-
-2. For "parent_with_children" exercises:
-   Return "context_summary": shared info that sub-questions need but don't have in their own text.
-   Good context: data, values, parameters, scenario setup that sub-questions reference.
-   If parent also contains its own question, include a brief summary of that question.
-   Return null if: sub-questions are independent and don't need shared info to be understood.
-   IMPORTANT: Always return context_summary in ENGLISH, even if source text is in another language.
+Good context: data values, parameters, scenario setup, definitions that sub-questions reference.
+Return null if sub-questions are independent and don't need shared info.
+IMPORTANT: Return context_summary in ENGLISH, even if source is another language.
 
 EXERCISES:
 {exercises_text}
 
-Return JSON with one entry per exercise above. Format:
-{{"results": [{{"number": "<exercise_number>", "end_marker": "..."}} or {{"number": "<exercise_number>", "context_summary": "..."}}, ...]}}
-
-CRITICAL:
-- end_marker must be from the END of the question, not the beginning
-- end_marker should be 40-60 characters
+Return JSON:
+{{"results": [{{"number": "1", "context_summary": "shared context here" or null}}, ...]}}
 """
 
     try:
         llm_response = llm_manager.generate(prompt, temperature=0.0)
         response_text = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
-        # Parse JSON from response
         json_match = re.search(r'\{[\s\S]*\}', response_text)
         if json_match:
             data = json.loads(json_match.group())
             results = data.get("results", [])
-            # Convert to dict keyed by number
-            return {item["number"]: item for item in results}
+            # Convert to dict, filter out nulls
+            return {
+                item["number"]: item["context_summary"]
+                for item in results
+                if item.get("context_summary") and item["context_summary"] != "null"
+            }
     except Exception as e:
-        logger.warning(f"Second-pass LLM failed: {e}")
+        logger.warning(f"Context summary extraction failed: {e}")
 
     return None
 
 
-def _apply_second_pass_results(
+def _apply_context_summaries(
     hierarchy: List["ExerciseNode"],
-    results: Dict[str, Dict[str, str]],
+    summaries: Dict[str, str],
 ) -> None:
-    """Apply second-pass results to hierarchy (in-place).
+    """Apply context summaries to parent nodes (in-place).
 
-    - Apply end_marker trimming to subs and standalone
-    - Store context_summary on parent nodes for later use
+    Args:
+        hierarchy: List of exercise nodes
+        summaries: Dict mapping exercise number to context_summary string
     """
     def apply_to_nodes(nodes: List["ExerciseNode"], parent_num: str = ""):
         for node in nodes:
             num = node.marker.number
             full_num = f"{parent_num}.{num}" if parent_num else num
 
-            result = results.get(full_num, {})
-
-            # Apply end_marker trimming
-            end_marker = result.get("end_marker")
-            if end_marker:
-                # Clean up marker (strip ellipsis)
-                clean_marker = end_marker.strip().strip("...").strip("…").strip()
-                if len(clean_marker) >= 10:  # Minimum viable marker length
-                    # Find in question_text
-                    pos = _fuzzy_find(node.question_text, clean_marker, 0)
-                    if pos >= 0:
-                        # Trim at end of marker
-                        old_len = len(node.question_text)
-                        node.question_text = node.question_text[:pos + len(clean_marker)].strip()
-                        trimmed = old_len - len(node.question_text)
-                        if trimmed > 0:
-                            logger.info(f"Exercise {full_num}: trimmed {trimmed} chars at end marker")
-                    else:
-                        logger.debug(f"Exercise {full_num}: end marker not found in text")
-
             # Store context_summary on parent node (will be passed to children later)
-            context_summary = result.get("context_summary")
-            if context_summary and context_summary != "null":
-                node.context_summary = context_summary  # Store for _expand_exercises
+            context_summary = summaries.get(full_num)
+            if context_summary:
+                node.context_summary = context_summary
 
             # Recurse for children
             if node.children:
@@ -2010,7 +1849,7 @@ def _expand_exercises(
 
         if parent.children:
             # Parent with children - DON'T emit parent as separate exercise
-            # Use context_summary from second-pass (null means context not needed)
+            # Use context_summary from Call 5 (None means context not needed)
             parent_ctx = getattr(parent, "context_summary", None)
 
             for child in parent.children:
@@ -2379,21 +2218,20 @@ class ExerciseSplitter:
         llm_manager: "LLMManager",
         second_pass_llm: Optional["LLMManager"] = None,
     ) -> List[Exercise]:
-        """Split PDF using LLM-based pattern detection with sub-question context.
+        """Split PDF into exercises using LLM-based detection.
 
-        This method uses LLM to detect the exercise marker pattern, then:
-        1. Finds all markers in the full document
-        2. Builds a hierarchical structure (parent → children)
-        3. (Optional) Second-pass LLM for end markers and context summaries
-        4. Expands to flat list with context prepended to sub-questions
+        LLM Calls:
+        1. _detect_exercises: Parent exercise start markers + has_solutions flag
+        2. _get_parent_end_markers: Parent exercise end positions
+        3. _get_sub_start_markers: Sub-question start markers
+        4. _get_sub_end_markers: Sub-question end markers (trim trailing junk)
+        5. _get_context_summaries: Context summaries for parents with children
 
         Args:
             pdf_content: Extracted PDF content
             course_code: Course code for ID generation
-            llm_manager: LLM manager for pattern detection (first pass)
-            second_pass_llm: Optional LLM for second-pass (end markers, context summaries).
-                             If not provided, uses llm_manager for all calls.
-                             DeepSeek produces equivalent results to Sonnet at 20x lower cost.
+            llm_manager: LLM manager for Call 1 (detection)
+            second_pass_llm: Optional LLM for Calls 2-5. If not provided, uses llm_manager.
 
         Returns:
             List of extracted exercises with context
@@ -2415,7 +2253,7 @@ class ExerciseSplitter:
 
         # Step 2: Detect pattern/markers with LLM
         logger.info("Detecting exercise pattern with LLM...")
-        detection = _detect_pattern_with_llm(full_text[:30000], llm_manager)
+        detection = _detect_exercises(full_text[:30000], llm_manager)
 
         if not detection:
             # No detection - try regex fallback, then page-based
@@ -2450,9 +2288,9 @@ class ExerciseSplitter:
             )
             boundaries = _find_explicit_exercises(full_text, detection.explicit_exercises)
 
-            # Get explicit sub-questions if second_pass_llm available
+            # Get sub-question start markers if second_pass_llm available (Call 3)
             if second_pass_llm:
-                explicit_subs = _get_explicit_sub_questions(boundaries, full_text, second_pass_llm)
+                explicit_subs = _get_sub_start_markers(boundaries, full_text, second_pass_llm)
             else:
                 explicit_subs = {}
 
@@ -2462,11 +2300,11 @@ class ExerciseSplitter:
 
             # Call 4: Get end markers to trim trailing artifacts
             if second_pass_llm:
-                exercises = _get_explicit_end_markers(exercises, second_pass_llm)
+                exercises = _get_sub_end_markers(exercises, second_pass_llm)
 
             # Enrich with page data and return
             exercises = self._enrich_with_page_data(exercises, pdf_content)
-            logger.info(f"Explicit mode produced {len(exercises)} exercises")
+            logger.info(f"Extracted {len(exercises)} exercises")
             return exercises
 
         elif detection.explicit_markers:
@@ -2512,7 +2350,7 @@ class ExerciseSplitter:
                     end = parent_end_positions.get(marker.number, len(full_text))
                     parent_boundaries[marker.number] = (start, end)
 
-                # Step 3c: Get explicit sub-questions (parallel LLM calls per exercise)
+                # Step 3c: Get sub-question start markers (parallel LLM calls per exercise)
                 explicit_subs_by_exercise = asyncio.run(
                     _get_subs_for_all_exercises(
                         parent_markers, full_text, parent_boundaries, second_pass_llm
@@ -2549,14 +2387,12 @@ class ExerciseSplitter:
         hierarchy = _build_hierarchy(markers, full_text, parent_end_positions)
         logger.info(f"Built hierarchy with {len(hierarchy)} root exercises")
 
-        # Step 5: Second pass for sub end markers and context summaries (Sonnet call 2)
+        # Step 5: Get context summaries for parent exercises (Call 5)
         if second_pass_llm:
-            second_pass_results = _get_second_pass_results(hierarchy, second_pass_llm)
-            if second_pass_results:
-                _apply_second_pass_results(hierarchy, second_pass_results)
-                logger.info(f"Applied second-pass results to {len(second_pass_results)} exercises")
-            else:
-                logger.warning("Second-pass returned no results")
+            context_summaries = _get_context_summaries(hierarchy, second_pass_llm)
+            if context_summaries:
+                _apply_context_summaries(hierarchy, context_summaries)
+                logger.info(f"Applied context summaries to {len(context_summaries)} parent exercises")
 
         # Step 6: Expand to flat list with context
         exercises = _expand_exercises(
