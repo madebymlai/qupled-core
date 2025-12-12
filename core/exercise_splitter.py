@@ -245,41 +245,35 @@ def _detect_pattern_with_llm(
     Returns:
         DetectionResult with either pattern or explicit markers, None if detection fails
     """
-    prompt = """Analyze this exam/exercise document and return REGEX PATTERNS for parsing.
+    prompt = """Analyze this exam document and identify the MAIN EXERCISES (not sub-questions).
 
 TEXT SAMPLE:
 ---
 {text}
 ---
 
-Identify the exact patterns used and return Python regex patterns:
+Identify the MAIN exercise sections. These are top-level divisions like:
+- "Exercise 1", "Exercise 2" (or "Esercizio 1", "Exercice 1", etc.)
+- "1)", "2)" when they introduce a section with sub-questions like a), b), c)
+- "Problem 1", "Question 1"
 
-1. EXERCISE_PATTERN - Regex matching exercise markers. Must have a capture group for the exercise number.
-   Examples:
-   - "keyword\\s+(\\d+)" matches "Keyword 1", "Keyword 2" (any language keyword)
-   - "(\\d+)\\." matches "1.", "2." (if no keyword, just numbers)
+Do NOT include sub-questions as main exercises:
+- "1a)", "1b)", "a)", "b)" are sub-questions, not main exercises
+- If "1)" contains "1a), 1b), 1c)", then "1)" is the main exercise
 
-2. SOLUTION_PATTERN - Keyword or regex for solution sections (if any).
-
-IMPORTANT: Do NOT include inline flags like (?i), (?m), (?s) in patterns. Case-insensitivity and multiline matching are applied automatically.
-
-Return ONLY valid JSON:
-{{"mode": "pattern", "exercise_pattern": "regex string", "solution_pattern": "keyword or null"}}
-
-If NO consistent pattern exists, return explicit markers with question boundaries:
+Return explicit markers (PREFERRED):
 {{"mode": "explicit", "exercises": [
-  {{"number": "1", "start_marker": "first ~50 chars of exercise 1", "end_marker": "last ~50 chars of QUESTION only"}},
-  {{"number": "2", "start_marker": "first ~50 chars of exercise 2", "end_marker": "last ~50 chars of QUESTION only"}}
-]}}
+  {{"number": "1", "start_marker": "exact text of exercise 1 start (first ~50 chars)"}},
+  {{"number": "2", "start_marker": "exact text of exercise 2 start (first ~50 chars)"}}
+], "solution_pattern": "keyword for solutions or null"}}
 
-IMPORTANT for end_marker:
-- End at the actual QUESTION text, BEFORE any non-question content like:
-  - Form fields (blank lines with underscores or dots for student to fill)
-  - Repeated exam instructions or rules
-  - Solutions or answers
-  - Page headers/footers
-- The end_marker should be the last sentence of what the student needs to solve.
-- Use your understanding of the document structure to identify where the question ends."""
+Only if exercises follow a VERY consistent pattern (like "Esercizio N" or "Exercise N"), return regex:
+{{"mode": "pattern", "exercise_pattern": "regex with capture group for number", "solution_pattern": "keyword or null"}}
+
+IMPORTANT:
+- Copy start_marker text EXACTLY from the document
+- Include the exercise number/marker in start_marker
+- solution_pattern: keyword that marks solution sections (e.g., "Soluzione", "Solution")"""
 
     try:
         llm_response = llm_manager.generate(
