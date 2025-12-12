@@ -33,7 +33,7 @@ class ConceptExplanation:
 class ConceptExplainer:
     """Explains foundational concepts for learning."""
 
-    # Concept hierarchy: core_loop_name → required concepts
+    # Concept hierarchy: knowledge_item_name → required concepts
     CONCEPT_HIERARCHY = {
         # Finite State Machines (FSM) related
         "moore_machine_design": [
@@ -243,17 +243,17 @@ class ConceptExplainer:
         """Generate dynamic language instruction for any language."""
         return f"{action} in {self.language.upper()} language."
 
-    def get_prerequisites(self, core_loop_name: str) -> List[Concept]:
+    def get_prerequisites(self, knowledge_item_name: str) -> List[Concept]:
         """Get prerequisite concepts for a core loop.
 
         Args:
-            core_loop_name: Name of core loop (e.g., 'moore_machine_design')
+            knowledge_item_name: Name of core loop (e.g., 'moore_machine_design')
 
         Returns:
             List of prerequisite concepts
         """
         # Normalize name for lookup
-        normalized_name = core_loop_name.lower().replace(' ', '_')
+        normalized_name = knowledge_item_name.lower().replace(' ', '_')
 
         # Try direct match
         if normalized_name in self.CONCEPT_HIERARCHY:
@@ -321,19 +321,19 @@ class ConceptExplainer:
 
     def explain_prerequisites(
         self,
-        core_loop_name: str,
+        knowledge_item_name: str,
         depth: str = "medium"
     ) -> str:
         """Generate formatted explanation of all prerequisites.
 
         Args:
-            core_loop_name: Core loop name
+            knowledge_item_name: Core loop name
             depth: Explanation depth
 
         Returns:
             Formatted prerequisite explanations
         """
-        prerequisites = self.get_prerequisites(core_loop_name)
+        prerequisites = self.get_prerequisites(knowledge_item_name)
 
         if not prerequisites:
             return ""
@@ -372,21 +372,21 @@ class ConceptExplainer:
 
     def generate_deep_explanation(
         self,
-        core_loop_name: str,
+        knowledge_item_name: str,
         procedure_steps: List[str],
         topic_name: str
     ) -> str:
         """Generate LLM-based deep explanation with reasoning.
 
         Args:
-            core_loop_name: Name of core loop
+            knowledge_item_name: Name of core loop
             procedure_steps: List of procedure steps
             topic_name: Topic name for context
 
         Returns:
             Deep explanation with WHY reasoning
         """
-        prerequisites = self.get_prerequisites(core_loop_name)
+        prerequisites = self.get_prerequisites(knowledge_item_name)
         prereq_context = ""
         if prerequisites:
             prereq_names = [c.name for c in prerequisites if c.importance == 1]
@@ -397,7 +397,7 @@ class ConceptExplainer:
 You are an expert educator explaining a technical procedure to students.
 
 TOPIC: {topic_name}
-PROCEDURE: {core_loop_name}{prereq_context}
+PROCEDURE: {knowledge_item_name}{prereq_context}
 
 PROCEDURE STEPS:
 {self._format_steps(procedure_steps)}

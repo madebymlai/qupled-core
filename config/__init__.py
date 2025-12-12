@@ -104,8 +104,8 @@ class Config:
     PROCEDURE_CACHE_PRELOAD = os.getenv("EXAMINA_PROCEDURE_CACHE_PRELOAD", "true").lower() == "true"
 
     # Analysis Settings
-    MIN_EXERCISES_FOR_CORE_LOOP = 2
-    CORE_LOOP_SIMILARITY_THRESHOLD = 0.85
+    MIN_EXERCISES_FOR_KNOWLEDGE_ITEM = 2
+    KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD = 0.85
     MIN_ANALYSIS_CONFIDENCE = float(os.getenv("EXAMINA_MIN_CONFIDENCE", "0.5"))
 
     # Semantic Similarity Settings

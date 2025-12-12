@@ -24,11 +24,11 @@ class QuizQuestion:
     question_number: int
     exercise_id: str
     exercise_text: str
-    core_loop_id: str
-    core_loop_name: str
+    knowledge_item_id: str
+    knowledge_item_name: str
     topic_name: str
     difficulty: str
-    core_loops: Optional[List[Dict[str, Any]]] = None  # List of all core loops for multi-procedure exercises
+    knowledge_items: Optional[List[Dict[str, Any]]] = None  # List of all core loops for multi-procedure exercises
     user_answer: Optional[str] = None
     is_correct: Optional[bool] = None
     score: Optional[float] = None
@@ -42,7 +42,7 @@ class QuizSession:
     """Represents a quiz session."""
     session_id: str
     course_code: str
-    quiz_type: str  # 'random', 'topic', 'core_loop', 'review'
+    quiz_type: str  # 'random', 'topic', 'knowledge_item', 'review'
     questions: List[QuizQuestion]
     total_questions: int
     current_question: int = 0
@@ -51,7 +51,7 @@ class QuizSession:
     total_correct: int = 0
     score: float = 0.0
     topic_id: Optional[int] = None
-    core_loop_id: Optional[str] = None
+    knowledge_item_id: Optional[str] = None
 
 
 class QuizEngine:
@@ -74,7 +74,7 @@ class QuizEngine:
         course_code: str,
         num_questions: int = 10,
         topic: Optional[str] = None,
-        core_loop: Optional[str] = None,
+        knowledge_item: Optional[str] = None,
         difficulty: Optional[str] = None,
         review_only: bool = False,
         procedure_type: Optional[str] = None,
@@ -89,7 +89,7 @@ class QuizEngine:
             course_code: Course code
             num_questions: Number of questions
             topic: Optional topic filter
-            core_loop: Optional core loop filter (ID or name pattern)
+            knowledge_item: Optional core loop filter (ID or name pattern)
             difficulty: Optional difficulty filter
             review_only: If True, only include exercises due for review
             procedure_type: Optional procedure type (transformation, design, etc.)
@@ -113,8 +113,8 @@ class QuizEngine:
             quiz_type = 'multi_procedure'
         elif procedure_type:
             quiz_type = 'procedure'
-        elif core_loop:
-            quiz_type = 'core_loop'
+        elif knowledge_item:
+            quiz_type = 'knowledge_item'
         elif topic:
             quiz_type = 'topic'
         else:
@@ -127,14 +127,14 @@ class QuizEngine:
                 course_code=course_code,
                 num_questions=num_questions,
                 topic=topic,
-                core_loop=core_loop
+                knowledge_item=knowledge_item
             )
         else:
             exercises = self._select_exercises(
                 course_code=course_code,
                 num_questions=num_questions,
                 topic=topic,
-                core_loop=core_loop,
+                knowledge_item=knowledge_item,
                 difficulty=difficulty,
                 review_only=review_only,
                 procedure_type=procedure_type,
@@ -151,31 +151,31 @@ class QuizEngine:
         with Database() as db:
             for i, exercise in enumerate(exercises, 1):
                 # Fetch all core loops for this exercise
-                core_loops = db.get_core_loops_for_exercise(exercise['id'])
+                knowledge_items = db.get_knowledge_items_for_exercise(exercise['id'])
 
                 # Use first core loop for backward compatibility
-                primary_loop_id = exercise.get('core_loop_id', '')
-                primary_loop_name = exercise.get('core_loop_name', 'Unknown')
+                primary_loop_id = exercise.get('knowledge_item_id', '')
+                primary_loop_name = exercise.get('knowledge_item_name', 'Unknown')
 
                 # If we have core loops from junction table, use the first one as primary
-                if core_loops:
-                    primary_loop_id = core_loops[0].get('id', primary_loop_id)
-                    primary_loop_name = core_loops[0].get('name', primary_loop_name)
+                if knowledge_items:
+                    primary_loop_id = knowledge_items[0].get('id', primary_loop_id)
+                    primary_loop_name = knowledge_items[0].get('name', primary_loop_name)
 
                 questions.append(QuizQuestion(
                     question_number=i,
                     exercise_id=exercise['id'],
                     exercise_text=exercise['text'],
-                    core_loop_id=primary_loop_id,
-                    core_loop_name=primary_loop_name,
+                    knowledge_item_id=primary_loop_id,
+                    knowledge_item_name=primary_loop_name,
                     topic_name=exercise.get('topic_name', 'Unknown'),
                     difficulty=exercise.get('difficulty', 'medium'),
-                    core_loops=core_loops if core_loops else None
+                    knowledge_items=knowledge_items if knowledge_items else None
                 ))
 
-        # Get topic_id and core_loop_id for session metadata
+        # Get topic_id and knowledge_item_id for session metadata
         topic_id = None
-        core_loop_id = None
+        knowledge_item_id = None
 
         if topic and exercises:
             with Database() as db:
@@ -186,8 +186,8 @@ class QuizEngine:
                 if topic_row:
                     topic_id = topic_row[0]
 
-        if core_loop and exercises:
-            core_loop_id = exercises[0].get('core_loop_id')
+        if knowledge_item and exercises:
+            knowledge_item_id = exercises[0].get('knowledge_item_id')
 
         return QuizSession(
             session_id=session_id,
@@ -196,7 +196,7 @@ class QuizEngine:
             questions=questions,
             total_questions=len(questions),
             topic_id=topic_id,
-            core_loop_id=core_loop_id,
+            knowledge_item_id=knowledge_item_id,
             started_at=datetime.now()
         )
 
@@ -205,7 +205,7 @@ class QuizEngine:
         course_code: str,
         num_questions: int,
         topic: Optional[str],
-        core_loop: Optional[str],
+        knowledge_item: Optional[str],
         difficulty: Optional[str],
         review_only: bool,
         procedure_type: Optional[str] = None,
@@ -219,7 +219,7 @@ class QuizEngine:
             course_code: Course code
             num_questions: Number of questions needed
             topic: Optional topic filter
-            core_loop: Optional core loop filter (ID or name pattern)
+            knowledge_item: Optional core loop filter (ID or name pattern)
             difficulty: Optional difficulty filter
             review_only: Only exercises due for review
             procedure_type: Optional procedure type filter (transformation, design, etc.)
@@ -237,17 +237,17 @@ class QuizEngine:
                     e.id,
                     e.text,
                     e.difficulty,
-                    e.core_loop_id,
+                    e.knowledge_item_id,
                     e.tags,
                     t.name as topic_name,
                     sp.next_review,
                     sp.mastery_score,
-                    GROUP_CONCAT(DISTINCT cl.name) as core_loop_names
+                    GROUP_CONCAT(DISTINCT cl.name) as knowledge_item_names
                 FROM exercises e
                 LEFT JOIN topics t ON e.topic_id = t.id
-                LEFT JOIN exercise_core_loops ecl ON e.id = ecl.exercise_id
-                LEFT JOIN core_loops cl ON ecl.core_loop_id = cl.id
-                LEFT JOIN student_progress sp ON e.core_loop_id = sp.core_loop_id AND sp.course_code = ?
+                LEFT JOIN exercise_knowledge_items ecl ON e.id = ecl.exercise_id
+                LEFT JOIN knowledge_items cl ON ecl.knowledge_item_id = cl.id
+                LEFT JOIN student_progress sp ON e.knowledge_item_id = sp.knowledge_item_id AND sp.course_code = ?
                 WHERE e.course_code = ?
                     AND e.analyzed = 1
                     AND e.low_confidence_skipped = 0
@@ -259,15 +259,15 @@ class QuizEngine:
                 query += " AND t.name LIKE ?"
                 params.append(f"%{topic}%")
 
-            if core_loop:
+            if knowledge_item:
                 # Support both ID and name pattern matching via junction table
                 query += """ AND e.id IN (
-                    SELECT exercise_id FROM exercise_core_loops ecl2
-                    JOIN core_loops cl2 ON ecl2.core_loop_id = cl2.id
+                    SELECT exercise_id FROM exercise_knowledge_items ecl2
+                    JOIN knowledge_items cl2 ON ecl2.knowledge_item_id = cl2.id
                     WHERE cl2.id = ? OR cl2.name LIKE ?
                 )"""
-                params.append(core_loop)
-                params.append(f"%{core_loop}%")
+                params.append(knowledge_item)
+                params.append(f"%{knowledge_item}%")
 
             if difficulty:
                 query += " AND e.difficulty = ?"
@@ -294,7 +294,7 @@ class QuizEngine:
 
             # Filter by multi-procedure exercises (HAVING clause after GROUP BY)
             if multi_only:
-                query += " HAVING COUNT(DISTINCT ecl.core_loop_id) > 1"
+                query += " HAVING COUNT(DISTINCT ecl.knowledge_item_id) > 1"
 
             # Execute query
             results = db.conn.execute(query, params).fetchall()
@@ -359,7 +359,7 @@ class QuizEngine:
         course_code: str,
         num_questions: int,
         topic: Optional[str] = None,
-        core_loop: Optional[str] = None
+        knowledge_item: Optional[str] = None
     ) -> List[Dict[str, Any]]:
         """Select exercises based on mastery distribution.
 
@@ -372,7 +372,7 @@ class QuizEngine:
             course_code: Course code
             num_questions: Number of questions needed
             topic: Optional topic filter
-            core_loop: Optional core loop filter
+            knowledge_item: Optional core loop filter
 
         Returns:
             List of exercise dictionaries balanced by mastery
@@ -392,7 +392,7 @@ class QuizEngine:
             # Base query for exercises with mastery info
             base_query = """
                 SELECT DISTINCT
-                    e.id, e.text, e.difficulty, e.core_loop_id,
+                    e.id, e.text, e.difficulty, e.knowledge_item_id,
                     t.name as topic_name,
                     COALESCE(er.mastery_level, 'new') as mastery_level,
                     CASE
@@ -414,14 +414,14 @@ class QuizEngine:
                 base_query += " AND t.name LIKE ?"
                 params.append(f"%{topic}%")
 
-            if core_loop:
+            if knowledge_item:
                 base_query += """ AND e.id IN (
-                    SELECT exercise_id FROM exercise_core_loops ecl
-                    JOIN core_loops cl ON ecl.core_loop_id = cl.id
+                    SELECT exercise_id FROM exercise_knowledge_items ecl
+                    JOIN knowledge_items cl ON ecl.knowledge_item_id = cl.id
                     WHERE cl.id = ? OR cl.name LIKE ?
                 )"""
-                params.append(core_loop)
-                params.append(f"%{core_loop}%")
+                params.append(knowledge_item)
+                params.append(f"%{knowledge_item}%")
 
             # Get weak exercises (new or learning with low score)
             weak_query = base_query + """
@@ -569,7 +569,7 @@ class QuizEngine:
         with Database() as db:
             db.conn.execute("""
                 INSERT INTO quiz_sessions
-                (id, course_code, quiz_type, filter_topic_id, filter_core_loop_id,
+                (id, course_code, quiz_type, filter_topic_id, filter_knowledge_item_id,
                  total_questions, created_at, completed_at, correct_answers,
                  score_percentage, filter_difficulty)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -578,7 +578,7 @@ class QuizEngine:
                 session.course_code,
                 session.quiz_type,
                 session.topic_id,
-                session.core_loop_id,
+                session.knowledge_item_id,
                 session.total_questions,
                 session.started_at.isoformat(),
                 session.completed_at.isoformat(),
@@ -654,32 +654,32 @@ class QuizEngine:
             aggregator.cascade_update(exercise_id)
 
         # Group questions by core loop (for backward compatibility)
-        core_loop_performance = {}
+        knowledge_item_performance = {}
         for question in session.questions:
             if question.score is None:
                 continue
 
-            loop_id = question.core_loop_id
+            loop_id = question.knowledge_item_id
             if not loop_id:  # Skip if no core loop assigned
                 continue
-            if loop_id not in core_loop_performance:
-                core_loop_performance[loop_id] = {
+            if loop_id not in knowledge_item_performance:
+                knowledge_item_performance[loop_id] = {
                     'attempts': 0,
                     'correct': 0,
                     'total_score': 0.0
                 }
 
-            core_loop_performance[loop_id]['attempts'] += 1
+            knowledge_item_performance[loop_id]['attempts'] += 1
             if question.is_correct:
-                core_loop_performance[loop_id]['correct'] += 1
-            core_loop_performance[loop_id]['total_score'] += question.score
+                knowledge_item_performance[loop_id]['correct'] += 1
+            knowledge_item_performance[loop_id]['total_score'] += question.score
 
         # Update progress for each core loop
-        for loop_id, perf in core_loop_performance.items():
+        for loop_id, perf in knowledge_item_performance.items():
             # Get existing progress
             existing = db.conn.execute("""
                 SELECT * FROM student_progress
-                WHERE course_code = ? AND core_loop_id = ?
+                WHERE course_code = ? AND knowledge_item_id = ?
             """, (session.course_code, loop_id)).fetchone()
 
             if existing:
@@ -709,7 +709,7 @@ class QuizEngine:
                         next_review = ?,
                         review_interval = ?,
                         updated_at = CURRENT_TIMESTAMP
-                    WHERE course_code = ? AND core_loop_id = ?
+                    WHERE course_code = ? AND knowledge_item_id = ?
                 """, (
                     total_attempts,
                     correct_attempts,
@@ -732,7 +732,7 @@ class QuizEngine:
 
                 db.conn.execute("""
                     INSERT INTO student_progress
-                    (course_code, core_loop_id, total_attempts, correct_attempts,
+                    (course_code, knowledge_item_id, total_attempts, correct_attempts,
                      mastery_score, last_practiced, next_review, review_interval)
                     VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
                 """, (

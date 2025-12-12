@@ -336,24 +336,24 @@ CONTEXT RULES (CRITICAL):
 
         return ""
 
-    def _normalize_core_loop_id(self, core_loop_name: Optional[str]) -> Optional[str]:
+    def _normalize_knowledge_item_id(self, knowledge_item_name: Optional[str]) -> Optional[str]:
         """Normalize core loop name to ID.
 
         Args:
-            core_loop_name: Human-readable name
+            knowledge_item_name: Human-readable name
 
         Returns:
             Normalized ID (lowercase, underscores)
         """
-        if not core_loop_name:
+        if not knowledge_item_name:
             return None
 
         # Convert to lowercase, replace spaces with underscores
-        core_loop_id = core_loop_name.lower()
-        core_loop_id = re.sub(r'[^\w\s-]', '', core_loop_id)
-        core_loop_id = re.sub(r'[\s-]+', '_', core_loop_id)
+        knowledge_item_id = knowledge_item_name.lower()
+        knowledge_item_id = re.sub(r'[^\w\s-]', '', knowledge_item_id)
+        knowledge_item_id = re.sub(r'[\s-]+', '_', knowledge_item_id)
 
-        return core_loop_id
+        return knowledge_item_id
 
     def _default_analysis_result(self) -> AnalysisResult:
         """Return default analysis result on error."""
@@ -634,10 +634,10 @@ CONTEXT RULES (CRITICAL):
                             point_number=proc_data.get("point_number"),
                             transformation=proc_data.get("transformation")
                         ))
-                elif "core_loop_name" in data and data["core_loop_name"]:
+                elif "knowledge_item_name" in data and data["knowledge_item_name"]:
                     # Old format: single procedure - convert to new format
                     procedures.append(ProcedureInfo(
-                        name=data["core_loop_name"],
+                        name=data["knowledge_item_name"],
                         type="other",
                         steps=data.get("procedure", []),
                         point_number=None,
@@ -1032,7 +1032,7 @@ CONTEXT RULES (CRITICAL):
 
         return merged
 
-    def discover_core_loops(self, course_code: str,
+    def discover_knowledge_items(self, course_code: str,
                             batch_size: int = 10,
                             skip_analyzed: bool = False,
                             use_parallel: bool = True) -> Dict[str, Any]:
@@ -1052,7 +1052,7 @@ CONTEXT RULES (CRITICAL):
             exercises = db.get_exercises_by_course(course_code)
 
             if not exercises:
-                return {"core_loops": {}}
+                return {"knowledge_items": {}}
 
             # Detect primary language if monolingual mode enabled
             if self.monolingual and not self.primary_language:
@@ -1073,7 +1073,7 @@ CONTEXT RULES (CRITICAL):
                 merged_exercises = self.merge_exercises(exercises, skip_analyzed=skip_analyzed)
 
             # Collect all analyses
-            core_loops = {}
+            knowledge_items = {}
             low_confidence_count = 0
 
             for merged_ex in merged_exercises:
@@ -1096,12 +1096,12 @@ CONTEXT RULES (CRITICAL):
                             print(f"  {i}. {proc.name} (type: {proc.type}, point: {proc.point_number})")
 
                     for procedure_info in analysis.procedures:
-                        core_loop_id = self._normalize_core_loop_id(procedure_info.name)
+                        knowledge_item_id = self._normalize_knowledge_item_id(procedure_info.name)
 
-                        if core_loop_id and procedure_info.name:
-                            if core_loop_id not in core_loops:
-                                core_loops[core_loop_id] = {
-                                    "id": core_loop_id,
+                        if knowledge_item_id and procedure_info.name:
+                            if knowledge_item_id not in knowledge_items:
+                                knowledge_items[knowledge_item_id] = {
+                                    "id": knowledge_item_id,
                                     "name": procedure_info.name,
                                     "procedure": procedure_info.steps or [],
                                     "type": procedure_info.type,
@@ -1109,12 +1109,12 @@ CONTEXT RULES (CRITICAL):
                                     "exercise_count": 0,
                                     "exercises": []
                                 }
-                            core_loops[core_loop_id]["exercise_count"] += 1
-                            if merged_ex["id"] not in core_loops[core_loop_id]["exercises"]:
-                                core_loops[core_loop_id]["exercises"].append(merged_ex["id"])
+                            knowledge_items[knowledge_item_id]["exercise_count"] += 1
+                            if merged_ex["id"] not in knowledge_items[knowledge_item_id]["exercises"]:
+                                knowledge_items[knowledge_item_id]["exercises"].append(merged_ex["id"])
 
             # Deduplicate against existing database entries
-            core_loops = self._deduplicate_core_loops_with_database(core_loops, course_code, db)
+            knowledge_items = self._deduplicate_knowledge_items_with_database(knowledge_items, course_code, db)
 
             # Log summary statistics
             accepted_count = len(merged_exercises) - low_confidence_count
@@ -1126,7 +1126,7 @@ CONTEXT RULES (CRITICAL):
                 print(f"  Skip rate: {(low_confidence_count / len(merged_exercises) * 100):.1f}%\n")
 
             return {
-                "core_loops": core_loops,
+                "knowledge_items": knowledge_items,
                 "merged_exercises": merged_exercises,
                 "original_count": len(exercises),
                 "merged_count": len(merged_exercises),
@@ -1135,13 +1135,13 @@ CONTEXT RULES (CRITICAL):
             }
 
     # Backwards compatibility alias
-    def discover_topics_and_core_loops(self, *args, **kwargs) -> Dict[str, Any]:
-        """DEPRECATED: Use discover_core_loops() instead. Topics have been removed."""
-        result = self.discover_core_loops(*args, **kwargs)
+    def discover_topics_and_knowledge_items(self, *args, **kwargs) -> Dict[str, Any]:
+        """DEPRECATED: Use discover_knowledge_items() instead. Topics have been removed."""
+        result = self.discover_knowledge_items(*args, **kwargs)
         result["topics"] = {}  # Empty for backwards compatibility
         return result
 
-    async def discover_core_loops_async(self, course_code: str,
+    async def discover_knowledge_items_async(self, course_code: str,
                                         batch_size: int = 10,
                                         skip_analyzed: bool = False) -> Dict[str, Any]:
         """Discover core loops for a course using async processing.
@@ -1159,7 +1159,7 @@ CONTEXT RULES (CRITICAL):
             exercises = db.get_exercises_by_course(course_code)
 
             if not exercises:
-                return {"core_loops": {}}
+                return {"knowledge_items": {}}
 
             # Detect primary language if monolingual mode enabled
             if self.monolingual and not self.primary_language:
@@ -1177,7 +1177,7 @@ CONTEXT RULES (CRITICAL):
             )
 
             # Collect all analyses
-            core_loops = {}
+            knowledge_items = {}
             low_confidence_count = 0
 
             for merged_ex in merged_exercises:
@@ -1200,12 +1200,12 @@ CONTEXT RULES (CRITICAL):
                             print(f"  {i}. {proc.name} (type: {proc.type}, point: {proc.point_number})")
 
                     for procedure_info in analysis.procedures:
-                        core_loop_id = self._normalize_core_loop_id(procedure_info.name)
+                        knowledge_item_id = self._normalize_knowledge_item_id(procedure_info.name)
 
-                        if core_loop_id and procedure_info.name:
-                            if core_loop_id not in core_loops:
-                                core_loops[core_loop_id] = {
-                                    "id": core_loop_id,
+                        if knowledge_item_id and procedure_info.name:
+                            if knowledge_item_id not in knowledge_items:
+                                knowledge_items[knowledge_item_id] = {
+                                    "id": knowledge_item_id,
                                     "name": procedure_info.name,
                                     "procedure": procedure_info.steps or [],
                                     "type": procedure_info.type,
@@ -1213,12 +1213,12 @@ CONTEXT RULES (CRITICAL):
                                     "exercise_count": 0,
                                     "exercises": []
                                 }
-                            core_loops[core_loop_id]["exercise_count"] += 1
-                            if merged_ex["id"] not in core_loops[core_loop_id]["exercises"]:
-                                core_loops[core_loop_id]["exercises"].append(merged_ex["id"])
+                            knowledge_items[knowledge_item_id]["exercise_count"] += 1
+                            if merged_ex["id"] not in knowledge_items[knowledge_item_id]["exercises"]:
+                                knowledge_items[knowledge_item_id]["exercises"].append(merged_ex["id"])
 
             # Deduplicate against existing database entries
-            core_loops = self._deduplicate_core_loops_with_database(core_loops, course_code, db)
+            knowledge_items = self._deduplicate_knowledge_items_with_database(knowledge_items, course_code, db)
 
             # Log summary statistics
             accepted_count = len(merged_exercises) - low_confidence_count
@@ -1230,7 +1230,7 @@ CONTEXT RULES (CRITICAL):
                 print(f"  Skip rate: {(low_confidence_count / len(merged_exercises) * 100):.1f}%\n")
 
             return {
-                "core_loops": core_loops,
+                "knowledge_items": knowledge_items,
                 "merged_exercises": merged_exercises,
                 "original_count": len(exercises),
                 "merged_count": len(merged_exercises),
@@ -1239,9 +1239,9 @@ CONTEXT RULES (CRITICAL):
             }
 
     # Backwards compatibility alias
-    async def discover_topics_and_core_loops_async(self, *args, **kwargs) -> Dict[str, Any]:
-        """DEPRECATED: Use discover_core_loops_async() instead. Topics have been removed."""
-        result = await self.discover_core_loops_async(*args, **kwargs)
+    async def discover_topics_and_knowledge_items_async(self, *args, **kwargs) -> Dict[str, Any]:
+        """DEPRECATED: Use discover_knowledge_items_async() instead. Topics have been removed."""
+        result = await self.discover_knowledge_items_async(*args, **kwargs)
         result["topics"] = {}  # Empty for backwards compatibility
         return result
 
@@ -1266,43 +1266,43 @@ CONTEXT RULES (CRITICAL):
             similarity = SequenceMatcher(None, str1.lower(), str2.lower()).ratio()
             return similarity, "string_similarity"
 
-    def _deduplicate_core_loops(self, core_loops: Dict[str, Any]) -> Dict[str, Any]:
+    def _deduplicate_knowledge_items(self, knowledge_items: Dict[str, Any]) -> Dict[str, Any]:
         """Deduplicate similar core loops using semantic similarity.
 
         Args:
-            core_loops: Dictionary of core loops
+            knowledge_items: Dictionary of core loops
 
         Returns:
             Tuple of (deduplicated core loops dictionary, ID mapping dict)
         """
-        if len(core_loops) <= 1:
-            return core_loops
+        if len(knowledge_items) <= 1:
+            return knowledge_items
 
-        threshold = Config.SEMANTIC_SIMILARITY_THRESHOLD if self.use_semantic else Config.CORE_LOOP_SIMILARITY_THRESHOLD
-        loop_ids = list(core_loops.keys())
+        threshold = Config.SEMANTIC_SIMILARITY_THRESHOLD if self.use_semantic else Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
+        loop_ids = list(knowledge_items.keys())
         merged_loops = {}
         skip_loops = set()
 
         # Track mapping from old IDs to canonical IDs
-        self.core_loop_id_mapping = {}
+        self.knowledge_item_id_mapping = {}
 
         for i, loop1_id in enumerate(loop_ids):
             if loop1_id in skip_loops:
                 continue
 
-            loop1 = core_loops[loop1_id]
+            loop1 = knowledge_items[loop1_id]
             canonical_id = loop1_id
             canonical_data = loop1.copy()
 
             # Map canonical ID to itself
-            self.core_loop_id_mapping[canonical_id] = canonical_id
+            self.knowledge_item_id_mapping[canonical_id] = canonical_id
 
             # Check for similar core loops (compare names, not IDs)
             for loop2_id in loop_ids[i+1:]:
                 if loop2_id in skip_loops:
                     continue
 
-                loop2 = core_loops[loop2_id]
+                loop2 = knowledge_items[loop2_id]
 
                 # Use semantic matching if available
                 if self.use_semantic and self.semantic_matcher:
@@ -1319,7 +1319,7 @@ CONTEXT RULES (CRITICAL):
                             canonical_data["procedure"] = loop2["procedure"]
                         skip_loops.add(loop2_id)
                         # Map merged ID to canonical ID
-                        self.core_loop_id_mapping[loop2_id] = canonical_id
+                        self.knowledge_item_id_mapping[loop2_id] = canonical_id
                     elif Config.SEMANTIC_LOG_NEAR_MISSES and result.similarity_score >= 0.80:
                         print(f"[SKIP] Core loop '{loop1['name']}' ≠ '{loop2['name']}' (similarity: {result.similarity_score:.2f}, reason: {result.reason})")
                 else:
@@ -1335,36 +1335,36 @@ CONTEXT RULES (CRITICAL):
                             canonical_data["procedure"] = loop2["procedure"]
                         skip_loops.add(loop2_id)
                         # Map merged ID to canonical ID
-                        self.core_loop_id_mapping[loop2_id] = canonical_id
+                        self.knowledge_item_id_mapping[loop2_id] = canonical_id
 
             merged_loops[canonical_id] = canonical_data
 
         return merged_loops
 
-    def _deduplicate_core_loops_with_database(self, core_loops: Dict[str, Any],
+    def _deduplicate_knowledge_items_with_database(self, knowledge_items: Dict[str, Any],
                                               course_code: str,
                                               db) -> Dict[str, Any]:
         """Deduplicate core loops against existing database entries, then within batch.
 
         Args:
-            core_loops: Dictionary of new core loops from current analysis
+            knowledge_items: Dictionary of new core loops from current analysis
             course_code: Course code
             db: Database instance
 
         Returns:
             Deduplicated core loops dictionary with mappings to existing DB loops
         """
-        threshold = Config.SEMANTIC_SIMILARITY_THRESHOLD if self.use_semantic else Config.CORE_LOOP_SIMILARITY_THRESHOLD
+        threshold = Config.SEMANTIC_SIMILARITY_THRESHOLD if self.use_semantic else Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
 
         # Load existing core loops from database
-        existing_loops = db.get_core_loops_by_course(course_code)
+        existing_loops = db.get_knowledge_items_by_course(course_code)
         existing_loop_map = {loop['id']: loop for loop in existing_loops}
 
         # Track mappings from new loop IDs to canonical (db or batch) IDs
         loop_id_mapping = {}
         deduplicated_loops = {}
 
-        for new_loop_id, new_loop_data in core_loops.items():
+        for new_loop_id, new_loop_data in knowledge_items.items():
             matched_existing = None
             best_similarity = 0.0
             best_reason = ""
@@ -1397,16 +1397,16 @@ CONTEXT RULES (CRITICAL):
                 loop_id_mapping[new_loop_id] = new_loop_id
 
         # Now deduplicate within the new batch
-        deduplicated_loops = self._deduplicate_core_loops(deduplicated_loops)
+        deduplicated_loops = self._deduplicate_knowledge_items(deduplicated_loops)
 
         # Update loop mapping with any batch deduplication
-        if hasattr(self, 'core_loop_id_mapping'):
-            for old_id, canonical_id in self.core_loop_id_mapping.items():
+        if hasattr(self, 'knowledge_item_id_mapping'):
+            for old_id, canonical_id in self.knowledge_item_id_mapping.items():
                 if old_id in loop_id_mapping:
                     loop_id_mapping[old_id] = canonical_id
 
         # Store the mapping for later use
-        self.core_loop_id_mapping = loop_id_mapping
+        self.knowledge_item_id_mapping = loop_id_mapping
 
         return deduplicated_loops
 
@@ -1644,7 +1644,7 @@ Respond ONLY with valid JSON, no other text.
         Returns:
             Topic ID if match found, None otherwise
         """
-        threshold = Config.SEMANTIC_SIMILARITY_THRESHOLD if self.use_semantic else Config.CORE_LOOP_SIMILARITY_THRESHOLD
+        threshold = Config.SEMANTIC_SIMILARITY_THRESHOLD if self.use_semantic else Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
 
         best_match_id = None
         best_similarity = 0.0
@@ -1716,11 +1716,11 @@ Respond ONLY with valid JSON, no other text.
                 candidate_exercises = []
                 for topic in example_topics:
                     # Get core loops for this topic
-                    core_loops = db.get_core_loops_by_topic(topic['id'])
+                    knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
 
                     # Get exercises for each core loop
-                    for core_loop in core_loops:
-                        exercises = db.get_exercises_by_core_loop(core_loop['id'])
+                    for knowledge_item in knowledge_items:
+                        exercises = db.get_exercises_by_knowledge_item(knowledge_item['id'])
                         candidate_exercises.extend(exercises)
 
                 # Remove duplicates
@@ -1794,7 +1794,7 @@ Respond ONLY with valid JSON, no other text.
 
         Returns:
             List of dicts with topic info that should be split:
-            [{"id": topic_id, "name": topic_name, "core_loop_count": N}, ...]
+            [{"id": topic_id, "name": topic_name, "knowledge_item_count": N}, ...]
         """
         generic_topics = []
 
@@ -1807,8 +1807,8 @@ Respond ONLY with valid JSON, no other text.
 
         for topic in topics:
             # Get core loops for this topic
-            core_loops = db.get_core_loops_by_topic(topic['id'])
-            loop_count = len(core_loops)
+            knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
+            loop_count = len(knowledge_items)
 
             # Detection criteria
             is_generic = False
@@ -1828,8 +1828,8 @@ Respond ONLY with valid JSON, no other text.
                 generic_topics.append({
                     "id": topic['id'],
                     "name": topic['name'],
-                    "core_loop_count": loop_count,
-                    "core_loops": [cl['id'] for cl in core_loops],
+                    "knowledge_item_count": loop_count,
+                    "knowledge_items": [cl['id'] for cl in knowledge_items],
                     "reason": "; ".join(reason)
                 })
 
@@ -1856,42 +1856,42 @@ Respond ONLY with valid JSON, no other text.
 
         return False
 
-    def cluster_core_loops_for_topic(self, topic_id: int, topic_name: str,
-                                     core_loops: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+    def cluster_knowledge_items_for_topic(self, topic_id: int, topic_name: str,
+                                     knowledge_items: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
         """Cluster core loops into semantic groups using LLM.
 
         Args:
             topic_id: ID of generic topic
             topic_name: Name of generic topic
-            core_loops: List of core loop dicts (with 'id' and 'name' keys)
+            knowledge_items: List of core loop dicts (with 'id' and 'name' keys)
 
         Returns:
             List of clusters or None if clustering fails:
             [
                 {
                     "topic_name": "Specific Topic Name",
-                    "core_loop_ids": ["loop1", "loop2", ...]
+                    "knowledge_item_ids": ["loop1", "loop2", ...]
                 },
                 ...
             ]
         """
         try:
-            print(f"[INFO] Clustering {len(core_loops)} core loops for topic '{topic_name}'...")
+            print(f"[INFO] Clustering {len(knowledge_items)} core loops for topic '{topic_name}'...")
 
             # Build core loop list for prompt
-            core_loop_list = "\n".join([
+            knowledge_item_list = "\n".join([
                 f"{i+1}. {cl['name']} (ID: {cl['id']})"
-                for i, cl in enumerate(core_loops)
+                for i, cl in enumerate(knowledge_items)
             ])
 
             # Build clustering prompt
             prompt = f"""You are analyzing core loops (procedural problem-solving patterns) from the topic "{topic_name}".
 
-These {len(core_loops)} core loops are currently grouped together but are too diverse.
+These {len(knowledge_items)} core loops are currently grouped together but are too diverse.
 Cluster them into {Config.TOPIC_CLUSTER_MIN}-{Config.TOPIC_CLUSTER_MAX} specific subtopics based on semantic similarity.
 
 Core loops to cluster:
-{core_loop_list}
+{knowledge_item_list}
 
 Requirements:
 - Create {Config.TOPIC_CLUSTER_MIN}-{Config.TOPIC_CLUSTER_MAX} clusters
@@ -1905,7 +1905,7 @@ Return ONLY valid JSON in this format:
   "clusters": [
     {{
       "topic_name": "Specific Topic Name Here",
-      "core_loop_ids": ["loop_id_1", "loop_id_2", ...]
+      "knowledge_item_ids": ["loop_id_1", "loop_id_2", ...]
     }},
     ...
   ]
@@ -1935,12 +1935,12 @@ No markdown code blocks, just JSON."""
             # Validate clustering
             all_assigned_ids = set()
             for cluster in clusters:
-                if 'topic_name' not in cluster or 'core_loop_ids' not in cluster:
+                if 'topic_name' not in cluster or 'knowledge_item_ids' not in cluster:
                     print(f"[ERROR] Invalid cluster format: {cluster}")
                     return None
-                all_assigned_ids.update(cluster['core_loop_ids'])
+                all_assigned_ids.update(cluster['knowledge_item_ids'])
 
-            original_ids = set(cl['id'] for cl in core_loops)
+            original_ids = set(cl['id'] for cl in knowledge_items)
 
             # Check if all core loops were assigned
             if all_assigned_ids != original_ids:
@@ -1959,7 +1959,7 @@ No markdown code blocks, just JSON."""
 
             print(f"[INFO] Successfully created {len(clusters)} clusters")
             for i, cluster in enumerate(clusters, 1):
-                print(f"  {i}. {cluster['topic_name']}: {len(cluster['core_loop_ids'])} core loops")
+                print(f"  {i}. {cluster['topic_name']}: {len(cluster['knowledge_item_ids'])} core loops")
 
             return clusters
 

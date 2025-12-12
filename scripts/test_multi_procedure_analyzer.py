@@ -63,12 +63,12 @@ def test_new_format_multi_procedure():
             print(f"     - Transformation: {proc.transformation['source_format']} → {proc.transformation['target_format']}")
 
     print(f"\n✓ Backward compatibility (properties):")
-    print(f"  - core_loop_name: {result.core_loop_name}")
-    print(f"  - core_loop_id: {result.core_loop_id}")
+    print(f"  - knowledge_item_name: {result.knowledge_item_name}")
+    print(f"  - knowledge_item_id: {result.knowledge_item_id}")
     print(f"  - procedure steps: {len(result.procedure) if result.procedure else 0}")
 
-    assert result.core_loop_name == "Mealy Machine Design", "Primary core loop name should be first procedure"
-    assert result.core_loop_id == "mealy_machine_design", "Primary core loop ID should be normalized"
+    assert result.knowledge_item_name == "Mealy Machine Design", "Primary core loop name should be first procedure"
+    assert result.knowledge_item_id == "mealy_machine_design", "Primary core loop ID should be normalized"
     assert len(result.procedure) == 3, "Primary procedure should have 3 steps"
 
     print("\n✓ All assertions passed!")
@@ -107,11 +107,11 @@ def test_new_format_single_procedure():
     print(f"     - Type: {result.procedures[0].type}")
 
     print(f"\n✓ Backward compatibility (properties):")
-    print(f"  - core_loop_name: {result.core_loop_name}")
-    print(f"  - core_loop_id: {result.core_loop_id}")
+    print(f"  - knowledge_item_name: {result.knowledge_item_name}")
+    print(f"  - knowledge_item_id: {result.knowledge_item_id}")
 
-    assert result.core_loop_name == "Karnaugh Map Simplification"
-    assert result.core_loop_id == "karnaugh_map_simplification"
+    assert result.knowledge_item_name == "Karnaugh Map Simplification"
+    assert result.knowledge_item_id == "karnaugh_map_simplification"
 
     print("\n✓ All assertions passed!")
 
@@ -128,7 +128,7 @@ def test_old_format_compatibility():
         "is_fragment": False,
         "should_merge_with_previous": False,
         "topic": "Sequential Circuits",
-        "core_loop_name": "Finite State Machine Design",
+        "knowledge_item_name": "Finite State Machine Design",
         "procedure": ["Define states", "Define transitions", "Draw diagram"],
         "difficulty": "hard",
         "variations": ["Moore machine"],
@@ -141,7 +141,7 @@ def test_old_format_compatibility():
     # This is what the parser would create (simulating the conversion logic)
     procedures = [
         ProcedureInfo(
-            name=old_format_data["core_loop_name"],
+            name=old_format_data["knowledge_item_name"],
             type="other",  # Unknown type in old format
             steps=old_format_data.get("procedure", []),
             point_number=None,
@@ -162,12 +162,12 @@ def test_old_format_compatibility():
 
     print(f"\n✓ Converted to new format with {len(result.procedures)} procedure")
     print(f"\n✓ Backward compatibility (properties):")
-    print(f"  - core_loop_name: {result.core_loop_name}")
-    print(f"  - core_loop_id: {result.core_loop_id}")
+    print(f"  - knowledge_item_name: {result.knowledge_item_name}")
+    print(f"  - knowledge_item_id: {result.knowledge_item_id}")
     print(f"  - procedure: {result.procedure}")
 
-    assert result.core_loop_name == "Finite State Machine Design"
-    assert result.core_loop_id == "finite_state_machine_design"
+    assert result.knowledge_item_name == "Finite State Machine Design"
+    assert result.knowledge_item_id == "finite_state_machine_design"
     assert result.procedure == ["Define states", "Define transitions", "Draw diagram"]
 
     print("\n✓ All assertions passed!")
@@ -192,12 +192,12 @@ def test_empty_procedures():
 
     print(f"\n✓ Created AnalysisResult with {len(result.procedures)} procedures")
     print(f"\n✓ Backward compatibility (should all be None):")
-    print(f"  - core_loop_name: {result.core_loop_name}")
-    print(f"  - core_loop_id: {result.core_loop_id}")
+    print(f"  - knowledge_item_name: {result.knowledge_item_name}")
+    print(f"  - knowledge_item_id: {result.knowledge_item_id}")
     print(f"  - procedure: {result.procedure}")
 
-    assert result.core_loop_name is None
-    assert result.core_loop_id is None
+    assert result.knowledge_item_name is None
+    assert result.knowledge_item_id is None
     assert result.procedure is None
 
     print("\n✓ All assertions passed!")

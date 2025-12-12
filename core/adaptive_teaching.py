@@ -34,20 +34,20 @@ class AdaptiveTeachingManager:
             self.db.close()
 
     def get_recommended_depth(self, course_code: str, topic_name: Optional[str] = None,
-                             core_loop_name: Optional[str] = None,
+                             knowledge_item_name: Optional[str] = None,
                              user_id: Optional[str] = None) -> str:
         """Determine optimal explanation depth based on mastery level.
 
         Args:
             course_code: Course code
             topic_name: Topic name (optional)
-            core_loop_name: Core loop name (optional)
+            knowledge_item_name: Core loop name (optional)
             user_id: User ID (reserved for future multi-user support)
 
         Returns:
             'basic', 'medium', or 'advanced'
         """
-        mastery = self._calculate_mastery(course_code, topic_name, core_loop_name, user_id)
+        mastery = self._calculate_mastery(course_code, topic_name, knowledge_item_name, user_id)
 
         # Mastery-to-Depth mapping:
         # - new/learning (mastery < 0.3): Use 'basic' depth
@@ -61,19 +61,19 @@ class AdaptiveTeachingManager:
         else:
             return 'advanced'
 
-    def should_review_prerequisites(self, course_code: str, core_loop_name: str,
+    def should_review_prerequisites(self, course_code: str, knowledge_item_name: str,
                                    user_id: Optional[str] = None) -> bool:
         """Decide if prerequisite concepts should be explained.
 
         Args:
             course_code: Course code
-            core_loop_name: Core loop name
+            knowledge_item_name: Core loop name
             user_id: User ID (reserved for future multi-user support)
 
         Returns:
             True if prerequisites should be shown
         """
-        mastery = self._calculate_mastery(course_code, core_loop_name=core_loop_name, user_id=user_id)
+        mastery = self._calculate_mastery(course_code, knowledge_item_name=knowledge_item_name, user_id=user_id)
 
         # new/learning (mastery < 0.3): ALWAYS show prerequisites
         if mastery < 0.3:
@@ -81,18 +81,18 @@ class AdaptiveTeachingManager:
 
         # reviewing (0.3 <= mastery < 0.7): Show prerequisites if recent failures
         if mastery < 0.7:
-            return self._has_recent_failures(course_code, core_loop_name, user_id)
+            return self._has_recent_failures(course_code, knowledge_item_name, user_id)
 
         # mastered (mastery >= 0.7): Skip prerequisites
         return False
 
-    def detect_knowledge_gaps(self, course_code: str, core_loop_name: Optional[str] = None,
+    def detect_knowledge_gaps(self, course_code: str, knowledge_item_name: Optional[str] = None,
                              user_id: Optional[str] = None) -> List[Dict]:
         """Identify missing prerequisites or weak areas.
 
         Args:
             course_code: Course code
-            core_loop_name: Core loop to check (optional, checks all if not provided)
+            knowledge_item_name: Core loop to check (optional, checks all if not provided)
             user_id: User ID (reserved for future multi-user support)
 
         Returns:
@@ -113,18 +113,18 @@ class AdaptiveTeachingManager:
                 topic_name = topic['name']
 
                 # Get core loops for this topic
-                core_loops = db.get_core_loops_by_topic(topic_id)
+                knowledge_items = db.get_knowledge_items_by_topic(topic_id)
 
-                for loop in core_loops:
+                for loop in knowledge_items:
                     loop_id = loop['id']
                     loop_name = loop['name']
 
                     # Skip if specific core loop requested and this isn't it
-                    if core_loop_name and loop_name != core_loop_name:
+                    if knowledge_item_name and loop_name != knowledge_item_name:
                         continue
 
                     # Get mastery for this core loop
-                    mastery = self._calculate_mastery(course_code, core_loop_name=loop_name, user_id=user_id)
+                    mastery = self._calculate_mastery(course_code, knowledge_item_name=loop_name, user_id=user_id)
 
                     # Identify gaps (mastery < 0.5)
                     if mastery < 0.5:
@@ -165,7 +165,7 @@ class AdaptiveTeachingManager:
     def check_prerequisite_mastery(
         self,
         course_code: str,
-        core_loop_name: str,
+        knowledge_item_name: str,
         threshold: float = 0.5,
         user_id: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -173,7 +173,7 @@ class AdaptiveTeachingManager:
 
         Args:
             course_code: Course code
-            core_loop_name: Core loop to check prerequisites for
+            knowledge_item_name: Core loop to check prerequisites for
             threshold: Minimum mastery required (default 0.5)
             user_id: User ID (reserved for future multi-user support)
 
@@ -188,30 +188,30 @@ class AdaptiveTeachingManager:
         with Database() as db:
             # Find prerequisite concepts for this core loop
             # First, get the core loop's topic
-            core_loop = db.conn.execute("""
+            knowledge_item = db.conn.execute("""
                 SELECT cl.id, cl.topic_id, t.name as topic_name
-                FROM core_loops cl
+                FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE cl.name = ? AND t.course_code = ?
-            """, (core_loop_name, course_code)).fetchone()
+            """, (knowledge_item_name, course_code)).fetchone()
 
-            if not core_loop:
+            if not knowledge_item:
                 return {'ready': True, 'weak_prerequisites': [], 'recommendation': ''}
 
-            topic_id = core_loop['topic_id']
+            topic_id = knowledge_item['topic_id']
 
             # Get other core loops in the same topic that might be prerequisites
             # (simpler core loops that should be learned first)
             related_loops = db.conn.execute("""
                 SELECT cl.id, cl.name
-                FROM core_loops cl
+                FROM knowledge_items cl
                 WHERE cl.topic_id = ? AND cl.name != ?
-            """, (topic_id, core_loop_name)).fetchall()
+            """, (topic_id, knowledge_item_name)).fetchall()
 
             # Check mastery of related core loops
             for loop in related_loops:
                 loop_name = loop['name']
-                mastery = self._calculate_mastery(course_code, core_loop_name=loop_name, user_id=user_id)
+                mastery = self._calculate_mastery(course_code, knowledge_item_name=loop_name, user_id=user_id)
 
                 if mastery < threshold:
                     weak_prerequisites.append({
@@ -251,7 +251,7 @@ class AdaptiveTeachingManager:
             List of learning path items with:
             - priority: 1-N (lower is higher priority)
             - action: 'review', 'strengthen', 'learn', or 'practice'
-            - core_loop: Core loop name (if applicable)
+            - knowledge_item: Core loop name (if applicable)
             - topic: Topic name
             - reason: Explanation why this is recommended
             - estimated_time: Estimated time in minutes
@@ -264,15 +264,15 @@ class AdaptiveTeachingManager:
             # 1. OVERDUE REVIEWS (highest priority)
             overdue_reviews = db.conn.execute("""
                 SELECT
-                    sp.core_loop_id,
-                    cl.name as core_loop_name,
+                    sp.knowledge_item_id,
+                    cl.name as knowledge_item_name,
                     t.name as topic_name,
                     sp.mastery_score,
                     sp.next_review,
                     sp.last_practiced,
                     JULIANDAY('now') - JULIANDAY(sp.next_review) as days_overdue
                 FROM student_progress sp
-                JOIN core_loops cl ON sp.core_loop_id = cl.id
+                JOIN knowledge_items cl ON sp.knowledge_item_id = cl.id
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE t.course_code = ?
                     AND sp.next_review IS NOT NULL
@@ -286,7 +286,7 @@ class AdaptiveTeachingManager:
                 path.append({
                     'priority': priority,
                     'action': 'review',
-                    'core_loop': review[1],
+                    'knowledge_item': review[1],
                     'topic': review[2],
                     'reason': f"Overdue by {days_overdue} day{'s' if days_overdue > 1 else ''}",
                     'estimated_time': 15,
@@ -301,14 +301,14 @@ class AdaptiveTeachingManager:
             # 2. WEAK AREAS (low mastery < 0.5)
             weak_areas = db.conn.execute("""
                 SELECT
-                    sp.core_loop_id,
-                    cl.name as core_loop_name,
+                    sp.knowledge_item_id,
+                    cl.name as knowledge_item_name,
                     t.name as topic_name,
                     sp.mastery_score,
                     sp.total_attempts,
                     sp.last_practiced
                 FROM student_progress sp
-                JOIN core_loops cl ON sp.core_loop_id = cl.id
+                JOIN knowledge_items cl ON sp.knowledge_item_id = cl.id
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE t.course_code = ?
                     AND sp.mastery_score < 0.5
@@ -322,7 +322,7 @@ class AdaptiveTeachingManager:
                 path.append({
                     'priority': priority,
                     'action': 'strengthen',
-                    'core_loop': weak[1],
+                    'knowledge_item': weak[1],
                     'topic': weak[2],
                     'reason': f"Low mastery ({mastery_pct}%)",
                     'estimated_time': 20,
@@ -338,14 +338,14 @@ class AdaptiveTeachingManager:
             # 3. DUE REVIEWS (scheduled for today)
             due_today = db.conn.execute("""
                 SELECT
-                    sp.core_loop_id,
-                    cl.name as core_loop_name,
+                    sp.knowledge_item_id,
+                    cl.name as knowledge_item_name,
                     t.name as topic_name,
                     sp.mastery_score,
                     sp.last_practiced,
                     JULIANDAY('now') - JULIANDAY(sp.last_practiced) as days_since
                 FROM student_progress sp
-                JOIN core_loops cl ON sp.core_loop_id = cl.id
+                JOIN knowledge_items cl ON sp.knowledge_item_id = cl.id
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE t.course_code = ?
                     AND sp.next_review IS NOT NULL
@@ -359,7 +359,7 @@ class AdaptiveTeachingManager:
                 path.append({
                     'priority': priority,
                     'action': 'review',
-                    'core_loop': due[1],
+                    'knowledge_item': due[1],
                     'topic': due[2],
                     'reason': f"Due for review (last practiced {days_since} days ago)",
                     'estimated_time': 15,
@@ -374,14 +374,14 @@ class AdaptiveTeachingManager:
             # 4. NEW CONTENT (not yet attempted)
             new_content = db.conn.execute("""
                 SELECT
-                    cl.id as core_loop_id,
-                    cl.name as core_loop_name,
+                    cl.id as knowledge_item_id,
+                    cl.name as knowledge_item_name,
                     t.name as topic_name,
                     cl.exercise_count,
                     cl.difficulty_avg
-                FROM core_loops cl
+                FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
-                LEFT JOIN student_progress sp ON cl.id = sp.core_loop_id AND sp.course_code = ?
+                LEFT JOIN student_progress sp ON cl.id = sp.knowledge_item_id AND sp.course_code = ?
                 WHERE t.course_code = ?
                     AND (sp.total_attempts IS NULL OR sp.total_attempts = 0)
                     AND cl.exercise_count > 0
@@ -394,7 +394,7 @@ class AdaptiveTeachingManager:
                 path.append({
                     'priority': priority,
                     'action': 'learn',
-                    'core_loop': new[1],
+                    'knowledge_item': new[1],
                     'topic': new[2],
                     'reason': f"New content ({new[3]} exercises available)",
                     'estimated_time': 25,
@@ -409,13 +409,13 @@ class AdaptiveTeachingManager:
 
         return path
 
-    def get_adaptive_recommendations(self, course_code: str, core_loop_name: str,
+    def get_adaptive_recommendations(self, course_code: str, knowledge_item_name: str,
                                     user_id: Optional[str] = None) -> Dict[str, Any]:
         """Get adaptive recommendations for a specific core loop.
 
         Args:
             course_code: Course code
-            core_loop_name: Core loop name
+            knowledge_item_name: Core loop name
             user_id: User ID (reserved for future multi-user support)
 
         Returns:
@@ -426,9 +426,9 @@ class AdaptiveTeachingManager:
             - focus_areas: List of specific areas to focus on
             - next_review: Next scheduled review date (if applicable)
         """
-        mastery = self._calculate_mastery(course_code, core_loop_name=core_loop_name, user_id=user_id)
-        depth = self.get_recommended_depth(course_code, core_loop_name=core_loop_name, user_id=user_id)
-        show_prereqs = self.should_review_prerequisites(course_code, core_loop_name, user_id)
+        mastery = self._calculate_mastery(course_code, knowledge_item_name=knowledge_item_name, user_id=user_id)
+        depth = self.get_recommended_depth(course_code, knowledge_item_name=knowledge_item_name, user_id=user_id)
+        show_prereqs = self.should_review_prerequisites(course_code, knowledge_item_name, user_id)
 
         # Calculate recommended practice count based on mastery
         if mastery < 0.3:
@@ -440,7 +440,7 @@ class AdaptiveTeachingManager:
 
         # Get focus areas (weak points)
         focus_areas = []
-        gaps = self.detect_knowledge_gaps(course_code, core_loop_name, user_id)
+        gaps = self.detect_knowledge_gaps(course_code, knowledge_item_name, user_id)
         if gaps:
             focus_areas = [gap['recommendation'] for gap in gaps[:3]]
 
@@ -450,17 +450,17 @@ class AdaptiveTeachingManager:
             # Find core loop ID
             loop_row = db.conn.execute("""
                 SELECT cl.id
-                FROM core_loops cl
+                FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE t.course_code = ? AND cl.name = ?
-            """, (course_code, core_loop_name)).fetchone()
+            """, (course_code, knowledge_item_name)).fetchone()
 
             if loop_row:
                 loop_id = loop_row[0]
                 progress = db.conn.execute("""
                     SELECT next_review
                     FROM student_progress
-                    WHERE course_code = ? AND core_loop_id = ?
+                    WHERE course_code = ? AND knowledge_item_id = ?
                 """, (course_code, loop_id)).fetchone()
 
                 if progress and progress[0]:
@@ -476,7 +476,7 @@ class AdaptiveTeachingManager:
         }
 
     def _calculate_mastery(self, course_code: str, topic_name: Optional[str] = None,
-                          core_loop_name: Optional[str] = None,
+                          knowledge_item_name: Optional[str] = None,
                           user_id: Optional[str] = None) -> float:
         """Calculate mastery score for a topic or core loop.
 
@@ -485,21 +485,21 @@ class AdaptiveTeachingManager:
         Args:
             course_code: Course code
             topic_name: Topic name (optional)
-            core_loop_name: Core loop name (optional)
+            knowledge_item_name: Core loop name (optional)
             user_id: User ID (reserved for future)
 
         Returns:
             Mastery score between 0.0 and 1.0
         """
         with Database() as db:
-            if core_loop_name:
+            if knowledge_item_name:
                 # Calculate mastery for specific core loop
                 loop_row = db.conn.execute("""
                     SELECT cl.id
-                    FROM core_loops cl
+                    FROM knowledge_items cl
                     JOIN topics t ON cl.topic_id = t.id
                     WHERE t.course_code = ? AND cl.name = ?
-                """, (course_code, core_loop_name)).fetchone()
+                """, (course_code, knowledge_item_name)).fetchone()
 
                 if not loop_row:
                     return 0.0
@@ -510,7 +510,7 @@ class AdaptiveTeachingManager:
                 progress = db.conn.execute("""
                     SELECT mastery_score, total_attempts, correct_attempts
                     FROM student_progress
-                    WHERE course_code = ? AND core_loop_id = ?
+                    WHERE course_code = ? AND knowledge_item_id = ?
                 """, (course_code, loop_id)).fetchone()
 
                 if not progress or progress[1] == 0:  # No attempts
@@ -535,7 +535,7 @@ class AdaptiveTeachingManager:
                 avg_mastery = db.conn.execute("""
                     SELECT AVG(sp.mastery_score)
                     FROM student_progress sp
-                    JOIN core_loops cl ON sp.core_loop_id = cl.id
+                    JOIN knowledge_items cl ON sp.knowledge_item_id = cl.id
                     WHERE cl.topic_id = ? AND sp.total_attempts > 0
                 """, (topic_id,)).fetchone()
 
@@ -546,20 +546,20 @@ class AdaptiveTeachingManager:
                 avg_mastery = db.conn.execute("""
                     SELECT AVG(sp.mastery_score)
                     FROM student_progress sp
-                    JOIN core_loops cl ON sp.core_loop_id = cl.id
+                    JOIN knowledge_items cl ON sp.knowledge_item_id = cl.id
                     JOIN topics t ON cl.topic_id = t.id
                     WHERE t.course_code = ? AND sp.total_attempts > 0
                 """, (course_code,)).fetchone()
 
                 return avg_mastery[0] if avg_mastery[0] is not None else 0.0
 
-    def _has_recent_failures(self, course_code: str, core_loop_name: str,
+    def _has_recent_failures(self, course_code: str, knowledge_item_name: str,
                             user_id: Optional[str] = None) -> bool:
         """Check if there have been recent failures for a core loop.
 
         Args:
             course_code: Course code
-            core_loop_name: Core loop name
+            knowledge_item_name: Core loop name
             user_id: User ID (reserved for future)
 
         Returns:
@@ -569,10 +569,10 @@ class AdaptiveTeachingManager:
             # Find core loop ID
             loop_row = db.conn.execute("""
                 SELECT cl.id
-                FROM core_loops cl
+                FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE t.course_code = ? AND cl.name = ?
-            """, (course_code, core_loop_name)).fetchone()
+            """, (course_code, knowledge_item_name)).fetchone()
 
             if not loop_row:
                 return False
@@ -585,7 +585,7 @@ class AdaptiveTeachingManager:
                 FROM quiz_attempts qa
                 JOIN quiz_sessions qs ON qa.session_id = qs.id
                 JOIN exercises e ON qa.exercise_id = e.id
-                WHERE qs.course_code = ? AND e.core_loop_id = ?
+                WHERE qs.course_code = ? AND e.knowledge_item_id = ?
                 ORDER BY qa.attempted_at DESC
                 LIMIT 5
             """, (course_code, loop_id)).fetchall()
@@ -599,12 +599,12 @@ class AdaptiveTeachingManager:
 
             return failure_rate > 0.4
 
-    def _find_dependent_content(self, course_code: str, core_loop_id: str) -> List[str]:
+    def _find_dependent_content(self, course_code: str, knowledge_item_id: str) -> List[str]:
         """Find content that depends on a given core loop.
 
         Args:
             course_code: Course code
-            core_loop_id: Core loop ID
+            knowledge_item_id: Core loop ID
 
         Returns:
             List of dependent topic/core loop names
@@ -616,15 +616,15 @@ class AdaptiveTeachingManager:
             # Find multi-procedure exercises that include this core loop
             dependent_exercises = db.conn.execute("""
                 SELECT DISTINCT cl2.name
-                FROM exercise_core_loops ecl1
-                JOIN exercise_core_loops ecl2 ON ecl1.exercise_id = ecl2.exercise_id
-                JOIN core_loops cl2 ON ecl2.core_loop_id = cl2.id
+                FROM exercise_knowledge_items ecl1
+                JOIN exercise_knowledge_items ecl2 ON ecl1.exercise_id = ecl2.exercise_id
+                JOIN knowledge_items cl2 ON ecl2.knowledge_item_id = cl2.id
                 JOIN exercises e ON ecl1.exercise_id = e.id
-                WHERE ecl1.core_loop_id = ?
-                    AND ecl2.core_loop_id != ?
+                WHERE ecl1.knowledge_item_id = ?
+                    AND ecl2.knowledge_item_id != ?
                     AND e.course_code = ?
                 LIMIT 5
-            """, (core_loop_id, core_loop_id, course_code)).fetchall()
+            """, (knowledge_item_id, knowledge_item_id, course_code)).fetchall()
 
             return [row[0] for row in dependent_exercises]
 

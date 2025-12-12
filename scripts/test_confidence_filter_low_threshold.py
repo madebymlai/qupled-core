@@ -40,7 +40,7 @@ llm = LLMManager(provider="groq")
 analyzer = ExerciseAnalyzer(llm)
 
 # Run discovery (this will apply confidence filtering)
-result = analyzer.discover_topics_and_core_loops('B006802')
+result = analyzer.discover_topics_and_knowledge_items('B006802')
 
 print("\n" + "=" * 80)
 print("RESULTS:")
@@ -50,7 +50,7 @@ print(f"Merged exercises: {result['merged_count']}")
 print(f"Accepted exercises: {result['accepted_count']}")
 print(f"Skipped (low confidence): {result['low_confidence_skipped']}")
 print(f"\nTopics discovered: {len(result['topics'])}")
-print(f"Core loops discovered: {len(result['core_loops'])}")
+print(f"Core loops discovered: {len(result['knowledge_items'])}")
 
 # Show confidence scores for all merged exercises
 print("\n" + "-" * 80)

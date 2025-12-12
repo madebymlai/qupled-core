@@ -404,7 +404,7 @@ def test_build_knowledge_gap():
         topic_name="Algebra",
         mastery=0.25,
         reviews=reviews,
-        core_loop_names=["Linear Equations", "Quadratics"],
+        knowledge_item_names=["Linear Equations", "Quadratics"],
     )
 
     assert gap.topic_id == "topic-1"
@@ -502,7 +502,7 @@ def test_generate_recommended_actions():
     actions = ProgressAnalyzer.generate_recommended_actions(
         topic_name="Physics",
         mastery=0.2,
-        core_loop_names=["Kinematics", "Dynamics"],
+        knowledge_item_names=["Kinematics", "Dynamics"],
     )
 
     assert len(actions) > 0

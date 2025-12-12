@@ -75,13 +75,13 @@ class ExaminaService:
     Example:
         # CLI usage:
         service = ExaminaService(provider="anthropic")
-        result = service.learn_core_loop(course_code, loop_id)
+        result = service.learn_knowledge_item(course_code, loop_id)
 
         # Future web API usage:
         @app.post("/api/courses/{course}/learn")
         def learn(course: str, loop_id: str, user: User):
             service = ExaminaService(provider=user.preferred_llm)
-            result = service.learn_core_loop(course, loop_id)
+            result = service.learn_knowledge_item(course, loop_id)
             return result
     """
 
@@ -346,9 +346,9 @@ class ExaminaService:
     # LEARNING OPERATIONS
     # =========================================================================
 
-    def learn_core_loop(self,
+    def learn_knowledge_item(self,
                        course_code: str,
-                       core_loop_id: str,
+                       knowledge_item_id: str,
                        explain_concepts: bool = True,
                        depth: str = "medium",
                        adaptive: bool = True,
@@ -357,7 +357,7 @@ class ExaminaService:
 
         Args:
             course_code: Course code identifier
-            core_loop_id: Core loop ID to learn
+            knowledge_item_id: Core loop ID to learn
             explain_concepts: Include prerequisite concepts
             depth: Explanation depth ("basic", "medium", "advanced")
             adaptive: Enable adaptive teaching
@@ -374,7 +374,7 @@ class ExaminaService:
 
             result = tutor.learn(
                 course_code=course_code,
-                core_loop_id=core_loop_id,
+                knowledge_item_id=knowledge_item_id,
                 explain_concepts=explain_concepts,
                 depth=depth,
                 adaptive=adaptive,
@@ -392,7 +392,7 @@ class ExaminaService:
                 message="Explanation generated successfully",
                 data={
                     "content": result.content,
-                    "core_loop_id": core_loop_id,
+                    "knowledge_item_id": knowledge_item_id,
                     "depth": depth,
                     "adaptive": adaptive,
                     "metadata": result.metadata
@@ -666,13 +666,13 @@ class ExaminaService:
 
     def generate_exercise(self,
                          course_code: str,
-                         core_loop_id: str,
+                         knowledge_item_id: str,
                          difficulty: str = "medium") -> ServiceResult:
         """Generate new practice exercise for a core loop.
 
         Args:
             course_code: Course code identifier
-            core_loop_id: Core loop to generate exercise for
+            knowledge_item_id: Core loop to generate exercise for
             difficulty: Difficulty level ("easy", "medium", "hard")
 
         Returns:
@@ -683,7 +683,7 @@ class ExaminaService:
 
             result = tutor.generate(
                 course_code=course_code,
-                core_loop_id=core_loop_id,
+                knowledge_item_id=knowledge_item_id,
                 difficulty=difficulty
             )
 
@@ -698,7 +698,7 @@ class ExaminaService:
                 message="Exercise generated",
                 data={
                     "content": result.content,
-                    "core_loop_id": core_loop_id,
+                    "knowledge_item_id": knowledge_item_id,
                     "difficulty": difficulty,
                     "metadata": result.metadata
                 }
@@ -727,14 +727,14 @@ class ExaminaService:
             with Database() as db:
                 exercises = db.get_exercises_by_course(course_code)
                 topics = db.get_topics_by_course(course_code)
-                core_loops = db.get_core_loops_by_course(course_code)
+                knowledge_items = db.get_knowledge_items_by_course(course_code)
                 analyzed_exercises = db.get_exercises_by_course(course_code, analyzed_only=True)
 
                 stats = {
                     "course_code": course_code,
                     "total_exercises": len(exercises),
                     "total_topics": len(topics),
-                    "total_core_loops": len(core_loops),
+                    "total_knowledge_items": len(knowledge_items),
                     "analyzed_exercises": len(analyzed_exercises),
                     "mastery_progress": db.get_all_topic_mastery(course_code) if topics else []
                 }
@@ -815,7 +815,7 @@ async def learn_endpoint(
     service: ExaminaService = Depends(get_service)
 ) -> ServiceResult:
     '''Learn a core loop with AI tutor.'''
-    return service.learn_core_loop(course_code, loop_id)
+    return service.learn_knowledge_item(course_code, loop_id)
 
 @app.post("/api/courses/{course_code}/practice")
 async def practice_endpoint(

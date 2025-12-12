@@ -49,17 +49,17 @@ def validate_multi_procedure_extraction(course_code='B006802'):
 
         for ex in exercises:
             # Get all core loops for this exercise
-            core_loops = db.get_exercise_core_loops(ex['id'])
+            knowledge_items = db.get_exercise_knowledge_items(ex['id'])
 
-            if len(core_loops) > 1:
+            if len(knowledge_items) > 1:
                 multi_procedure_count += 1
 
                 # Collect example info
                 example_info = {
                     'exercise_number': ex.get('exercise_number', 'Unknown'),
                     'source_pdf': ex.get('source_pdf', 'Unknown'),
-                    'core_loop_count': len(core_loops),
-                    'procedures': [cl['name'] for cl in core_loops],
+                    'knowledge_item_count': len(knowledge_items),
+                    'procedures': [cl['name'] for cl in knowledge_items],
                     'tags': json.loads(ex['tags']) if ex.get('tags') else []
                 }
                 multi_proc_examples.append(example_info)
@@ -112,12 +112,12 @@ def validate_multi_procedure_extraction(course_code='B006802'):
             console.print("[bold]Multi-Procedure Examples:[/bold]\n")
 
             # Sort by number of procedures
-            multi_proc_examples.sort(key=lambda x: x['core_loop_count'], reverse=True)
+            multi_proc_examples.sort(key=lambda x: x['knowledge_item_count'], reverse=True)
 
             for i, example in enumerate(multi_proc_examples[:10], 1):
                 console.print(f"[cyan]{i}. Exercise: {example['exercise_number']}[/cyan]")
                 console.print(f"   Source: {example['source_pdf']}")
-                console.print(f"   Procedures ({example['core_loop_count']}):")
+                console.print(f"   Procedures ({example['knowledge_item_count']}):")
                 for j, proc in enumerate(example['procedures'], 1):
                     console.print(f"     {j}. {proc}")
                 if example['tags']:
@@ -133,16 +133,16 @@ def validate_multi_procedure_extraction(course_code='B006802'):
         if target_exercises:
             console.print(f"Found {len(target_exercises)} exercise(s) from 2024-01-29:\n")
             for ex in target_exercises:
-                core_loops = db.get_exercise_core_loops(ex['id'])
+                knowledge_items = db.get_exercise_knowledge_items(ex['id'])
                 console.print(f"  Exercise: {ex.get('exercise_number', 'Unknown')}")
                 console.print(f"  Source: {ex.get('source_pdf', 'Unknown')}")
-                console.print(f"  Procedures ({len(core_loops)}):")
-                for i, cl in enumerate(core_loops, 1):
+                console.print(f"  Procedures ({len(knowledge_items)}):")
+                for i, cl in enumerate(knowledge_items, 1):
                     step_info = f" (point {cl['step_number']})" if cl['step_number'] else ""
                     console.print(f"    {i}. {cl['name']}{step_info}")
 
                 # Check if transformation is present
-                has_transformation = any('transform' in cl['name'].lower() for cl in core_loops)
+                has_transformation = any('transform' in cl['name'].lower() for cl in knowledge_items)
                 if has_transformation:
                     console.print(f"  [green]✓ Contains transformation procedure[/green]")
                 else:
@@ -180,10 +180,10 @@ def validate_multi_procedure_extraction(course_code='B006802'):
         else:
             console.print(f"  [red]✗ Multi-procedure count mismatch: {len(multi_proc_exercises)} vs {multi_procedure_count}[/red]")
 
-        # Check backward compatibility (exercises should have core_loop_id OR junction table entries)
+        # Check backward compatibility (exercises should have knowledge_item_id OR junction table entries)
         exercises_with_procedures = 0
         for ex in exercises:
-            if ex.get('core_loop_id') or db.get_exercise_core_loops(ex['id']):
+            if ex.get('knowledge_item_id') or db.get_exercise_knowledge_items(ex['id']):
                 exercises_with_procedures += 1
 
         console.print(f"  [green]✓ Exercises with procedures: {exercises_with_procedures}/{len(exercises)}[/green]")

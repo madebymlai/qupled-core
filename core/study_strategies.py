@@ -43,71 +43,71 @@ class StudyStrategyManager:
         """Generate language instruction phrase for any language."""
         return f"in {self.language.upper()} language"
 
-    def get_strategy_for_core_loop(self, core_loop_name: str, difficulty: str = "medium") -> Optional[Dict]:
+    def get_strategy_for_knowledge_item(self, knowledge_item_name: str, difficulty: str = "medium") -> Optional[Dict]:
         """
         Get study strategy for a specific core loop and difficulty.
 
         Automatically generates using LLM if not cached.
 
         Args:
-            core_loop_name: Name of the core loop
+            knowledge_item_name: Name of the core loop
             difficulty: Difficulty level (easy, medium, hard)
 
         Returns:
             Complete strategy dictionary or None if generation fails
         """
-        return self._generate_strategy_with_llm(core_loop_name, difficulty)
+        return self._generate_strategy_with_llm(knowledge_item_name, difficulty)
 
-    def get_problem_solving_framework(self, core_loop_name: str) -> Optional[Dict]:
+    def get_problem_solving_framework(self, knowledge_item_name: str) -> Optional[Dict]:
         """Get step-by-step problem-solving approach."""
-        strategy = self.get_strategy_for_core_loop(core_loop_name)
+        strategy = self.get_strategy_for_knowledge_item(knowledge_item_name)
         return strategy.get("framework") if strategy else None
 
     def get_learning_tips(self, topic_name: str, difficulty: str = "medium") -> List[str]:
         """Get learning tips for a topic."""
-        strategy = self.get_strategy_for_core_loop(topic_name, difficulty)
+        strategy = self.get_strategy_for_knowledge_item(topic_name, difficulty)
         return strategy.get("learning_tips", []) if strategy else []
 
-    def get_self_assessment_prompts(self, core_loop_name: str) -> List[str]:
+    def get_self_assessment_prompts(self, knowledge_item_name: str) -> List[str]:
         """Get questions for self-assessment."""
-        strategy = self.get_strategy_for_core_loop(core_loop_name)
+        strategy = self.get_strategy_for_knowledge_item(knowledge_item_name)
         return strategy.get("self_assessment", []) if strategy else []
 
-    def get_retrieval_practice(self, core_loop_name: str) -> Optional[Dict]:
+    def get_retrieval_practice(self, knowledge_item_name: str) -> Optional[Dict]:
         """Get active recall techniques."""
-        strategy = self.get_strategy_for_core_loop(core_loop_name)
+        strategy = self.get_strategy_for_knowledge_item(knowledge_item_name)
         return strategy.get("retrieval_practice") if strategy else None
 
-    def get_common_mistakes(self, core_loop_name: str) -> List[str]:
+    def get_common_mistakes(self, knowledge_item_name: str) -> List[str]:
         """Get common mistakes for a core loop."""
-        strategy = self.get_strategy_for_core_loop(core_loop_name)
+        strategy = self.get_strategy_for_knowledge_item(knowledge_item_name)
         return strategy.get("common_mistakes", []) if strategy else []
 
     # ========================================================================
     # LLM Generation & Caching Methods
     # ========================================================================
 
-    def _generate_strategy_with_llm(self, core_loop_name: str, difficulty: str) -> Optional[Dict]:
+    def _generate_strategy_with_llm(self, knowledge_item_name: str, difficulty: str) -> Optional[Dict]:
         """
         Generate study strategy using LLM with caching.
 
         Args:
-            core_loop_name: Name of the core loop
+            knowledge_item_name: Name of the core loop
             difficulty: Difficulty level
 
         Returns:
             Generated strategy dictionary or None if generation fails
         """
         # Check cache first
-        cached = self._load_cached_strategy(core_loop_name, difficulty)
+        cached = self._load_cached_strategy(knowledge_item_name, difficulty)
         if cached:
             return cached
 
         # Generate with LLM
         try:
-            print(f"[INFO] Generating study strategy for '{core_loop_name}' ({difficulty})...")
+            print(f"[INFO] Generating study strategy for '{knowledge_item_name}' ({difficulty})...")
 
-            prompt = self._build_strategy_generation_prompt(core_loop_name, difficulty)
+            prompt = self._build_strategy_generation_prompt(knowledge_item_name, difficulty)
             response = self.llm_manager.generate(prompt, temperature=0.7)
 
             # Check if LLM call succeeded
@@ -116,11 +116,11 @@ class StudyStrategyManager:
                 return None
 
             # Parse response into strategy structure
-            strategy = self._parse_llm_strategy(response.text, core_loop_name)
+            strategy = self._parse_llm_strategy(response.text, knowledge_item_name)
 
             if strategy:
                 # Cache for future use
-                self._cache_strategy(core_loop_name, difficulty, strategy)
+                self._cache_strategy(knowledge_item_name, difficulty, strategy)
                 print(f"[INFO] Strategy generated and cached")
                 return strategy
             else:
@@ -131,7 +131,7 @@ class StudyStrategyManager:
             print(f"[ERROR] Strategy generation failed: {e}")
             return None
 
-    def _load_cached_strategy(self, core_loop_name: str, difficulty: str) -> Optional[Dict]:
+    def _load_cached_strategy(self, knowledge_item_name: str, difficulty: str) -> Optional[Dict]:
         """Load cached strategy from file."""
         try:
             from config import Config
@@ -139,7 +139,7 @@ class StudyStrategyManager:
             if not Config.STUDY_STRATEGY_CACHE_ENABLED:
                 return None
 
-            cache_key = self._get_cache_key(core_loop_name, difficulty)
+            cache_key = self._get_cache_key(knowledge_item_name, difficulty)
             cache_file = Config.STUDY_STRATEGY_CACHE_DIR / f"{cache_key}.json"
 
             if cache_file.exists():
@@ -151,7 +151,7 @@ class StudyStrategyManager:
 
         return None
 
-    def _cache_strategy(self, core_loop_name: str, difficulty: str, strategy: Dict):
+    def _cache_strategy(self, knowledge_item_name: str, difficulty: str, strategy: Dict):
         """Cache generated strategy to file."""
         try:
             from config import Config
@@ -161,7 +161,7 @@ class StudyStrategyManager:
 
             Config.ensure_dirs()  # Ensure cache directory exists
 
-            cache_key = self._get_cache_key(core_loop_name, difficulty)
+            cache_key = self._get_cache_key(knowledge_item_name, difficulty)
             cache_file = Config.STUDY_STRATEGY_CACHE_DIR / f"{cache_key}.json"
 
             with open(cache_file, 'w', encoding='utf-8') as f:
@@ -170,15 +170,15 @@ class StudyStrategyManager:
         except Exception as e:
             print(f"[WARNING] Failed to cache strategy: {e}")
 
-    def _get_cache_key(self, core_loop_name: str, difficulty: str) -> str:
+    def _get_cache_key(self, knowledge_item_name: str, difficulty: str) -> str:
         """Generate cache key for a strategy."""
         # Use hash to handle long/complex names
-        content = f"{core_loop_name}_{difficulty}_{self.language}"
+        content = f"{knowledge_item_name}_{difficulty}_{self.language}"
         return hashlib.md5(content.encode()).hexdigest()
 
-    def _build_strategy_generation_prompt(self, core_loop_name: str, difficulty: str) -> str:
+    def _build_strategy_generation_prompt(self, knowledge_item_name: str, difficulty: str) -> str:
         """Build prompt for LLM to generate study strategy."""
-        return f"""Generate a comprehensive study strategy for learning "{core_loop_name}" at {difficulty} difficulty level.
+        return f"""Generate a comprehensive study strategy for learning "{knowledge_item_name}" at {difficulty} difficulty level.
 
 Output a JSON structure with these exact fields:
 
@@ -228,18 +228,18 @@ Requirements:
 - All text {self._lang_instruction()}
 - Focus on HOW to learn and think about the problem, not just WHAT
 - Include metacognitive strategies (self-questioning, monitoring understanding)
-- Make tips actionable and specific to {core_loop_name}
+- Make tips actionable and specific to {knowledge_item_name}
 - Explain the WHY behind each step, not just the mechanics
 
 Return ONLY valid JSON, no markdown code blocks or extra text."""
 
-    def _parse_llm_strategy(self, llm_response: str, core_loop_name: str) -> Optional[Dict]:
+    def _parse_llm_strategy(self, llm_response: str, knowledge_item_name: str) -> Optional[Dict]:
         """
         Parse LLM JSON response into strategy dictionary.
 
         Args:
             llm_response: Raw LLM response text
-            core_loop_name: Name of core loop (for error messages)
+            knowledge_item_name: Name of core loop (for error messages)
 
         Returns:
             Parsed strategy dictionary or None if parsing fails
@@ -280,20 +280,20 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
             return strategy
 
         except json.JSONDecodeError as e:
-            print(f"[ERROR] Failed to parse LLM JSON for '{core_loop_name}': {e}")
+            print(f"[ERROR] Failed to parse LLM JSON for '{knowledge_item_name}': {e}")
             print(f"[DEBUG] Response preview: {llm_response[:300]}...")
             return None
         except Exception as e:
             print(f"[ERROR] Unexpected error parsing strategy: {e}")
             return None
 
-    def format_strategy_output(self, strategy: Dict, core_loop_name: str) -> str:
+    def format_strategy_output(self, strategy: Dict, knowledge_item_name: str) -> str:
         """
         Format strategy dictionary as markdown for display.
 
         Args:
             strategy: Strategy dictionary
-            core_loop_name: Name of core loop
+            knowledge_item_name: Name of core loop
 
         Returns:
             Formatted markdown string
@@ -301,7 +301,7 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
         lines = []
 
         # Header
-        lines.append(f"# Study Strategy: {core_loop_name}\n")
+        lines.append(f"# Study Strategy: {knowledge_item_name}\n")
 
         # Framework
         if strategy.get("framework"):

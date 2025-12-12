@@ -223,9 +223,10 @@ class ExplicitExercise:
 @dataclass
 class DetectionResult:
     """Result from LLM exercise detection."""
-    pattern: Optional[MarkerPattern] = None  # Pattern-based detection
+    pattern: Optional[MarkerPattern] = None  # Pattern-based detection (legacy)
     explicit_markers: Optional[List[str]] = None  # Legacy: simple marker texts
-    explicit_exercises: Optional[List[ExplicitExercise]] = None  # New: with end markers
+    explicit_exercises: Optional[List[ExplicitExercise]] = None  # Explicit start markers
+    has_solutions: bool = False  # Whether document contains solutions
 
 
 def _detect_pattern_with_llm(
@@ -245,115 +246,81 @@ def _detect_pattern_with_llm(
     Returns:
         DetectionResult with either pattern or explicit markers, None if detection fails
     """
-    prompt = """Analyze this exam document and identify the MAIN EXERCISES (not sub-questions).
+    prompt = """Identify MAIN EXERCISES in this exam document.
 
-TEXT SAMPLE:
----
+Main exercises are TOP-LEVEL sections (like "Exercise 1", "Esercizio 1", "1)", "Problem 1").
+NOT main exercises: sub-questions like "1a)", "a)", "i)", "(a)"
+IGNORE solution sections - only identify QUESTIONS.
+
+DOCUMENT:
 {text}
----
 
-Identify the MAIN exercise sections. These are top-level divisions like:
-- "Exercise 1", "Exercise 2" (or "Esercizio 1", "Exercice 1", etc.)
-- "1)", "2)" when they introduce a section with sub-questions like a), b), c)
-- "Problem 1", "Question 1"
+Return the UNIQUE TEXT that starts each main exercise.
+Copy EXACT text verbatim from the document. Include the exercise marker/number.
 
-Do NOT include sub-questions as main exercises:
-- "1a)", "1b)", "a)", "b)" are sub-questions, not main exercises
-- If "1)" contains "1a), 1b), 1c)", then "1)" is the main exercise
+Output valid JSON:
+{{"exercises": ["first exercise start text...", "second exercise start text..."], "has_solutions": true/false}}
 
-Return explicit markers (PREFERRED):
-{{"mode": "explicit", "exercises": [
-  {{"number": "1", "start_marker": "exact text of exercise 1 start (first ~50 chars)"}},
-  {{"number": "2", "start_marker": "exact text of exercise 2 start (first ~50 chars)"}}
-], "solution_pattern": "keyword for solutions or null"}}
-
-Only if exercises follow a VERY consistent pattern (like "Esercizio N" or "Exercise N"), return regex:
-{{"mode": "pattern", "exercise_pattern": "regex with capture group for number", "solution_pattern": "keyword or null"}}
-
-IMPORTANT:
-- Copy start_marker text EXACTLY from the document
-- Include the exercise number/marker in start_marker
-- solution_pattern: keyword that marks solution sections (e.g., "Soluzione", "Solution")"""
+If no clear exercise divisions:
+{{"exercises": null, "has_solutions": false}}"""
 
     try:
         llm_response = llm_manager.generate(
             prompt.format(text=text_sample[:30000]),
             temperature=0.0,
+            json_mode=True,
         )
 
         # Check if the response was successful
         if hasattr(llm_response, 'success') and not llm_response.success:
             error_msg = getattr(llm_response, 'error', 'Unknown error')
-            logger.warning(f"LLM pattern detection failed: {error_msg}")
+            logger.warning(f"LLM exercise detection failed: {error_msg}")
             return None
 
         # Extract text from LLMResponse object
         response = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
 
         if not response or not response.strip():
-            logger.warning("LLM returned empty response for pattern detection")
+            logger.warning("LLM returned empty response for exercise detection")
             return None
-
-        # Parse JSON response
-        # Handle potential markdown code blocks
-        response = response.strip()
-        if response.startswith("```"):
-            response = response.split("```")[1]
-            if response.startswith("json"):
-                response = response[4:]
-        response = response.strip()
 
         data = json.loads(response)
 
-        mode = data.get("mode", "pattern")
-
-        if mode == "explicit":
-            # New format with exercises array (includes end_marker)
-            exercises = data.get("exercises", [])
-            if exercises:
-                explicit_exercises = []
-                for ex in exercises:
-                    explicit_exercises.append(ExplicitExercise(
-                        number=str(ex.get("number", "")),
-                        start_marker=ex.get("start_marker", ""),
-                        end_marker=ex.get("end_marker"),
-                    ))
-                return DetectionResult(explicit_exercises=explicit_exercises)
-
-            # Legacy format with simple markers array (backward compat)
-            markers = data.get("markers", [])
-            if markers:
-                return DetectionResult(explicit_markers=markers)
+        # Always explicit mode - exercises is list of start marker strings
+        exercises = data.get("exercises")
+        if not exercises:
+            logger.warning("No exercises found in document")
             return None
 
-        # Pattern mode - LLM returns regex patterns
-        exercise_pattern = data.get("exercise_pattern")
-        if not exercise_pattern:
+        # Convert to ExplicitExercise objects
+        # Extract number from start of marker text (e.g., "1) DARE..." -> number="1")
+        explicit_exercises = []
+        for i, marker in enumerate(exercises):
+            if not marker:
+                continue
+            # Try to extract number from marker
+            num_match = re.match(r'^[^\d]*(\d+)', marker)
+            number = num_match.group(1) if num_match else str(i + 1)
+            explicit_exercises.append(ExplicitExercise(
+                number=number,
+                start_marker=marker,
+                end_marker=None,
+            ))
+
+        if not explicit_exercises:
             return None
 
-        # Validate the regex patterns
-        try:
-            re.compile(exercise_pattern)
-        except re.error as e:
-            logger.warning(f"Invalid exercise_pattern from LLM: {exercise_pattern} - {e}")
-            return None
-
-        # sub_patterns no longer returned from pattern detection (Call 1)
-        # Per-exercise sub_patterns determined in Call 3 after parent boundaries known
-
+        logger.info(f"Found {len(explicit_exercises)} explicit exercise markers")
         return DetectionResult(
-            pattern=MarkerPattern(
-                exercise_pattern=exercise_pattern,
-                sub_patterns=None,  # Determined per-exercise in Call 3
-                solution_pattern=data.get("solution_pattern"),
-            )
+            explicit_exercises=explicit_exercises,
+            has_solutions=bool(data.get("has_solutions", False)),
         )
 
-    except (json.JSONDecodeError, KeyError, AttributeError) as e:
-        logger.warning(f"Failed to parse LLM pattern detection response: {e}")
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse LLM exercise detection response: {e}")
         return None
     except Exception as e:
-        logger.error(f"LLM pattern detection failed: {e}")
+        logger.error(f"LLM exercise detection failed: {e}")
         return None
 
 
@@ -479,7 +446,7 @@ def _create_exercises_from_boundaries(
 
 def _create_exercises_from_explicit_boundaries(
     boundaries: List[ExerciseBoundary],
-    explicit_subs: Dict[str, List[Dict[str, str]]],
+    explicit_subs: Dict[str, List[str]],
     full_text: str,
     pdf_content: "PDFContent",
     course_code: str,
@@ -489,7 +456,7 @@ def _create_exercises_from_explicit_boundaries(
 
     Args:
         boundaries: List of exercise boundaries with start/end positions
-        explicit_subs: Dict mapping exercise number to list of sub-question dicts
+        explicit_subs: Dict mapping exercise number to list of sub start markers
         full_text: Complete document text
         pdf_content: PDF content for metadata
         course_code: Course code for ID generation
@@ -528,28 +495,27 @@ def _create_exercises_from_explicit_boundaries(
         subs = explicit_subs.get(parent_num, [])
 
         if subs:
-            # Parent has sub-questions - create sub-question exercises
-            for sub_idx, sub in enumerate(subs, start=1):
-                sub_num = str(sub_idx)  # Auto-generate: 1, 2, 3...
-                start_marker = sub.get("start_marker", "")
-                end_marker = sub.get("end_marker", "")
-
+            # Find all sub positions first
+            sub_positions: List[Tuple[int, str]] = []
+            for start_marker in subs:
                 if not start_marker:
                     continue
-
-                # Find start position
                 start_pos = _fuzzy_find(parent_text, start_marker)
                 if start_pos < 0:
                     logger.warning(f"Could not find sub-question start: {start_marker[:30]}...")
                     continue
+                sub_positions.append((start_pos, start_marker))
 
-                # Find end position
-                if end_marker:
-                    end_pos = _fuzzy_find(parent_text, end_marker, start_from=start_pos)
-                    if end_pos >= 0:
-                        end_pos += len(end_marker)  # Include end_marker in text
-                    else:
-                        end_pos = len(parent_text)
+            # Sort by position
+            sub_positions.sort(key=lambda x: x[0])
+
+            # Create exercises with end = next sub start or parent end
+            for sub_idx, (start_pos, start_marker) in enumerate(sub_positions):
+                sub_num = str(sub_idx + 1)
+
+                # End at next sub or parent end
+                if sub_idx + 1 < len(sub_positions):
+                    end_pos = sub_positions[sub_idx + 1][0]
                 else:
                     end_pos = len(parent_text)
 
@@ -582,7 +548,7 @@ def _create_exercises_from_explicit_boundaries(
         else:
             # No sub-questions - create single exercise
             exercise_id = _generate_exercise_id(
-                course_code, pdf_content.file_path.name, page_num, i + 1
+                course_code, pdf_content.file_path.name, parent_num, boundary.start_pos
             )
 
             exercises.append(Exercise(
@@ -644,13 +610,52 @@ def _find_explicit_markers(
     return unique_markers
 
 
+def _normalize_unicode(s: str) -> str:
+    """Normalize Unicode for fuzzy matching.
+
+    Handles:
+    - Ligatures: ﬃ→ffi, ﬁ→fi, ﬂ→fl
+    - Superscripts: ³→3, ²→2, ¹→1
+    - Subscripts: ₀→0, ₁→1, ₂→2
+    - Smart quotes: ''→', ""→"
+    - Accents: é→e (via NFKD decomposition)
+    """
+    import unicodedata
+
+    # Pre-NFKD: remove chars that NFKD mangles into space + combining
+    s = s.replace('\u00b4', '')  # Acute accent
+
+    # NFKD decomposition handles ligatures and compatibility chars
+    s = unicodedata.normalize('NFKD', s)
+
+    # Remove combining marks (accents) - keep base chars
+    s = ''.join(c for c in s if not unicodedata.combining(c))
+
+    # Additional replacements PDF OCR often produces
+    replacements = {
+        '³': '3', '²': '2', '¹': '1',
+        '₀': '0', '₁': '1', '₂': '2', '₃': '3',
+        '→': '->', '←': '<-', '∈': 'in',
+        '\u2018': "'", '\u2019': "'",  # Curly single quotes
+        '\u201c': '"', '\u201d': '"',  # Curly double quotes
+        '`': "'",
+        # PDF Private Use Area chars (mathematical delimiters)
+        '\uf8eb': '(', '\uf8ed': '(',  # Left brackets
+        '\uf8f6': ')', '\uf8f8': ')',  # Right brackets
+    }
+    for old, new in replacements.items():
+        s = s.replace(old, new)
+
+    return s
+
+
 def _fuzzy_find(text: str, search_term: str, start_from: int = 0) -> int:
     """Find a term in text with tolerance for OCR errors.
 
     Handles common OCR issues:
     - Case differences
     - Extra/missing whitespace (including newlines in PDFs)
-    - Common character substitutions (l/1, O/0)
+    - Unicode normalization (ligatures, superscripts, accents)
 
     Args:
         text: Document text to search
@@ -673,7 +678,6 @@ def _fuzzy_find(text: str, search_term: str, start_from: int = 0) -> int:
         return pos
 
     # Try with normalized whitespace - handles PDF line breaks
-    # Split search term into words, escape each, join with \s+ to match any whitespace
     words = search_term.split()
     if words:
         pattern_parts = [re.escape(word) for word in words]
@@ -683,20 +687,47 @@ def _fuzzy_find(text: str, search_term: str, start_from: int = 0) -> int:
         if match:
             return match.start()
 
-    # Try with normalized apostrophes/quotes (PDF often has smart quotes)
-    def normalize_quotes(s: str) -> str:
-        return s.replace("'", "'").replace("'", "'").replace('"', '"').replace('"', '"')
+    # Try with Unicode normalization (ligatures, superscripts, accents)
+    text_norm = _normalize_unicode(text)
+    search_norm = _normalize_unicode(search_term)
+    pos = text_norm.lower().find(search_norm.lower(), start_from)
+    if pos >= 0:
+        return pos
 
-    text_norm = normalize_quotes(text)
-    search_norm = normalize_quotes(search_term)
+    # Try normalized + whitespace flexibility (handles "inR" vs "in R")
     words = search_norm.split()
     if words:
+        # Allow optional whitespace between any characters
         pattern_parts = [re.escape(word) for word in words]
-        search_pattern = r'\s+'.join(pattern_parts)
+        search_pattern = r'\s*'.join(pattern_parts)
         pattern = re.compile(search_pattern, re.IGNORECASE)
         match = pattern.search(text_norm, start_from)
         if match:
             return match.start()
+
+    # Last resort: collapse whitespace and match prefix
+    # Only use first 40 chars - LLM may clean up text differently than PDF
+    text_collapsed = re.sub(r'\s+', '', text_norm.lower())
+    search_collapsed = re.sub(r'\s+', '', search_norm.lower())
+    search_prefix = search_collapsed[:40]  # Match prefix (40 works, 50 fails due to PDF artifacts)
+
+    if search_prefix and len(search_prefix) <= len(text_collapsed):
+        idx = text_collapsed.find(search_prefix)
+        if idx >= 0:
+            # Map collapsed index back to original text position
+            char_count = 0
+            norm_pos = 0
+            for i, c in enumerate(text_norm):
+                if i < start_from:
+                    if not c.isspace():
+                        char_count += 1
+                    continue
+                if not c.isspace():
+                    if char_count == idx:
+                        norm_pos = i
+                        break
+                    char_count += 1
+            return norm_pos
 
     return -1
 
@@ -1214,20 +1245,16 @@ def _get_explicit_sub_questions(
 Sub-questions are SEPARATE TASKS requiring SEPARATE ANSWERS.
 
 Key distinction:
-- Sub-question: asks you to DO something (produce an answer, calculation, drawing)
-- NOT a sub-question: defines inputs, lists values, specifies conditions
+- Sub-question: asks the student to DO something (produce an answer, calculation, drawing)
+- NOT a sub-question: GIVES INFORMATION to student
 
 EXERCISES:
 {exercises_text}
 
-Return JSON:
+Return JSON in SAME ORDER as exercises above:
 {{"results": [
-  {{"number": "<exercise_number>", "sub_questions": [
-    {{"start_marker": "first ~40 chars", "end_marker": "last ~40 chars"}}
-  ] or null}}
-]}}
-
-Return null for sub_questions if exercise has no sub-questions."""
+  {{"sub_questions": ["start text of sub 1...", "start text of sub 2..."] or null}}
+]}}"""
 
     try:
         llm_response = llm_manager.generate(prompt, temperature=0.0)
@@ -1241,17 +1268,19 @@ Return null for sub_questions if exercise has no sub-questions."""
         data = json.loads(json_match.group())
         results_list = data.get("results", [])
 
-        results: Dict[str, List[Dict[str, str]]] = {}
-        for item in results_list:
-            num = item.get("number")
-            subs = item.get("sub_questions")
+        results: Dict[str, List[str]] = {}
+        for i, item in enumerate(results_list):
+            if i >= len(boundaries):
+                break
 
-            if not num or not subs:
+            subs = item.get("sub_questions")
+            if not subs:
                 continue
 
-            # Pass through whatever LLM returned
-            results[num] = subs
-            logger.info(f"Exercise {num}: {len(subs)} explicit sub-questions")
+            # Map by index to boundary number
+            ex_num = boundaries[i].number
+            results[ex_num] = subs  # List of start marker strings
+            logger.info(f"Exercise {ex_num}: {len(subs)} explicit sub-questions")
 
         with_subs = len(results)
         logger.info(f"Explicit sub-question detection complete: {with_subs}/{len(boundaries)} exercises have sub-questions")

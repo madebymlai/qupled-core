@@ -18,7 +18,7 @@ def test_simple_learn():
     # Call with explain_concepts=False to skip prerequisites
     response = tutor.learn(
         course_code="B006802",
-        core_loop_id="conversione_mealy_moore",
+        knowledge_item_id="conversione_mealy_moore",
         explain_concepts=False,
         depth="basic"  # Use basic depth for faster response
     )

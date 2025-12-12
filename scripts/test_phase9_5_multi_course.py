@@ -121,7 +121,7 @@ class Phase9Tester:
         conn = self.connect_db()
 
         cursor = conn.execute("""
-            SELECT id, text, difficulty, topic_id, core_loop_id, tags
+            SELECT id, text, difficulty, topic_id, knowledge_item_id, tags
             FROM exercises
             WHERE course_code = ?
         """, (course_code,))
@@ -241,7 +241,7 @@ class Phase9Tester:
         conn = self.connect_db()
 
         cursor = conn.execute("""
-            SELECT id, text, difficulty, core_loop_id
+            SELECT id, text, difficulty, knowledge_item_id
             FROM exercises
             WHERE course_code = ?
             LIMIT 20

@@ -189,7 +189,7 @@ class ProgressAnalyzer:
     def generate_recommended_actions(
         topic_name: str,
         mastery: float,
-        core_loop_names: Optional[List[str]] = None,
+        knowledge_item_names: Optional[List[str]] = None,
     ) -> List[str]:
         """Generate recommended actions for addressing a knowledge gap.
 
@@ -198,7 +198,7 @@ class ProgressAnalyzer:
         Args:
             topic_name: Name of the topic
             mastery: Current mastery score
-            core_loop_names: Optional list of core loop names to focus on
+            knowledge_item_names: Optional list of core loop names to focus on
 
         Returns:
             Ordered list of recommended action strings
@@ -212,8 +212,8 @@ class ProgressAnalyzer:
         actions.append(f"Review the {topic_name} concept materials")
         actions.append(f"Complete {recommended_exercises} practice exercises")
 
-        if core_loop_names:
-            focus_loops = core_loop_names[:3]
+        if knowledge_item_names:
+            focus_loops = knowledge_item_names[:3]
             actions.append(f"Focus on: {', '.join(focus_loops)}")
 
         actions.append(f"Take a quiz on {topic_name}")
@@ -303,7 +303,7 @@ class ProgressAnalyzer:
         topic_name: str,
         mastery: float,
         reviews: List[ExerciseReviewData],
-        core_loop_names: Optional[List[str]] = None,
+        knowledge_item_names: Optional[List[str]] = None,
     ) -> KnowledgeGap:
         """Build a KnowledgeGap object with all recommendations.
 
@@ -312,7 +312,7 @@ class ProgressAnalyzer:
             topic_name: Topic name
             mastery: Current mastery score (0.0-1.0)
             reviews: Exercise reviews for common mistake detection
-            core_loop_names: Optional core loop names for recommendations
+            knowledge_item_names: Optional core loop names for recommendations
 
         Returns:
             Complete KnowledgeGap with recommendations
@@ -321,7 +321,7 @@ class ProgressAnalyzer:
         recommended_exercises, estimated_time = ProgressAnalyzer.calculate_recommendations(mastery)
         common_mistakes = ProgressAnalyzer.detect_common_mistakes(reviews, topic_name)
         recommended_actions = ProgressAnalyzer.generate_recommended_actions(
-            topic_name, mastery, core_loop_names
+            topic_name, mastery, knowledge_item_names
         )
 
         return KnowledgeGap(
@@ -494,7 +494,7 @@ class ProgressAnalyzer:
                     topic_name=topic_input.topic_name,
                     mastery=result.mastery_score,
                     reviews=topic_input.exercise_reviews,
-                    core_loop_names=None,  # Would need to fetch from repo
+                    knowledge_item_names=None,  # Would need to fetch from repo
                 )
                 weak_areas.append(gap)
 

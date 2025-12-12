@@ -65,12 +65,12 @@ def test_quiz_creation():
 
         # Get exercise count
         exercises = db.get_exercises_by_course(course_code, analyzed_only=True)
-        exercises_with_core_loops = [ex for ex in exercises if ex.get('core_loop_id')]
+        exercises_with_knowledge_items = [ex for ex in exercises if ex.get('knowledge_item_id')]
 
         print(f"Total analyzed exercises: {len(exercises)}")
-        print(f"Exercises with core loops: {len(exercises_with_core_loops)}")
+        print(f"Exercises with core loops: {len(exercises_with_knowledge_items)}")
 
-        if len(exercises_with_core_loops) < 5:
+        if len(exercises_with_knowledge_items) < 5:
             print("\n[SKIP] Not enough exercises with core loops for testing.")
             return
 
@@ -151,9 +151,9 @@ def test_answer_submission():
 
         course_code = courses[0]['code']
         exercises = db.get_exercises_by_course(course_code, analyzed_only=True)
-        exercises_with_core_loops = [ex for ex in exercises if ex.get('core_loop_id')]
+        exercises_with_knowledge_items = [ex for ex in exercises if ex.get('knowledge_item_id')]
 
-        if not exercises_with_core_loops:
+        if not exercises_with_knowledge_items:
             print("\n[SKIP] No exercises with core loops.")
             return
 

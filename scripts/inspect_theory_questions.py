@@ -24,7 +24,7 @@ with sqlite3.connect(str(db_path)) as conn:
 
         # Get a few sample exercises
         cursor = conn.execute("""
-            SELECT id, text, difficulty, topic_id, core_loop_id, tags, analysis_metadata
+            SELECT id, text, difficulty, topic_id, knowledge_item_id, tags, analysis_metadata
             FROM exercises
             WHERE course_code = ?
             LIMIT 5
@@ -63,9 +63,9 @@ with sqlite3.connect(str(db_path)) as conn:
         print(f"\n--- Core Loops in {course_code} ---")
         cursor = conn.execute("""
             SELECT DISTINCT cl.id, cl.name, COUNT(e.id) as ex_count
-            FROM core_loops cl
+            FROM knowledge_items cl
             JOIN topics t ON cl.topic_id = t.id
-            LEFT JOIN exercises e ON cl.id = e.core_loop_id
+            LEFT JOIN exercises e ON cl.id = e.knowledge_item_id
             WHERE t.course_code = ?
             GROUP BY cl.id
             ORDER BY ex_count DESC

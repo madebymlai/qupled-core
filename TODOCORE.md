@@ -20,6 +20,12 @@
 - [ ] Merge history tracking - Allow undo operations (web feature)
 - [ ] Image upload with OCR - pytesseract dependency exists but unused; users can use scanner apps for now
 
+### Exercise Splitter Improvements
+- [ ] **Call 5: Solution Detection** - Separate LLM call to detect solution sections
+  - Call 1 only sets `has_solutions: true/false`
+  - Call 5 extracts solution boundaries/content
+  - Avoids mixing solution detection with exercise detection
+
 ### Long-Term Goals
 - [ ] **Community Patterns** - Aggregate pattern data across users on same course/prof
   - "Based on 47 students' uploads, Prof. Rossi loves FSM problems (89%)"

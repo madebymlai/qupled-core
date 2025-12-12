@@ -153,7 +153,7 @@ class Database:
                     score_percentage REAL,
                     quiz_type TEXT,
                     filter_topic_id INTEGER,
-                    filter_core_loop_id TEXT,
+                    filter_knowledge_item_id TEXT,
                     filter_difficulty TEXT,
                     FOREIGN KEY (course_code) REFERENCES courses(code),
                     FOREIGN KEY (filter_topic_id) REFERENCES topics(id)
@@ -164,10 +164,10 @@ class Database:
             self.conn.execute("""
                 INSERT INTO quiz_sessions_new
                 (id, course_code, created_at, completed_at, total_questions,
-                 correct_answers, score_percentage, quiz_type, filter_topic_id, filter_core_loop_id)
+                 correct_answers, score_percentage, quiz_type, filter_topic_id, filter_knowledge_item_id)
                 SELECT
                     id, course_code, started_at, completed_at, total_questions,
-                    total_correct, score, quiz_type, topic_id, core_loop_id
+                    total_correct, score, quiz_type, topic_id, knowledge_item_id
                 FROM quiz_sessions
             """)
 
@@ -238,51 +238,51 @@ class Database:
 
                 print("[INFO] Migration completed: quiz_answers migrated to quiz_attempts")
 
-        # Migration: Mark exercises with core_loop_id as analyzed
+        # Migration: Mark exercises with knowledge_item_id as analyzed
         # (Fixes legacy data where exercises were analyzed but not marked)
         cursor = self.conn.execute("""
             SELECT COUNT(*) FROM exercises
-            WHERE core_loop_id IS NOT NULL AND analyzed = 0
+            WHERE knowledge_item_id IS NOT NULL AND analyzed = 0
         """)
         unanalyzed_count = cursor.fetchone()[0]
 
         if unanalyzed_count > 0:
-            print(f"[INFO] Running migration: Marking {unanalyzed_count} exercises with core_loop_id as analyzed=1")
+            print(f"[INFO] Running migration: Marking {unanalyzed_count} exercises with knowledge_item_id as analyzed=1")
 
             self.conn.execute("""
                 UPDATE exercises
                 SET analyzed = 1
-                WHERE core_loop_id IS NOT NULL AND analyzed = 0
+                WHERE knowledge_item_id IS NOT NULL AND analyzed = 0
             """)
 
             print(f"[INFO] Migration completed: {unanalyzed_count} exercises marked as analyzed")
 
-        # Multi-core-loop migration: Create exercise_core_loops table
+        # Multi-core-loop migration: Create exercise_knowledge_items table
         cursor = self.conn.execute("""
             SELECT name FROM sqlite_master
-            WHERE type='table' AND name='exercise_core_loops'
+            WHERE type='table' AND name='exercise_knowledge_items'
         """)
         if not cursor.fetchone():
-            print("[INFO] Running migration: Creating exercise_core_loops junction table")
+            print("[INFO] Running migration: Creating exercise_knowledge_items junction table")
             self.conn.execute("""
-                CREATE TABLE exercise_core_loops (
+                CREATE TABLE exercise_knowledge_items (
                     exercise_id TEXT NOT NULL,
-                    core_loop_id TEXT NOT NULL,
+                    knowledge_item_id TEXT NOT NULL,
                     step_number INTEGER,
-                    PRIMARY KEY (exercise_id, core_loop_id),
+                    PRIMARY KEY (exercise_id, knowledge_item_id),
                     FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
-                    FOREIGN KEY (core_loop_id) REFERENCES core_loops(id) ON DELETE CASCADE
+                    FOREIGN KEY (knowledge_item_id) REFERENCES knowledge_items(id) ON DELETE CASCADE
                 )
             """)
             self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_exercise_core_loops_exercise
-                ON exercise_core_loops(exercise_id)
+                CREATE INDEX IF NOT EXISTS idx_exercise_knowledge_items_exercise
+                ON exercise_knowledge_items(exercise_id)
             """)
             self.conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_exercise_core_loops_core_loop
-                ON exercise_core_loops(core_loop_id)
+                CREATE INDEX IF NOT EXISTS idx_exercise_knowledge_items_knowledge_item
+                ON exercise_knowledge_items(knowledge_item_id)
             """)
-            print("[INFO] Migration completed: exercise_core_loops table created")
+            print("[INFO] Migration completed: exercise_knowledge_items table created")
 
         # Multi-core-loop migration: Add tags column to exercises
         cursor = self.conn.execute("PRAGMA table_info(exercises)")
@@ -296,33 +296,33 @@ class Database:
             """)
             print("[INFO] Migration completed: tags column added")
 
-        # Multi-core-loop migration: Migrate existing core_loop_id data to exercise_core_loops
-        # Check if migration is needed (exercise_core_loops exists but might be empty)
+        # Multi-core-loop migration: Migrate existing knowledge_item_id data to exercise_knowledge_items
+        # Check if migration is needed (exercise_knowledge_items exists but might be empty)
         cursor = self.conn.execute("""
             SELECT COUNT(*) FROM exercises
-            WHERE core_loop_id IS NOT NULL
+            WHERE knowledge_item_id IS NOT NULL
         """)
-        exercises_with_core_loop = cursor.fetchone()[0]
+        exercises_with_knowledge_item = cursor.fetchone()[0]
 
-        cursor = self.conn.execute("SELECT COUNT(*) FROM exercise_core_loops")
+        cursor = self.conn.execute("SELECT COUNT(*) FROM exercise_knowledge_items")
         junction_entries = cursor.fetchone()[0]
 
-        if exercises_with_core_loop > 0 and junction_entries == 0:
-            print(f"[INFO] Running migration: Migrating {exercises_with_core_loop} exercise core_loop_id references to exercise_core_loops table")
+        if exercises_with_knowledge_item > 0 and junction_entries == 0:
+            print(f"[INFO] Running migration: Migrating {exercises_with_knowledge_item} exercise knowledge_item_id references to exercise_knowledge_items table")
 
-            # Insert all existing core_loop_id relationships into junction table
+            # Insert all existing knowledge_item_id relationships into junction table
             self.conn.execute("""
-                INSERT INTO exercise_core_loops (exercise_id, core_loop_id, step_number)
-                SELECT id, core_loop_id, NULL
+                INSERT INTO exercise_knowledge_items (exercise_id, knowledge_item_id, step_number)
+                SELECT id, knowledge_item_id, NULL
                 FROM exercises
-                WHERE core_loop_id IS NOT NULL
+                WHERE knowledge_item_id IS NOT NULL
             """)
 
-            cursor = self.conn.execute("SELECT COUNT(*) FROM exercise_core_loops")
+            cursor = self.conn.execute("SELECT COUNT(*) FROM exercise_knowledge_items")
             migrated_count = cursor.fetchone()[0]
 
-            print(f"[INFO] Migration completed: {migrated_count} relationships migrated to exercise_core_loops")
-            print("[INFO] Note: exercises.core_loop_id column retained for backward compatibility")
+            print(f"[INFO] Migration completed: {migrated_count} relationships migrated to exercise_knowledge_items")
+            print("[INFO] Note: exercises.knowledge_item_id column retained for backward compatibility")
 
         # Phase 9.1: Add exercise_type and theory_metadata columns
         cursor = self.conn.execute("PRAGMA table_info(exercises)")
@@ -411,16 +411,16 @@ class Database:
             print("[INFO] Migration completed: theory_concepts table created")
 
         # Phase: Automatic Language Detection - Add language columns
-        cursor = self.conn.execute("PRAGMA table_info(core_loops)")
+        cursor = self.conn.execute("PRAGMA table_info(knowledge_items)")
         columns = [row[1] for row in cursor.fetchall()]
 
         if 'language' not in columns:
-            print("[INFO] Running migration: Adding language column to core_loops table")
+            print("[INFO] Running migration: Adding language column to knowledge_items table")
             self.conn.execute("""
-                ALTER TABLE core_loops
+                ALTER TABLE knowledge_items
                 ADD COLUMN language TEXT DEFAULT NULL
             """)
-            print("[INFO] Migration completed: language column added to core_loops")
+            print("[INFO] Migration completed: language column added to knowledge_items")
 
         cursor = self.conn.execute("PRAGMA table_info(topics)")
         columns = [row[1] for row in cursor.fetchall()]
@@ -574,7 +574,7 @@ class Database:
 
         # Core loops table
         self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS core_loops (
+            CREATE TABLE IF NOT EXISTS knowledge_items (
                 id TEXT PRIMARY KEY,
                 topic_id INTEGER NOT NULL,
                 name TEXT NOT NULL,
@@ -594,7 +594,7 @@ class Database:
                 id TEXT PRIMARY KEY,
                 course_code TEXT NOT NULL,
                 topic_id INTEGER,
-                core_loop_id TEXT,
+                knowledge_item_id TEXT,
                 source_pdf TEXT,
                 page_number INTEGER,
                 exercise_number TEXT,
@@ -615,7 +615,7 @@ class Database:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (course_code) REFERENCES courses(code),
                 FOREIGN KEY (topic_id) REFERENCES topics(id),
-                FOREIGN KEY (core_loop_id) REFERENCES core_loops(id)
+                FOREIGN KEY (knowledge_item_id) REFERENCES knowledge_items(id)
             )
         """)
 
@@ -624,7 +624,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS student_progress (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 course_code TEXT NOT NULL,
-                core_loop_id TEXT NOT NULL,
+                knowledge_item_id TEXT NOT NULL,
                 total_attempts INTEGER DEFAULT 0,
                 correct_attempts INTEGER DEFAULT 0,
                 mastery_score REAL DEFAULT 0.0,
@@ -634,8 +634,8 @@ class Database:
                 common_mistakes TEXT,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (course_code) REFERENCES courses(code),
-                FOREIGN KEY (core_loop_id) REFERENCES core_loops(id),
-                UNIQUE(course_code, core_loop_id)
+                FOREIGN KEY (knowledge_item_id) REFERENCES knowledge_items(id),
+                UNIQUE(course_code, knowledge_item_id)
             )
         """)
 
@@ -651,7 +651,7 @@ class Database:
                 score_percentage REAL,
                 quiz_type TEXT,
                 filter_topic_id INTEGER,
-                filter_core_loop_id TEXT,
+                filter_knowledge_item_id TEXT,
                 filter_difficulty TEXT,
                 FOREIGN KEY (course_code) REFERENCES courses(code),
                 FOREIGN KEY (filter_topic_id) REFERENCES topics(id)
@@ -712,7 +712,7 @@ class Database:
             CREATE TABLE IF NOT EXISTS generated_exercises (
                 id TEXT PRIMARY KEY,
                 course_code TEXT NOT NULL,
-                core_loop_id TEXT NOT NULL,
+                knowledge_item_id TEXT NOT NULL,
                 based_on_exercise_ids TEXT,
                 difficulty TEXT,
                 variations TEXT,
@@ -724,19 +724,19 @@ class Database:
                 flagged_for_review BOOLEAN DEFAULT 0,
                 generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (course_code) REFERENCES courses(code),
-                FOREIGN KEY (core_loop_id) REFERENCES core_loops(id)
+                FOREIGN KEY (knowledge_item_id) REFERENCES knowledge_items(id)
             )
         """)
 
-        # Exercise-CoreLoop junction table (many-to-many)
+        # Exercise-KnowledgeItem junction table (many-to-many)
         self.conn.execute("""
-            CREATE TABLE IF NOT EXISTS exercise_core_loops (
+            CREATE TABLE IF NOT EXISTS exercise_knowledge_items (
                 exercise_id TEXT NOT NULL,
-                core_loop_id TEXT NOT NULL,
+                knowledge_item_id TEXT NOT NULL,
                 step_number INTEGER,
-                PRIMARY KEY (exercise_id, core_loop_id),
+                PRIMARY KEY (exercise_id, knowledge_item_id),
                 FOREIGN KEY (exercise_id) REFERENCES exercises(id) ON DELETE CASCADE,
-                FOREIGN KEY (core_loop_id) REFERENCES core_loops(id) ON DELETE CASCADE
+                FOREIGN KEY (knowledge_item_id) REFERENCES knowledge_items(id) ON DELETE CASCADE
             )
         """)
 
@@ -767,20 +767,20 @@ class Database:
         """Create database indexes for performance."""
         indexes = [
             "CREATE INDEX IF NOT EXISTS idx_exercises_course ON exercises(course_code)",
-            "CREATE INDEX IF NOT EXISTS idx_exercises_core_loop ON exercises(core_loop_id)",
+            "CREATE INDEX IF NOT EXISTS idx_exercises_knowledge_item ON exercises(knowledge_item_id)",
             "CREATE INDEX IF NOT EXISTS idx_exercises_topic ON exercises(topic_id)",
             "CREATE INDEX IF NOT EXISTS idx_topics_course ON topics(course_code)",
-            "CREATE INDEX IF NOT EXISTS idx_core_loops_topic ON core_loops(topic_id)",
+            "CREATE INDEX IF NOT EXISTS idx_knowledge_items_topic ON knowledge_items(topic_id)",
             "CREATE INDEX IF NOT EXISTS idx_progress_course ON student_progress(course_code)",
-            "CREATE INDEX IF NOT EXISTS idx_progress_core_loop ON student_progress(core_loop_id)",
+            "CREATE INDEX IF NOT EXISTS idx_progress_knowledge_item ON student_progress(knowledge_item_id)",
             "CREATE INDEX IF NOT EXISTS idx_quiz_sessions_course ON quiz_sessions(course_code)",
             "CREATE INDEX IF NOT EXISTS idx_quiz_attempts_session ON quiz_attempts(session_id)",
             "CREATE INDEX IF NOT EXISTS idx_quiz_attempts_exercise ON quiz_attempts(exercise_id)",
             "CREATE INDEX IF NOT EXISTS idx_exercise_reviews_course ON exercise_reviews(course_code)",
             "CREATE INDEX IF NOT EXISTS idx_exercise_reviews_next_review ON exercise_reviews(next_review_date)",
             "CREATE INDEX IF NOT EXISTS idx_topic_mastery_course ON topic_mastery(course_code)",
-            "CREATE INDEX IF NOT EXISTS idx_exercise_core_loops_exercise ON exercise_core_loops(exercise_id)",
-            "CREATE INDEX IF NOT EXISTS idx_exercise_core_loops_core_loop ON exercise_core_loops(core_loop_id)",
+            "CREATE INDEX IF NOT EXISTS idx_exercise_knowledge_items_exercise ON exercise_knowledge_items(exercise_id)",
+            "CREATE INDEX IF NOT EXISTS idx_exercise_knowledge_items_knowledge_item ON exercise_knowledge_items(knowledge_item_id)",
             "CREATE INDEX IF NOT EXISTS idx_proc_cache_course ON procedure_cache_entries(course_code)",
             "CREATE INDEX IF NOT EXISTS idx_proc_cache_hash ON procedure_cache_entries(pattern_hash)",
             "CREATE INDEX IF NOT EXISTS idx_proc_cache_user ON procedure_cache_entries(user_id)",  # Web-ready
@@ -864,7 +864,7 @@ class Database:
 
         Args:
             old_topic_id: ID of topic to split
-            clusters: List of dicts with 'topic_name' and 'core_loop_ids' keys
+            clusters: List of dicts with 'topic_name' and 'knowledge_item_ids' keys
             course_code: Course code for the topic
             delete_old: Whether to delete old topic if empty (default: False)
 
@@ -875,7 +875,7 @@ class Database:
             [
                 {
                     "topic_name": "Autovalori e Diagonalizzazione",
-                    "core_loop_ids": ["loop1", "loop2", ...]
+                    "knowledge_item_ids": ["loop1", "loop2", ...]
                 },
                 ...
             ]
@@ -894,16 +894,16 @@ class Database:
                 "old_topic_id": old_topic_id,
                 "old_topic_name": old_topic_name,
                 "new_topics": [],
-                "core_loops_moved": 0,
+                "knowledge_items_moved": 0,
                 "errors": []
             }
 
             # Process each cluster
             for cluster in clusters:
                 topic_name = cluster.get("topic_name")
-                core_loop_ids = cluster.get("core_loop_ids", [])
+                knowledge_item_ids = cluster.get("knowledge_item_ids", [])
 
-                if not topic_name or not core_loop_ids:
+                if not topic_name or not knowledge_item_ids:
                     stats["errors"].append(f"Invalid cluster: {cluster}")
                     continue
 
@@ -912,10 +912,10 @@ class Database:
 
                 # Move core loops to new topic
                 moved_count = 0
-                for loop_id in core_loop_ids:
+                for loop_id in knowledge_item_ids:
                     try:
                         self.conn.execute("""
-                            UPDATE core_loops
+                            UPDATE knowledge_items
                             SET topic_id = ?, updated_at = CURRENT_TIMESTAMP
                             WHERE id = ?
                         """, (new_topic_id, loop_id))
@@ -926,14 +926,14 @@ class Database:
                 stats["new_topics"].append({
                     "id": new_topic_id,
                     "name": topic_name,
-                    "core_loops_moved": moved_count
+                    "knowledge_items_moved": moved_count
                 })
-                stats["core_loops_moved"] += moved_count
+                stats["knowledge_items_moved"] += moved_count
 
             # Optionally delete old topic if no core loops remain
             if delete_old:
                 cursor = self.conn.execute("""
-                    SELECT COUNT(*) FROM core_loops WHERE topic_id = ?
+                    SELECT COUNT(*) FROM knowledge_items WHERE topic_id = ?
                 """, (old_topic_id,))
                 remaining_loops = cursor.fetchone()[0]
 
@@ -942,7 +942,7 @@ class Database:
                     stats["old_topic_deleted"] = True
                 else:
                     stats["old_topic_deleted"] = False
-                    stats["remaining_core_loops"] = remaining_loops
+                    stats["remaining_knowledge_items"] = remaining_loops
 
             self.conn.commit()
             return stats
@@ -952,7 +952,7 @@ class Database:
             raise RuntimeError(f"Topic split failed: {e}")
 
     # Core loop operations
-    def add_core_loop(self, loop_id: str, topic_id: int, name: str,
+    def add_knowledge_item(self, loop_id: str, topic_id: int, name: str,
                       procedure: List[str], description: str = None, language: str = None) -> str:
         """Add a new core loop.
 
@@ -969,16 +969,16 @@ class Database:
         """
         procedure_json = json.dumps(procedure)
         self.conn.execute("""
-            INSERT OR REPLACE INTO core_loops
+            INSERT OR REPLACE INTO knowledge_items
             (id, topic_id, name, description, procedure, language, updated_at)
             VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
         """, (loop_id, topic_id, name, description, procedure_json, language))
         return loop_id
 
-    def get_core_loop(self, loop_id: str) -> Optional[Dict[str, Any]]:
+    def get_knowledge_item(self, loop_id: str) -> Optional[Dict[str, Any]]:
         """Get core loop by ID."""
         cursor = self.conn.execute(
-            "SELECT * FROM core_loops WHERE id = ?", (loop_id,)
+            "SELECT * FROM knowledge_items WHERE id = ?", (loop_id,)
         )
         row = cursor.fetchone()
         if row:
@@ -987,10 +987,10 @@ class Database:
             return result
         return None
 
-    def get_core_loops_by_topic(self, topic_id: int) -> List[Dict[str, Any]]:
+    def get_knowledge_items_by_topic(self, topic_id: int) -> List[Dict[str, Any]]:
         """Get all core loops for a topic."""
         cursor = self.conn.execute("""
-            SELECT * FROM core_loops
+            SELECT * FROM knowledge_items
             WHERE topic_id = ?
             ORDER BY name
         """, (topic_id,))
@@ -1001,10 +1001,10 @@ class Database:
             results.append(result)
         return results
 
-    def get_core_loops_by_course(self, course_code: str) -> List[Dict[str, Any]]:
+    def get_knowledge_items_by_course(self, course_code: str) -> List[Dict[str, Any]]:
         """Get all core loops for a course."""
         cursor = self.conn.execute("""
-            SELECT cl.* FROM core_loops cl
+            SELECT cl.* FROM knowledge_items cl
             JOIN topics t ON cl.topic_id = t.id
             WHERE t.course_code = ?
             ORDER BY cl.name
@@ -1016,7 +1016,7 @@ class Database:
             results.append(result)
         return results
 
-    def update_core_loop_stats(self, loop_id: str):
+    def update_knowledge_item_stats(self, loop_id: str):
         """Update exercise count and average difficulty for a core loop."""
         cursor = self.conn.execute("""
             SELECT COUNT(*) as count, AVG(
@@ -1028,13 +1028,13 @@ class Database:
                 END
             ) as avg_diff
             FROM exercises
-            WHERE core_loop_id = ?
+            WHERE knowledge_item_id = ?
         """, (loop_id,))
 
         row = cursor.fetchone()
         if row:
             self.conn.execute("""
-                UPDATE core_loops
+                UPDATE knowledge_items
                 SET exercise_count = ?, difficulty_avg = ?, updated_at = CURRENT_TIMESTAMP
                 WHERE id = ?
             """, (row[0], row[1] or 0.0, loop_id))
@@ -1059,11 +1059,11 @@ class Database:
 
         self.conn.execute("""
             INSERT INTO exercises
-            (id, course_code, topic_id, core_loop_id, source_pdf, page_number,
+            (id, course_code, topic_id, knowledge_item_id, source_pdf, page_number,
              exercise_number, text, has_images, image_paths, latex_content,
              difficulty, variations, solution, analyzed, analysis_metadata)
             VALUES
-            (:id, :course_code, :topic_id, :core_loop_id, :source_pdf, :page_number,
+            (:id, :course_code, :topic_id, :knowledge_item_id, :source_pdf, :page_number,
              :exercise_number, :text, :has_images, :image_paths, :latex_content,
              :difficulty, :variations, :solution, :analyzed, :analysis_metadata)
         """, exercise_data)
@@ -1088,11 +1088,11 @@ class Database:
             return result
         return None
 
-    def get_exercises_by_core_loop(self, core_loop_id: str) -> List[Dict[str, Any]]:
+    def get_exercises_by_knowledge_item(self, knowledge_item_id: str) -> List[Dict[str, Any]]:
         """Get all exercises that include this core loop.
 
         Uses the junction table for many-to-many relationships.
-        For backward compatibility, also checks the legacy core_loop_id column.
+        For backward compatibility, also checks the legacy knowledge_item_id column.
         """
         # Check if created_at column exists for ordering
         cursor = self.conn.execute("PRAGMA table_info(exercises)")
@@ -1102,10 +1102,10 @@ class Database:
         cursor = self.conn.execute(f"""
             SELECT DISTINCT e.*, ecl.step_number
             FROM exercises e
-            LEFT JOIN exercise_core_loops ecl ON e.id = ecl.exercise_id
-            WHERE ecl.core_loop_id = ? OR e.core_loop_id = ?
+            LEFT JOIN exercise_knowledge_items ecl ON e.id = ecl.exercise_id
+            WHERE ecl.knowledge_item_id = ? OR e.knowledge_item_id = ?
             ORDER BY {order_by}
-        """, (core_loop_id, core_loop_id))
+        """, (knowledge_item_id, knowledge_item_id))
 
         results = []
         for row in cursor.fetchall():
@@ -1160,16 +1160,16 @@ class Database:
     # Phase 5: Quiz Session operations
     def create_quiz_session(self, session_id: str, course_code: str, quiz_type: str,
                            filter_topic_id: Optional[int] = None,
-                           filter_core_loop_id: Optional[str] = None,
+                           filter_knowledge_item_id: Optional[str] = None,
                            filter_difficulty: Optional[str] = None) -> str:
         """Create a new quiz session.
 
         Args:
             session_id: Unique identifier for the session
             course_code: Course code
-            quiz_type: Type of quiz ('topic', 'core_loop', 'random', 'review')
+            quiz_type: Type of quiz ('topic', 'knowledge_item', 'random', 'review')
             filter_topic_id: Optional topic filter
-            filter_core_loop_id: Optional core loop filter
+            filter_knowledge_item_id: Optional core loop filter
             filter_difficulty: Optional difficulty filter
 
         Returns:
@@ -1177,9 +1177,9 @@ class Database:
         """
         self.conn.execute("""
             INSERT INTO quiz_sessions
-            (id, course_code, quiz_type, filter_topic_id, filter_core_loop_id, filter_difficulty)
+            (id, course_code, quiz_type, filter_topic_id, filter_knowledge_item_id, filter_difficulty)
             VALUES (?, ?, ?, ?, ?, ?)
-        """, (session_id, course_code, quiz_type, filter_topic_id, filter_core_loop_id, filter_difficulty))
+        """, (session_id, course_code, quiz_type, filter_topic_id, filter_knowledge_item_id, filter_difficulty))
         return session_id
 
     def get_quiz_session(self, session_id: str) -> Optional[Dict[str, Any]]:
@@ -1500,21 +1500,21 @@ class Database:
         self.update_topic_mastery(topic_id, course_code, exercises_total, exercises_mastered)
 
     # Multi-core-loop operations
-    def link_exercise_to_core_loop(self, exercise_id: str, core_loop_id: str, step_number: Optional[int] = None) -> None:
+    def link_exercise_to_knowledge_item(self, exercise_id: str, knowledge_item_id: str, step_number: Optional[int] = None) -> None:
         """Link exercise to a core loop (allows many-to-many).
 
         Args:
             exercise_id: Exercise ID
-            core_loop_id: Core loop ID
+            knowledge_item_id: Core loop ID
             step_number: Optional step number indicating which point in exercise (1, 2, 3, etc)
         """
         self.conn.execute("""
-            INSERT OR REPLACE INTO exercise_core_loops
-            (exercise_id, core_loop_id, step_number)
+            INSERT OR REPLACE INTO exercise_knowledge_items
+            (exercise_id, knowledge_item_id, step_number)
             VALUES (?, ?, ?)
-        """, (exercise_id, core_loop_id, step_number))
+        """, (exercise_id, knowledge_item_id, step_number))
 
-    def get_exercise_core_loops(self, exercise_id: str) -> List[Dict]:
+    def get_exercise_knowledge_items(self, exercise_id: str) -> List[Dict]:
         """Get all core loops for an exercise.
 
         Args:
@@ -1525,8 +1525,8 @@ class Database:
         """
         cursor = self.conn.execute("""
             SELECT cl.*, ecl.step_number
-            FROM core_loops cl
-            JOIN exercise_core_loops ecl ON cl.id = ecl.core_loop_id
+            FROM knowledge_items cl
+            JOIN exercise_knowledge_items ecl ON cl.id = ecl.knowledge_item_id
             WHERE ecl.exercise_id = ?
             ORDER BY ecl.step_number, cl.name
         """, (exercise_id,))
@@ -1545,7 +1545,7 @@ class Database:
             course_code: Course code to filter by
 
         Returns:
-            List of exercise dictionaries with a 'core_loop_count' field
+            List of exercise dictionaries with a 'knowledge_item_count' field
         """
         # Check if created_at column exists for ordering
         cursor = self.conn.execute("PRAGMA table_info(exercises)")
@@ -1553,13 +1553,13 @@ class Database:
         order_by = "e.created_at" if 'created_at' in columns else "e.id"
 
         cursor = self.conn.execute(f"""
-            SELECT e.*, COUNT(ecl.core_loop_id) as core_loop_count
+            SELECT e.*, COUNT(ecl.knowledge_item_id) as knowledge_item_count
             FROM exercises e
-            JOIN exercise_core_loops ecl ON e.id = ecl.exercise_id
+            JOIN exercise_knowledge_items ecl ON e.id = ecl.exercise_id
             WHERE e.course_code = ?
             GROUP BY e.id
-            HAVING core_loop_count > 1
-            ORDER BY core_loop_count DESC, {order_by}
+            HAVING knowledge_item_count > 1
+            ORDER BY knowledge_item_count DESC, {order_by}
         """, (course_code,))
 
         results = []
@@ -1612,7 +1612,7 @@ class Database:
             results.append(result)
         return results
 
-    def get_core_loops_for_exercise(self, exercise_id: str) -> List[Dict[str, Any]]:
+    def get_knowledge_items_for_exercise(self, exercise_id: str) -> List[Dict[str, Any]]:
         """Get all core loops associated with an exercise.
 
         Args:
@@ -1623,8 +1623,8 @@ class Database:
         """
         cursor = self.conn.execute("""
             SELECT cl.*, ecl.step_number
-            FROM core_loops cl
-            JOIN exercise_core_loops ecl ON cl.id = ecl.core_loop_id
+            FROM knowledge_items cl
+            JOIN exercise_knowledge_items ecl ON cl.id = ecl.knowledge_item_id
             WHERE ecl.exercise_id = ?
             ORDER BY ecl.step_number
         """, (exercise_id,))
@@ -1646,7 +1646,7 @@ class Database:
         """, (tags_json, exercise_id))
 
     def update_exercise_analysis(self, exercise_id: str, topic_id: Optional[int] = None,
-                                 core_loop_id: Optional[str] = None,
+                                 knowledge_item_id: Optional[str] = None,
                                  difficulty: Optional[str] = None,
                                  variations: Optional[List[str]] = None,
                                  analysis_metadata: Optional[Dict[str, Any]] = None,
@@ -1657,7 +1657,7 @@ class Database:
         Args:
             exercise_id: Exercise ID
             topic_id: Topic ID (optional)
-            core_loop_id: Primary core loop ID (optional, for backward compatibility)
+            knowledge_item_id: Primary core loop ID (optional, for backward compatibility)
             difficulty: Difficulty level (optional)
             variations: List of variations (optional)
             analysis_metadata: Additional metadata (optional)
@@ -1671,9 +1671,9 @@ class Database:
             updates.append("topic_id = ?")
             params.append(topic_id)
 
-        if core_loop_id is not None:
-            updates.append("core_loop_id = ?")
-            params.append(core_loop_id)
+        if knowledge_item_id is not None:
+            updates.append("knowledge_item_id = ?")
+            params.append(knowledge_item_id)
 
         if difficulty is not None:
             updates.append("difficulty = ?")

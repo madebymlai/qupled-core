@@ -89,7 +89,7 @@ def example_learning_path(course_code: str = "B006802"):
             }
             icon = action_icons.get(item['action'], '•')
 
-            console.print(f"{i}. {icon} [bold]{item['action'].upper()}[/bold]: {item['core_loop']}")
+            console.print(f"{i}. {icon} [bold]{item['action'].upper()}[/bold]: {item['knowledge_item']}")
             console.print(f"   Topic: {item['topic']}")
             console.print(f"   Reason: {item['reason']}")
             console.print(f"   Time: {item['estimated_time']} minutes")
@@ -144,24 +144,24 @@ def example_knowledge_gaps(course_code: str = "B006802"):
         console.print(f"[red]Error: {e}[/red]\n")
 
 
-def example_adaptive_recommendations(course_code: str = "B006802", core_loop_name: str = None):
+def example_adaptive_recommendations(course_code: str = "B006802", knowledge_item_name: str = None):
     """Example: Get adaptive recommendations for a core loop."""
     console.print("\n[bold cyan]Example 4: Adaptive Recommendations[/bold cyan]\n")
 
-    if not core_loop_name:
+    if not knowledge_item_name:
         # Get first available core loop
         with Database() as db:
-            loops = db.get_core_loops_by_course(course_code)
+            loops = db.get_knowledge_items_by_course(course_code)
             if not loops:
                 console.print("[yellow]No core loops found for this course![/yellow]\n")
                 return
-            core_loop_name = loops[0]['name']
+            knowledge_item_name = loops[0]['name']
 
     try:
         with AdaptiveTeachingManager() as atm:
-            recommendations = atm.get_adaptive_recommendations(course_code, core_loop_name)
+            recommendations = atm.get_adaptive_recommendations(course_code, knowledge_item_name)
 
-        console.print(f"[bold]Recommendations for: {core_loop_name}[/bold]\n")
+        console.print(f"[bold]Recommendations for: {knowledge_item_name}[/bold]\n")
 
         mastery_pct = int(recommendations['current_mastery'] * 100)
         mastery_emoji = "🟢" if recommendations['current_mastery'] >= 0.7 else "🟡" if recommendations['current_mastery'] >= 0.3 else "🔴"

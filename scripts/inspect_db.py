@@ -27,7 +27,7 @@ with sqlite3.connect(str(db_path)) as conn:
 
     print("\n=== SAMPLE EXERCISE (ADE) ===")
     cursor = conn.execute("""
-        SELECT id, text, difficulty, topic_id, core_loop_id, tags, analysis_metadata
+        SELECT id, text, difficulty, topic_id, knowledge_item_id, tags, analysis_metadata
         FROM exercises
         WHERE course_code = 'ADE'
         LIMIT 1
@@ -38,7 +38,7 @@ with sqlite3.connect(str(db_path)) as conn:
         print(f"Text: {row['text'][:200]}...")
         print(f"Difficulty: {row['difficulty']}")
         print(f"Topic ID: {row['topic_id']}")
-        print(f"Core Loop ID: {row['core_loop_id']}")
+        print(f"Core Loop ID: {row['knowledge_item_id']}")
         print(f"Tags: {row['tags']}")
         print(f"Metadata: {row['analysis_metadata'][:200] if row['analysis_metadata'] else None}...")
 

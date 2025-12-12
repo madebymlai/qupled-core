@@ -110,7 +110,7 @@ class DetailedAnalyzer:
         # Proof exercises
         console.print("[yellow]1. Proof Exercises (Dimostrazioni):[/yellow]\n")
         cursor = conn.execute("""
-            SELECT id, text, difficulty, topic_id, core_loop_id
+            SELECT id, text, difficulty, topic_id, knowledge_item_id
             FROM exercises
             WHERE course_code = 'B006807'
             AND (text LIKE '%dimostra%' OR text LIKE '%dimostrazione%' OR text LIKE '%proof%')

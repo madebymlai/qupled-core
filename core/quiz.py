@@ -24,7 +24,7 @@ class QuizQuestion:
     question_number: int
     text: str
     difficulty: Optional[str]
-    core_loop_id: Optional[str]
+    knowledge_item_id: Optional[str]
     topic_id: Optional[int]
     answered: bool = False
 
@@ -46,17 +46,17 @@ class QuizManager:
 
     def create_quiz(self, course_code: str, quiz_type: str = 'random',
                    question_count: int = 10, topic_id: Optional[int] = None,
-                   core_loop_id: Optional[str] = None,
+                   knowledge_item_id: Optional[str] = None,
                    difficulty: Optional[str] = None,
                    prioritize_due: bool = True) -> str:
         """Create a new quiz session.
 
         Args:
             course_code: Course code
-            quiz_type: Type of quiz ('random', 'topic', 'core_loop', 'review')
+            quiz_type: Type of quiz ('random', 'topic', 'knowledge_item', 'review')
             question_count: Number of questions
             topic_id: Filter by topic (for 'topic' quiz type)
-            core_loop_id: Filter by core loop (for 'core_loop' quiz type)
+            knowledge_item_id: Filter by core loop (for 'knowledge_item' quiz type)
             difficulty: Filter by difficulty ('easy', 'medium', 'hard')
             prioritize_due: Prioritize exercises due for review
 
@@ -77,7 +77,7 @@ class QuizManager:
 
             # Get exercises based on quiz type and filters
             exercises = self._select_exercises(
-                db, course_code, quiz_type, topic_id, core_loop_id,
+                db, course_code, quiz_type, topic_id, knowledge_item_id,
                 difficulty, prioritize_due, question_count
             )
 
@@ -93,10 +93,10 @@ class QuizManager:
             # Create quiz session in database
             db.conn.execute("""
                 INSERT INTO quiz_sessions
-                (id, course_code, quiz_type, topic_id, core_loop_id,
+                (id, course_code, quiz_type, topic_id, knowledge_item_id,
                  total_questions, started_at)
                 VALUES (?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
-            """, (session_id, course_code, quiz_type, topic_id, core_loop_id,
+            """, (session_id, course_code, quiz_type, topic_id, knowledge_item_id,
                   len(exercises)))
 
             # Store questions in quiz_answers table (initially unanswered)
@@ -111,7 +111,7 @@ class QuizManager:
 
     def _select_exercises(self, db: Database, course_code: str,
                          quiz_type: str, topic_id: Optional[int],
-                         core_loop_id: Optional[str], difficulty: Optional[str],
+                         knowledge_item_id: Optional[str], difficulty: Optional[str],
                          prioritize_due: bool, question_count: int) -> List[Dict[str, Any]]:
         """Select exercises for the quiz based on filters.
 
@@ -120,7 +120,7 @@ class QuizManager:
             course_code: Course code
             quiz_type: Type of quiz
             topic_id: Topic filter
-            core_loop_id: Core loop filter
+            knowledge_item_id: Core loop filter
             difficulty: Difficulty filter
             prioritize_due: Whether to prioritize due exercises
             question_count: Number of questions needed
@@ -135,18 +135,18 @@ class QuizManager:
 
         # Add join for SM-2 progress if prioritizing due exercises
         if prioritize_due and quiz_type in ['random', 'review']:
-            query += " LEFT JOIN student_progress sp ON e.core_loop_id = sp.core_loop_id"
+            query += " LEFT JOIN student_progress sp ON e.knowledge_item_id = sp.knowledge_item_id"
 
         # Filter by quiz type
         if quiz_type == 'topic' and topic_id:
             conditions.append("e.topic_id = ?")
             params.append(topic_id)
-        elif quiz_type == 'core_loop' and core_loop_id:
-            conditions.append("e.core_loop_id = ?")
-            params.append(core_loop_id)
+        elif quiz_type == 'knowledge_item' and knowledge_item_id:
+            conditions.append("e.knowledge_item_id = ?")
+            params.append(knowledge_item_id)
         elif quiz_type == 'review':
             # Only exercises with core loops that are due for review
-            conditions.append("e.core_loop_id IS NOT NULL")
+            conditions.append("e.knowledge_item_id IS NOT NULL")
             conditions.append(
                 "(sp.next_review IS NULL OR sp.next_review <= datetime('now'))"
             )
@@ -158,7 +158,7 @@ class QuizManager:
 
         # Only include analyzed exercises with core loops
         conditions.append("e.analyzed = 1")
-        conditions.append("e.core_loop_id IS NOT NULL")
+        conditions.append("e.knowledge_item_id IS NOT NULL")
 
         # Build final query
         query += " WHERE " + " AND ".join(conditions)
@@ -213,8 +213,8 @@ class QuizManager:
         current_time = datetime.now()
 
         for ex in exercises:
-            core_loop_id = ex.get('core_loop_id')
-            if not core_loop_id:
+            knowledge_item_id = ex.get('knowledge_item_id')
+            if not knowledge_item_id:
                 exercise_scores.append((ex, 0))  # No priority
                 continue
 
@@ -222,8 +222,8 @@ class QuizManager:
             cursor = db.conn.execute("""
                 SELECT next_review, review_interval, total_attempts
                 FROM student_progress
-                WHERE core_loop_id = ?
-            """, (core_loop_id,))
+                WHERE knowledge_item_id = ?
+            """, (knowledge_item_id,))
 
             row = cursor.fetchone()
 
@@ -264,7 +264,7 @@ class QuizManager:
             # Find next unanswered question
             cursor = db.conn.execute("""
                 SELECT qa.question_number, qa.exercise_id, e.text, e.difficulty,
-                       e.core_loop_id, e.topic_id, e.has_images, e.image_paths
+                       e.knowledge_item_id, e.topic_id, e.has_images, e.image_paths
                 FROM quiz_answers qa
                 JOIN exercises e ON qa.exercise_id = e.id
                 WHERE qa.session_id = ? AND qa.student_answer IS NULL
@@ -287,7 +287,7 @@ class QuizManager:
                 'exercise_id': row['exercise_id'],
                 'text': row['text'],
                 'difficulty': row['difficulty'],
-                'core_loop_id': row['core_loop_id'],
+                'knowledge_item_id': row['knowledge_item_id'],
                 'topic_id': row['topic_id'],
                 'has_images': bool(row['has_images']),
                 'image_paths': json.loads(row['image_paths']) if row['image_paths'] else []
@@ -348,12 +348,12 @@ class QuizManager:
 
             # Get or create SM-2 progress for this exercise's core loop
             exercise = db.get_exercise(exercise_id)
-            core_loop_id = exercise.get('core_loop_id') if exercise else None
+            knowledge_item_id = exercise.get('knowledge_item_id') if exercise else None
 
             sm2_update = {}
-            if core_loop_id:
+            if knowledge_item_id:
                 sm2_update = self._update_sm2_progress(
-                    db, core_loop_id, exercise['course_code'],
+                    db, knowledge_item_id, exercise['course_code'],
                     quality, is_correct
                 )
 
@@ -423,14 +423,14 @@ class QuizManager:
 
         return (round(score, 2), score >= 0.7)
 
-    def _update_sm2_progress(self, db: Database, core_loop_id: str,
+    def _update_sm2_progress(self, db: Database, knowledge_item_id: str,
                             course_code: str, quality: int,
                             is_correct: bool) -> Dict[str, Any]:
         """Update SM-2 progress for a core loop.
 
         Args:
             db: Database connection
-            core_loop_id: Core loop ID
+            knowledge_item_id: Core loop ID
             course_code: Course code
             quality: SM-2 quality rating (0-5)
             is_correct: Whether answer was correct
@@ -442,8 +442,8 @@ class QuizManager:
         cursor = db.conn.execute("""
             SELECT *
             FROM student_progress
-            WHERE course_code = ? AND core_loop_id = ?
-        """, (course_code, core_loop_id))
+            WHERE course_code = ? AND knowledge_item_id = ?
+        """, (course_code, knowledge_item_id))
 
         row = cursor.fetchone()
 
@@ -486,19 +486,19 @@ class QuizManager:
                     next_review = ?,
                     review_interval = ?,
                     updated_at = CURRENT_TIMESTAMP
-                WHERE course_code = ? AND core_loop_id = ?
+                WHERE course_code = ? AND knowledge_item_id = ?
             """, (new_attempts, new_correct, mastery_score,
                   sm2_result.next_review_date.isoformat(),
                   sm2_result.interval_days,
-                  course_code, core_loop_id))
+                  course_code, knowledge_item_id))
         else:
             # Insert new
             db.conn.execute("""
                 INSERT INTO student_progress
-                (course_code, core_loop_id, total_attempts, correct_attempts,
+                (course_code, knowledge_item_id, total_attempts, correct_attempts,
                  mastery_score, last_practiced, next_review, review_interval)
                 VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP, ?, ?)
-            """, (course_code, core_loop_id, new_attempts, new_correct,
+            """, (course_code, knowledge_item_id, new_attempts, new_correct,
                   mastery_score, sm2_result.next_review_date.isoformat(),
                   sm2_result.interval_days))
 

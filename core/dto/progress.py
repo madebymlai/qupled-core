@@ -46,7 +46,7 @@ class LearningPathItem:
     Represents one step in the personalized learning journey.
 
     Attributes:
-        item_type: Type of item ("topic", "review", "quiz", "core_loop")
+        item_type: Type of item ("topic", "review", "quiz", "knowledge_item")
         item_id: Unique identifier for the item
         title: Display title
         description: Optional description

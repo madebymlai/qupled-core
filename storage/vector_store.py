@@ -110,7 +110,7 @@ class VectorStore:
             # Prepare metadata (only JSON-serializable values, no None)
             metadata = {
                 "topic": exercise.get("topic") or "unknown",
-                "core_loop_id": exercise.get("core_loop_id") or "unknown",
+                "knowledge_item_id": exercise.get("knowledge_item_id") or "unknown",
                 "difficulty": exercise.get("difficulty") or "unknown",
                 "has_images": exercise.get("has_images", False),
                 "page_number": exercise.get("page_number", 0),
@@ -167,14 +167,14 @@ class VectorStore:
 
         return matches
 
-    def add_core_loop(self, course_code: str, core_loop_id: str,
+    def add_knowledge_item(self, course_code: str, knowledge_item_id: str,
                      name: str, description: str, procedure: List[str],
                      example_exercises: List[str]):
         """Add a core loop to the vector store.
 
         Args:
             course_code: Course code
-            core_loop_id: Core loop ID
+            knowledge_item_id: Core loop ID
             name: Core loop name
             description: Description
             procedure: List of procedure steps
@@ -190,12 +190,12 @@ class VectorStore:
         # Generate embedding
         embedding = self.llm.embed(procedure_text)
         if not embedding:
-            print(f"Warning: Failed to generate embedding for core loop {core_loop_id}")
+            print(f"Warning: Failed to generate embedding for core loop {knowledge_item_id}")
             return
 
         # Add to collection
         collection.add(
-            ids=[core_loop_id],
+            ids=[knowledge_item_id],
             embeddings=[embedding],
             documents=[procedure_text],
             metadatas=[{
@@ -205,7 +205,7 @@ class VectorStore:
             }]
         )
 
-    def search_core_loops(self, course_code: str, query: str,
+    def search_knowledge_items(self, course_code: str, query: str,
                          n_results: int = 3) -> List[Dict[str, Any]]:
         """Search for relevant core loops.
 

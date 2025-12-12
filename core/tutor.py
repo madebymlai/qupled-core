@@ -478,7 +478,7 @@ class Tutor:
         return f"{action} in {self.language.upper()} language."
 
     def learn(self, course_code: str,
-              core_loop_id: str,
+              knowledge_item_id: str,
               explain_concepts: bool = True,
               depth: str = "medium",
               adaptive: bool = True,
@@ -490,13 +490,13 @@ class Tutor:
               show_worked_examples: Optional[bool] = None,
               max_theory_sections: Optional[int] = None,
               max_worked_examples: Optional[int] = None,
-              core_loop_data: Optional[Dict[str, Any]] = None,
+              knowledge_item_data: Optional[Dict[str, Any]] = None,
               exercises_data: Optional[List[Dict[str, Any]]] = None) -> TutorResponse:
         """Explain a core loop with theory → worked examples → practice flow.
 
         Args:
             course_code: Course code
-            core_loop_id: Core loop ID to learn
+            knowledge_item_id: Core loop ID to learn
             explain_concepts: Whether to include prerequisite concepts (default: True)
             depth: Explanation depth - basic, medium, advanced (default: medium)
             adaptive: Enable adaptive teaching (auto-select depth and prerequisites based on mastery)
@@ -508,9 +508,9 @@ class Tutor:
             show_worked_examples: Whether to show worked examples (default: from Config.SHOW_WORKED_EXAMPLES_BY_DEFAULT)
             max_theory_sections: Max theory sections to show (default: from Config.MAX_THEORY_SECTIONS_IN_LEARN)
             max_worked_examples: Max worked examples to show (default: from Config.MAX_WORKED_EXAMPLES_IN_LEARN)
-            core_loop_data: Optional dict with core_loop data (name, procedure, topic_name, topic_id).
+            knowledge_item_data: Optional dict with knowledge_item data (name, procedure, topic_name, topic_id).
                            When provided, skips SQLite query - useful for cloud integration with PostgreSQL.
-            exercises_data: Optional list of example exercises. When provided with core_loop_data,
+            exercises_data: Optional list of example exercises. When provided with knowledge_item_data,
                            skips SQLite exercises query.
 
         Returns:
@@ -527,10 +527,10 @@ class Tutor:
             max_worked_examples = Config.MAX_WORKED_EXAMPLES_IN_LEARN
 
         # Use provided data or query SQLite
-        if core_loop_data is not None:
+        if knowledge_item_data is not None:
             # Cloud integration: data provided directly (PostgreSQL)
-            core_loop_dict = core_loop_data
-            topic_id = core_loop_data.get('topic_id')
+            knowledge_item_dict = knowledge_item_data
+            topic_id = knowledge_item_data.get('topic_id')
             examples = exercises_data[:3] if exercises_data else []
             # Cloud doesn't have theory materials in SQLite, skip them
             theory_materials = []
@@ -548,20 +548,20 @@ class Tutor:
             # Local SQLite mode
             with Database() as db:
                 # Get core loop details
-                core_loop = db.conn.execute("""
+                knowledge_item = db.conn.execute("""
                     SELECT cl.*, t.name as topic_name, t.id as topic_id
-                    FROM core_loops cl
+                    FROM knowledge_items cl
                     JOIN topics t ON cl.topic_id = t.id
                     WHERE cl.id = ? AND t.course_code = ?
-                """, (core_loop_id, course_code)).fetchone()
+                """, (knowledge_item_id, course_code)).fetchone()
 
-                if not core_loop:
+                if not knowledge_item:
                     return TutorResponse(
                         content="Core loop not found.",
                         success=False
                     )
 
-                topic_id = core_loop['topic_id']
+                topic_id = knowledge_item['topic_id']
 
                 # Get learning materials for this topic (theory and worked examples)
                 # Always fetch materials (default flow), but respect show flags and limits
@@ -584,7 +584,7 @@ class Tutor:
 
                 # Get example exercises (with solutions if available)
                 exercises = db.get_exercises_by_course(course_code)
-                examples = [ex for ex in exercises if ex.get('core_loop_id') == core_loop_id][:3]
+                examples = [ex for ex in exercises if ex.get('knowledge_item_id') == knowledge_item_id][:3]
 
                 # Track exercises with solutions for later display
                 exercises_with_solutions = []
@@ -597,13 +597,13 @@ class Tutor:
                                 'source_pdf': ex.get('source_pdf', '')
                             })
 
-            core_loop_dict = dict(core_loop)
+            knowledge_item_dict = dict(knowledge_item)
 
         # Check if this is a proof exercise (check first example)
         if examples and self.proof_tutor.is_proof_exercise(examples[0].get('text', '')):
             # Use proof-specific learning
-            return self._learn_proof(course_code, core_loop_id, examples[0], explain_concepts, depth, adaptive)
-        core_loop_name = core_loop_dict.get('name', '')
+            return self._learn_proof(course_code, knowledge_item_id, examples[0], explain_concepts, depth, adaptive)
+        knowledge_item_name = knowledge_item_dict.get('name', '')
 
         # Adaptive teaching: Auto-select depth and prerequisites based on mastery
         adaptive_recommendations = None
@@ -612,7 +612,7 @@ class Tutor:
 
             with AdaptiveTeachingManager() as atm:
                 adaptive_recommendations = atm.get_adaptive_recommendations(
-                    course_code, core_loop_name
+                    course_code, knowledge_item_name
                 )
 
                 # Override depth and explain_concepts if adaptive
@@ -623,12 +623,12 @@ class Tutor:
         prerequisite_text = ""
         if explain_concepts:
             prerequisite_text = self.concept_explainer.explain_prerequisites(
-                core_loop_name, depth=depth
+                knowledge_item_name, depth=depth
             )
 
         # Build enhanced learning prompt with deep reasoning
         prompt = self._build_enhanced_learn_prompt(
-            core_loop=core_loop_dict,
+            knowledge_item=knowledge_item_dict,
             examples=examples,
             depth=depth,
             learning_type=learning_type,
@@ -671,18 +671,18 @@ class Tutor:
 
         # Add study strategy if requested
         if include_study_strategy:
-            strategy = self.strategy_manager.get_strategy_for_core_loop(
-                core_loop_name,
+            strategy = self.strategy_manager.get_strategy_for_knowledge_item(
+                knowledge_item_name,
                 difficulty=depth
             )
             if strategy:
                 full_content.append("\n" + "=" * 60 + "\n")
-                full_content.append(self.strategy_manager.format_strategy_output(strategy, core_loop_name))
+                full_content.append(self.strategy_manager.format_strategy_output(strategy, knowledge_item_name))
 
         # Add metacognitive learning strategies if requested
         if include_metacognitive:
             full_content.append("\n" + "=" * 60 + "\n")
-            full_content.append(self._format_metacognitive_tips(core_loop_name, depth, core_loop_dict))
+            full_content.append(self._format_metacognitive_tips(knowledge_item_name, depth, knowledge_item_dict))
 
         # Add adaptive recommendations at end
         if adaptive and adaptive_recommendations:
@@ -698,7 +698,7 @@ class Tutor:
             content="\n".join(full_content),
             success=True,
             metadata={
-                "core_loop": core_loop_id,
+                "knowledge_item": knowledge_item_id,
                 "examples_count": len(examples),
                 "includes_prerequisites": explain_concepts,
                 "depth": depth,
@@ -1110,7 +1110,7 @@ class Tutor:
                 exercises = [ex for ex in exercises if ex.get('difficulty') == difficulty]
 
             # Filter out exercises without core loops
-            exercises = [ex for ex in exercises if ex.get('core_loop_id')]
+            exercises = [ex for ex in exercises if ex.get('knowledge_item_id')]
 
             if not exercises:
                 return TutorResponse(
@@ -1139,7 +1139,7 @@ class Tutor:
             success=True,
             metadata={
                 "exercise_id": exercise['id'],
-                "core_loop_id": exercise.get('core_loop_id'),
+                "knowledge_item_id": exercise.get('knowledge_item_id'),
                 "difficulty": exercise.get('difficulty'),
                 "topic_id": exercise.get('topic_id'),
                 "has_worked_example_hints": len(worked_example_hints) > 0,
@@ -1162,9 +1162,9 @@ class Tutor:
         with Database() as db:
             # Get exercise and core loop
             exercise = db.conn.execute("""
-                SELECT e.*, cl.procedure, cl.name as core_loop_name
+                SELECT e.*, cl.procedure, cl.name as knowledge_item_name
                 FROM exercises e
-                LEFT JOIN core_loops cl ON e.core_loop_id = cl.id
+                LEFT JOIN knowledge_items cl ON e.knowledge_item_id = cl.id
                 WHERE e.id = ?
             """, (exercise_id,)).fetchone()
 
@@ -1205,13 +1205,13 @@ class Tutor:
             }
         )
 
-    def generate(self, course_code: str, core_loop_id: str,
+    def generate(self, course_code: str, knowledge_item_id: str,
                 difficulty: str = "medium") -> TutorResponse:
         """Generate a new exercise variation.
 
         Args:
             course_code: Course code
-            core_loop_id: Core loop to generate for
+            knowledge_item_id: Core loop to generate for
             difficulty: Difficulty level (easy|medium|hard)
 
         Returns:
@@ -1219,14 +1219,14 @@ class Tutor:
         """
         with Database() as db:
             # Get core loop
-            core_loop = db.conn.execute("""
+            knowledge_item = db.conn.execute("""
                 SELECT cl.*, t.name as topic_name
-                FROM core_loops cl
+                FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE cl.id = ? AND t.course_code = ?
-            """, (core_loop_id, course_code)).fetchone()
+            """, (knowledge_item_id, course_code)).fetchone()
 
-            if not core_loop:
+            if not knowledge_item:
                 return TutorResponse(
                     content="Core loop not found.",
                     success=False
@@ -1234,7 +1234,7 @@ class Tutor:
 
             # Get example exercises
             exercises = db.get_exercises_by_course(course_code)
-            examples = [ex for ex in exercises if ex.get('core_loop_id') == core_loop_id][:5]
+            examples = [ex for ex in exercises if ex.get('knowledge_item_id') == knowledge_item_id][:5]
 
             if not examples:
                 return TutorResponse(
@@ -1244,7 +1244,7 @@ class Tutor:
 
         # Build generation prompt
         prompt = self._build_generation_prompt(
-            core_loop=dict(core_loop),
+            knowledge_item=dict(knowledge_item),
             examples=examples,
             difficulty=difficulty
         )
@@ -1267,24 +1267,24 @@ class Tutor:
             content=response.text,
             success=True,
             metadata={
-                "core_loop": core_loop_id,
+                "knowledge_item": knowledge_item_id,
                 "difficulty": difficulty,
                 "based_on_examples": len(examples)
             }
         )
 
-    def _build_learn_prompt(self, core_loop: Dict[str, Any],
+    def _build_learn_prompt(self, knowledge_item: Dict[str, Any],
                            examples: List[Dict[str, Any]]) -> str:
         """Build prompt for learning explanation."""
         prompt = f"""{self._language_instruction("Respond")}
 
 You are an AI tutor helping students learn problem-solving procedures.
 
-TOPIC: {core_loop.get('topic_name', 'Unknown')}
-CORE PROCEDURE: {core_loop['name']}
+TOPIC: {knowledge_item.get('topic_name', 'Unknown')}
+CORE PROCEDURE: {knowledge_item['name']}
 
 SOLVING STEPS:
-{self._format_procedure(core_loop.get('procedure'))}
+{self._format_procedure(knowledge_item.get('procedure'))}
 
 EXAMPLE EXERCISES:
 {self._format_examples(examples)}
@@ -1299,14 +1299,14 @@ Make it pedagogical and clear for students learning this for the first time.
 """
         return prompt
 
-    def _build_enhanced_learn_prompt(self, core_loop: Dict[str, Any],
+    def _build_enhanced_learn_prompt(self, knowledge_item: Dict[str, Any],
                                      examples: List[Dict[str, Any]],
                                      depth: str = "medium",
                                      learning_type: str = "conceptual") -> str:
         """Build enhanced prompt with type-specific learning approach.
 
         Args:
-            core_loop: Core loop data
+            knowledge_item: Core loop data
             examples: Example exercises
             depth: Explanation depth (basic, medium, advanced)
             learning_type: Type of learning content (procedural, conceptual, factual, analytical)
@@ -1413,13 +1413,13 @@ What do students often get wrong about this concept?"""
 
 You are an expert educator helping students learn.
 
-TOPIC: {core_loop.get('topic_name', 'Unknown')}
-CONCEPT/PROCEDURE: {core_loop['name']}
+TOPIC: {knowledge_item.get('topic_name', 'Unknown')}
+CONCEPT/PROCEDURE: {knowledge_item['name']}
 LEARNING TYPE: {learning_type}
 EXPLANATION DEPTH: {depth}
 
 CONTENT OUTLINE:
-{self._format_procedure(core_loop.get('procedure'))}
+{self._format_procedure(knowledge_item.get('procedure'))}
 
 EXAMPLE EXERCISES:
 {self._format_examples(examples)}
@@ -1465,7 +1465,7 @@ Respond in a friendly, pedagogical tone.
 """
         return prompt
 
-    def _build_generation_prompt(self, core_loop: Dict[str, Any],
+    def _build_generation_prompt(self, knowledge_item: Dict[str, Any],
                                  examples: List[Dict[str, Any]],
                                  difficulty: str) -> str:
         """Build prompt for exercise generation."""
@@ -1473,12 +1473,12 @@ Respond in a friendly, pedagogical tone.
 
 You are creating a new practice exercise.
 
-PROCEDURE TO PRACTICE: {core_loop['name']}
-TOPIC: {core_loop.get('topic_name', 'Unknown')}
+PROCEDURE TO PRACTICE: {knowledge_item['name']}
+TOPIC: {knowledge_item.get('topic_name', 'Unknown')}
 DIFFICULTY: {difficulty}
 
 SOLVING STEPS:
-{self._format_procedure(core_loop.get('procedure'))}
+{self._format_procedure(knowledge_item.get('procedure'))}
 
 EXAMPLE EXERCISES:
 {self._format_examples(examples, limit=3)}
@@ -1797,14 +1797,14 @@ Generate ONLY the exercise text, not the solution.
 
         return "\n".join(lines)
 
-    def _format_metacognitive_tips(self, core_loop_name: str, depth: str,
-                                   core_loop_dict: Dict[str, Any]) -> str:
+    def _format_metacognitive_tips(self, knowledge_item_name: str, depth: str,
+                                   knowledge_item_dict: Dict[str, Any]) -> str:
         """Format metacognitive learning strategies section.
 
         Args:
-            core_loop_name: Name of the core loop
+            knowledge_item_name: Name of the core loop
             depth: Difficulty level (basic, medium, advanced)
-            core_loop_dict: Core loop dictionary with metadata
+            knowledge_item_dict: Core loop dictionary with metadata
 
         Returns:
             Formatted string with metacognitive strategies
@@ -1842,7 +1842,7 @@ Generate ONLY the exercise text, not the solution.
 
         # 1. Problem-solving framework
         # Determine problem type from core loop name/description
-        problem_type = self._infer_problem_type(core_loop_name)
+        problem_type = self._infer_problem_type(knowledge_item_name)
         framework = self.metacognitive.get_problem_solving_framework(problem_type)
 
         lines.append(f"### {headers['framework']}: {framework.name}\n")
@@ -1853,7 +1853,7 @@ Generate ONLY the exercise text, not the solution.
         lines.append("")
 
         # 2. Study tips (show top 3 most relevant)
-        tips = self.metacognitive.get_study_tips(core_loop_name, difficulty, mastery)
+        tips = self.metacognitive.get_study_tips(knowledge_item_name, difficulty, mastery)
         if tips:
             lines.append(f"### {headers['tips']}:\n")
             for i, tip in enumerate(tips[:3], 1):
@@ -1863,7 +1863,7 @@ Generate ONLY the exercise text, not the solution.
                 lines.append("")
 
         # 3. Self-assessment prompts (show top 2)
-        assessments = self.metacognitive.get_self_assessment_prompts(core_loop_name, mastery)
+        assessments = self.metacognitive.get_self_assessment_prompts(knowledge_item_name, mastery)
         if assessments:
             lines.append(f"### {headers['self_assessment']}:\n")
             for i, assessment in enumerate(assessments[:2], 1):
@@ -1885,16 +1885,16 @@ Generate ONLY the exercise text, not the solution.
 
         return "\n".join(lines)
 
-    def _infer_problem_type(self, core_loop_name: str) -> str:
+    def _infer_problem_type(self, knowledge_item_name: str) -> str:
         """Infer problem type from core loop name.
 
         Args:
-            core_loop_name: Name of the core loop
+            knowledge_item_name: Name of the core loop
 
         Returns:
             Problem type string (design, theory, proof, debugging, etc.)
         """
-        name_lower = core_loop_name.lower()
+        name_lower = knowledge_item_name.lower()
 
         if any(keyword in name_lower for keyword in ['prove', 'proof', 'theorem', 'lemma']):
             return "proof"
@@ -1909,13 +1909,13 @@ Generate ONLY the exercise text, not the solution.
         else:
             return "general"
 
-    def _learn_proof(self, course_code: str, core_loop_id: str, example_exercise: Dict[str, Any],
+    def _learn_proof(self, course_code: str, knowledge_item_id: str, example_exercise: Dict[str, Any],
                      explain_concepts: bool, depth: str, adaptive: bool) -> TutorResponse:
         """Handle proof-specific learning.
 
         Args:
             course_code: Course code
-            core_loop_id: Core loop ID
+            knowledge_item_id: Core loop ID
             example_exercise: Example proof exercise
             explain_concepts: Whether to include prerequisites
             depth: Explanation depth
@@ -1936,14 +1936,14 @@ Generate ONLY the exercise text, not the solution.
         if explain_concepts:
             # Extract core loop name for concept explanation
             with Database() as db:
-                core_loop = db.conn.execute(
-                    "SELECT name FROM core_loops WHERE id = ?",
-                    (core_loop_id,)
+                knowledge_item = db.conn.execute(
+                    "SELECT name FROM knowledge_items WHERE id = ?",
+                    (knowledge_item_id,)
                 ).fetchone()
-                if core_loop:
-                    core_loop_name = core_loop['name']
+                if knowledge_item:
+                    knowledge_item_name = knowledge_item['name']
                     prerequisite_text = self.concept_explainer.explain_prerequisites(
-                        core_loop_name, depth=depth
+                        knowledge_item_name, depth=depth
                     )
                     if prerequisite_text:
                         full_content.append(prerequisite_text)
@@ -1955,7 +1955,7 @@ Generate ONLY the exercise text, not the solution.
             content="\n".join(full_content),
             success=True,
             metadata={
-                "core_loop": core_loop_id,
+                "knowledge_item": knowledge_item_id,
                 "is_proof": True,
                 "depth": depth,
                 "includes_prerequisites": explain_concepts

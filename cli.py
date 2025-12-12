@@ -198,8 +198,8 @@ def info(course):
             if topics:
                 console.print(f"\n[bold]Topics:[/bold]")
                 for topic in topics:
-                    core_loops = db.get_core_loops_by_topic(topic['id'])
-                    console.print(f"  • {topic['name']} ({len(core_loops)} core loops)")
+                    knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
+                    console.print(f"  • {topic['name']} ({len(knowledge_items)} core loops)")
 
             # Show exercise type breakdown
             from core.proof_tutor import ProofTutor
@@ -241,13 +241,13 @@ def info(course):
                 console.print(f"\n[bold]Top Examples:[/bold]")
                 for ex in multi_proc_exercises[:3]:
                     # Get all core loops for this exercise
-                    core_loops = db.get_exercise_core_loops(ex['id'])
-                    console.print(f"  • Exercise {ex['exercise_number'] or ex['id'][:8]}: {ex['core_loop_count']} procedures")
-                    for cl in core_loops[:3]:  # Show first 3 procedures
+                    knowledge_items = db.get_exercise_knowledge_items(ex['id'])
+                    console.print(f"  • Exercise {ex['exercise_number'] or ex['id'][:8]}: {ex['knowledge_item_count']} procedures")
+                    for cl in knowledge_items[:3]:  # Show first 3 procedures
                         step_info = f" (point {cl['step_number']})" if cl['step_number'] else ""
                         console.print(f"    - {cl['name']}{step_info}")
-                    if ex['core_loop_count'] > 3:
-                        console.print(f"    ... and {ex['core_loop_count'] - 3} more")
+                    if ex['knowledge_item_count'] > 3:
+                        console.print(f"    ... and {ex['knowledge_item_count'] - 3} more")
 
             console.print()
 
@@ -291,9 +291,9 @@ def concept_map(course, mermaid, show_mastery):
             if show_mastery:
                 from core.mastery_aggregator import MasteryAggregator
                 aggregator = MasteryAggregator(db)
-                weak_loops = aggregator.get_weak_core_loops(course_code, threshold=1.0)  # Get all
+                weak_loops = aggregator.get_weak_knowledge_items(course_code, threshold=1.0)  # Get all
                 for wl in weak_loops:
-                    mastery_data[wl['core_loop_id']] = wl['mastery_score']
+                    mastery_data[wl['knowledge_item_id']] = wl['mastery_score']
 
             if mermaid:
                 # Output Mermaid diagram format
@@ -306,8 +306,8 @@ def concept_map(course, mermaid, show_mastery):
                     topic_name = topic['name'].replace(' ', '_')[:30]
                     console.print(f"    COURSE --> {topic_id}[{topic_name}]")
 
-                    core_loops = db.get_core_loops_by_topic(topic['id'])
-                    for cl in core_loops:
+                    knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
+                    for cl in knowledge_items:
                         cl_id = f"CL{cl['id']}"
                         cl_name = cl['name'].replace(' ', '_')[:25]
                         console.print(f"    {topic_id} --> {cl_id}[{cl_name}]")
@@ -327,8 +327,8 @@ def concept_map(course, mermaid, show_mastery):
                 procedural_count = 0
 
                 for topic in topics:
-                    core_loops = db.get_core_loops_by_topic(topic['id'])
-                    total_loops += len(core_loops)
+                    knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
+                    total_loops += len(knowledge_items)
 
                     # Get exercise type distribution for this topic
                     topic_exercises = db.conn.execute("""
@@ -346,9 +346,9 @@ def concept_map(course, mermaid, show_mastery):
                         elif te['exercise_type'] == 'procedural':
                             procedural_count += te['count']
 
-                    topic_branch = tree.add(f"[bold yellow]{topic['name']}[/bold yellow] ({len(core_loops)} loops){type_info}")
+                    topic_branch = tree.add(f"[bold yellow]{topic['name']}[/bold yellow] ({len(knowledge_items)} loops){type_info}")
 
-                    for cl in core_loops:
+                    for cl in knowledge_items:
                         # Build core loop label with mastery if available
                         cl_label = cl['name']
                         if show_mastery and cl['id'] in mastery_data:
@@ -445,20 +445,20 @@ def search(course, tag, text, multi_only, limit):
 
             for ex in exercises:
                 # Get all core loops for this exercise
-                core_loops = db.get_exercise_core_loops(ex['id'])
+                knowledge_items = db.get_exercise_knowledge_items(ex['id'])
 
                 # Display exercise header
                 exercise_id = ex.get('exercise_number') or ex.get('source_pdf', 'Unknown')
                 console.print(f"[cyan]Exercise: {exercise_id}[/cyan]")
 
                 # Display procedures
-                if len(core_loops) > 1:
-                    console.print(f"  [yellow]Procedures ({len(core_loops)}):[/yellow]")
-                    for i, cl in enumerate(core_loops, 1):
+                if len(knowledge_items) > 1:
+                    console.print(f"  [yellow]Procedures ({len(knowledge_items)}):[/yellow]")
+                    for i, cl in enumerate(knowledge_items, 1):
                         step_info = f" (point {cl['step_number']})" if cl['step_number'] else ""
                         console.print(f"    {i}. {cl['name']}{step_info}")
-                elif len(core_loops) == 1:
-                    console.print(f"  Core Loop: {core_loops[0]['name']}")
+                elif len(knowledge_items) == 1:
+                    console.print(f"  Core Loop: {knowledge_items[0]['name']}")
                 else:
                     console.print(f"  [dim]No core loops assigned[/dim]")
 
@@ -665,7 +665,7 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
                             'id': exercise.id,
                             'course_code': course_code,
                             'topic_id': None,  # Will be filled in Phase 3 (AI analysis)
-                            'core_loop_id': None,  # Will be filled in Phase 3
+                            'knowledge_item_id': None,  # Will be filled in Phase 3
                             'source_pdf': pdf_path.name,
                             'page_number': exercise.page_number,
                             'exercise_number': exercise.exercise_number,
@@ -909,7 +909,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
             skip_analyzed = not force and analyzed_count > 0
 
             # Use async discovery method
-            discovery_result = await analyzer.discover_topics_and_core_loops_async(
+            discovery_result = await analyzer.discover_topics_and_knowledge_items_async(
                 course_code,
                 batch_size=batch_size or Config.BATCH_SIZE,
                 skip_analyzed=skip_analyzed
@@ -925,16 +925,16 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
 
             # Display results
             topics = discovery_result['topics']
-            core_loops = discovery_result['core_loops']
+            knowledge_items = discovery_result['knowledge_items']
 
             if topics:
                 console.print("[bold]📚 Discovered Topics:[/bold]")
                 for topic_name, topic_data in topics.items():
-                    console.print(f"  • {topic_name} ({topic_data['exercise_count']} exercises, {len(topic_data['core_loops'])} core loops)")
+                    console.print(f"  • {topic_name} ({topic_data['exercise_count']} exercises, {len(topic_data['knowledge_items'])} core loops)")
 
-            if core_loops:
+            if knowledge_items:
                 console.print(f"\n[bold]🔄 Discovered Core Loops:[/bold]")
-                for loop_id, loop_data in core_loops.items():
+                for loop_id, loop_data in knowledge_items.items():
                     console.print(f"  • {loop_data['name']} ({loop_data['exercise_count']} exercises)")
                     if loop_data['procedure']:
                         console.print(f"    [dim]Steps: {len(loop_data['procedure'])}[/dim]")
@@ -960,7 +960,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                     topic_id = db.add_topic(course_code, topic_name, language=topic_language)
 
                 # Store core loops (with language detection)
-                for loop_id, loop_data in core_loops.items():
+                for loop_id, loop_data in knowledge_items.items():
                     # Get topic_id
                     topic_name = loop_data.get('topic')
                     if topic_name:
@@ -983,7 +983,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                                 if loop_language == "unknown":
                                     loop_language = None  # Store NULL instead of "unknown"
 
-                            db.add_core_loop(
+                            db.add_knowledge_item(
                                 loop_id=loop_id,
                                 topic_id=topic_id,
                                 name=loop_data['name'],
@@ -993,7 +993,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                             )
 
                 # Get core loop ID mapping from analyzer (for deduplication)
-                core_loop_id_mapping = getattr(analyzer, 'core_loop_id_mapping', {})
+                knowledge_item_id_mapping = getattr(analyzer, 'knowledge_item_id_mapping', {})
 
                 # Update exercises with analysis
                 for merged_ex in discovery_result['merged_exercises']:
@@ -1020,17 +1020,17 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                         topic_rows = db.get_topics_by_course(course_code)
                         topic_id = next((t['id'] for t in topic_rows if t['name'] == canonical_topic_name), None)
 
-                        # Get primary core_loop_id (first procedure) for backward compatibility
-                        primary_core_loop_id = analysis.core_loop_id
-                        if primary_core_loop_id and primary_core_loop_id in core_loop_id_mapping:
-                            primary_core_loop_id = core_loop_id_mapping[primary_core_loop_id]
+                        # Get primary knowledge_item_id (first procedure) for backward compatibility
+                        primary_knowledge_item_id = analysis.knowledge_item_id
+                        if primary_knowledge_item_id and primary_knowledge_item_id in knowledge_item_id_mapping:
+                            primary_knowledge_item_id = knowledge_item_id_mapping[primary_knowledge_item_id]
 
-                        # Only update if primary_core_loop_id exists in deduplicated core_loops OR database
-                        if primary_core_loop_id and primary_core_loop_id not in core_loops:
+                        # Only update if primary_knowledge_item_id exists in deduplicated knowledge_items OR database
+                        if primary_knowledge_item_id and primary_knowledge_item_id not in knowledge_items:
                             # Check if it exists in database (may have been deduplicated to existing DB entry)
-                            if not db.get_core_loop(primary_core_loop_id):
-                                print(f"[DEBUG] Skipping exercise {first_id[:20]}... - core_loop_id '{primary_core_loop_id}' not found in deduplicated core_loops or database")
-                                primary_core_loop_id = None
+                            if not db.get_knowledge_item(primary_knowledge_item_id):
+                                print(f"[DEBUG] Skipping exercise {first_id[:20]}... - knowledge_item_id '{primary_knowledge_item_id}' not found in deduplicated knowledge_items or database")
+                                primary_knowledge_item_id = None
 
                         # Collect tags for flexible search
                         tags = []
@@ -1038,17 +1038,17 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                         # Process ALL procedures - link to junction table
                         if analysis.procedures:
                             for procedure_info in analysis.procedures:
-                                proc_core_loop_id = AnalysisResult._normalize_core_loop_id(procedure_info.name)
+                                proc_knowledge_item_id = AnalysisResult._normalize_knowledge_item_id(procedure_info.name)
 
                                 # Map to canonical ID if deduplicated
-                                if proc_core_loop_id and proc_core_loop_id in core_loop_id_mapping:
-                                    proc_core_loop_id = core_loop_id_mapping[proc_core_loop_id]
+                                if proc_knowledge_item_id and proc_knowledge_item_id in knowledge_item_id_mapping:
+                                    proc_knowledge_item_id = knowledge_item_id_mapping[proc_knowledge_item_id]
 
                                 # Link exercise to core loop via junction table (check both new loops and DB)
-                                if proc_core_loop_id and (proc_core_loop_id in core_loops or db.get_core_loop(proc_core_loop_id)):
-                                    db.link_exercise_to_core_loop(
+                                if proc_knowledge_item_id and (proc_knowledge_item_id in knowledge_items or db.get_knowledge_item(proc_knowledge_item_id)):
+                                    db.link_exercise_to_knowledge_item(
                                         exercise_id=first_id,
-                                        core_loop_id=proc_core_loop_id,
+                                        knowledge_item_id=proc_knowledge_item_id,
                                         step_number=procedure_info.point_number
                                     )
 
@@ -1063,7 +1063,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                         db.update_exercise_analysis(
                             exercise_id=first_id,
                             topic_id=topic_id,
-                            core_loop_id=primary_core_loop_id,
+                            knowledge_item_id=primary_knowledge_item_id,
                             difficulty=analysis.difficulty,
                             variations=analysis.variations,
                             analyzed=True
@@ -1093,10 +1093,10 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
             vector_store.add_exercises_batch(course_code, discovery_result['merged_exercises'])
 
             # Add core loops to vector store
-            for loop_id, loop_data in core_loops.items():
-                vector_store.add_core_loop(
+            for loop_id, loop_data in knowledge_items.items():
+                vector_store.add_knowledge_item(
                     course_code=course_code,
-                    core_loop_id=loop_id,
+                    knowledge_item_id=loop_id,
                     name=loop_data['name'],
                     description=loop_data.get('description', ''),
                     procedure=loop_data['procedure'],
@@ -1133,7 +1133,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
             # Summary
             console.print("[bold green]✨ Analysis complete![/bold green]\n")
             console.print(f"Topics: {len(topics)}")
-            console.print(f"Core loops: {len(core_loops)}")
+            console.print(f"Core loops: {len(knowledge_items)}")
             console.print(f"Exercises: {discovery_result['merged_count']}\n")
             console.print(f"Next steps:")
             console.print(f"  • examina info --course {course} - View updated course info")
@@ -1288,7 +1288,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
         # Determine if we should skip analyzed exercises
         skip_analyzed = not force and analyzed_count > 0
 
-        discovery_result = analyzer.discover_topics_and_core_loops(
+        discovery_result = analyzer.discover_topics_and_knowledge_items(
             course_code,
             batch_size=batch_size or Config.BATCH_SIZE,
             skip_analyzed=skip_analyzed,
@@ -1305,16 +1305,16 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
 
         # Display results
         topics = discovery_result['topics']
-        core_loops = discovery_result['core_loops']
+        knowledge_items = discovery_result['knowledge_items']
 
         if topics:
             console.print("[bold]📚 Discovered Topics:[/bold]")
             for topic_name, topic_data in topics.items():
-                console.print(f"  • {topic_name} ({topic_data['exercise_count']} exercises, {len(topic_data['core_loops'])} core loops)")
+                console.print(f"  • {topic_name} ({topic_data['exercise_count']} exercises, {len(topic_data['knowledge_items'])} core loops)")
 
-        if core_loops:
+        if knowledge_items:
             console.print(f"\n[bold]🔄 Discovered Core Loops:[/bold]")
-            for loop_id, loop_data in core_loops.items():
+            for loop_id, loop_data in knowledge_items.items():
                 console.print(f"  • {loop_data['name']} ({loop_data['exercise_count']} exercises)")
                 if loop_data['procedure']:
                     console.print(f"    [dim]Steps: {len(loop_data['procedure'])}[/dim]")
@@ -1340,7 +1340,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                 topic_id = db.add_topic(course_code, topic_name, language=topic_language)
 
             # Store core loops (with language detection)
-            for loop_id, loop_data in core_loops.items():
+            for loop_id, loop_data in knowledge_items.items():
                 # Get topic_id
                 topic_name = loop_data.get('topic')
                 if topic_name:
@@ -1363,7 +1363,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                             if loop_language == "unknown":
                                 loop_language = None  # Store NULL instead of "unknown"
 
-                        db.add_core_loop(
+                        db.add_knowledge_item(
                             loop_id=loop_id,
                             topic_id=topic_id,
                             name=loop_data['name'],
@@ -1373,7 +1373,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                         )
 
             # Get core loop ID mapping from analyzer (for deduplication)
-            core_loop_id_mapping = getattr(analyzer, 'core_loop_id_mapping', {})
+            knowledge_item_id_mapping = getattr(analyzer, 'knowledge_item_id_mapping', {})
 
             # Update exercises with analysis
             for merged_ex in discovery_result['merged_exercises']:
@@ -1400,17 +1400,17 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                     topic_rows = db.get_topics_by_course(course_code)
                     topic_id = next((t['id'] for t in topic_rows if t['name'] == canonical_topic_name), None)
 
-                    # Get primary core_loop_id (first procedure) for backward compatibility
-                    primary_core_loop_id = analysis.core_loop_id
-                    if primary_core_loop_id and primary_core_loop_id in core_loop_id_mapping:
-                        primary_core_loop_id = core_loop_id_mapping[primary_core_loop_id]
+                    # Get primary knowledge_item_id (first procedure) for backward compatibility
+                    primary_knowledge_item_id = analysis.knowledge_item_id
+                    if primary_knowledge_item_id and primary_knowledge_item_id in knowledge_item_id_mapping:
+                        primary_knowledge_item_id = knowledge_item_id_mapping[primary_knowledge_item_id]
 
-                    # Only update if primary_core_loop_id exists in deduplicated core_loops OR database
-                    if primary_core_loop_id and primary_core_loop_id not in core_loops:
+                    # Only update if primary_knowledge_item_id exists in deduplicated knowledge_items OR database
+                    if primary_knowledge_item_id and primary_knowledge_item_id not in knowledge_items:
                         # Check if it exists in database (may have been deduplicated to existing DB entry)
-                        if not db.get_core_loop(primary_core_loop_id):
-                            print(f"[DEBUG] Skipping exercise {first_id[:20]}... - core_loop_id '{primary_core_loop_id}' not found in deduplicated core_loops or database")
-                            primary_core_loop_id = None
+                        if not db.get_knowledge_item(primary_knowledge_item_id):
+                            print(f"[DEBUG] Skipping exercise {first_id[:20]}... - knowledge_item_id '{primary_knowledge_item_id}' not found in deduplicated knowledge_items or database")
+                            primary_knowledge_item_id = None
 
                     # Collect tags for flexible search
                     tags = []
@@ -1418,17 +1418,17 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                     # Process ALL procedures - link to junction table
                     if analysis.procedures:
                         for procedure_info in analysis.procedures:
-                            proc_core_loop_id = AnalysisResult._normalize_core_loop_id(procedure_info.name)
+                            proc_knowledge_item_id = AnalysisResult._normalize_knowledge_item_id(procedure_info.name)
 
                             # Map to canonical ID if deduplicated
-                            if proc_core_loop_id and proc_core_loop_id in core_loop_id_mapping:
-                                proc_core_loop_id = core_loop_id_mapping[proc_core_loop_id]
+                            if proc_knowledge_item_id and proc_knowledge_item_id in knowledge_item_id_mapping:
+                                proc_knowledge_item_id = knowledge_item_id_mapping[proc_knowledge_item_id]
 
                             # Link exercise to core loop via junction table (check both new loops and DB)
-                            if proc_core_loop_id and (proc_core_loop_id in core_loops or db.get_core_loop(proc_core_loop_id)):
-                                db.link_exercise_to_core_loop(
+                            if proc_knowledge_item_id and (proc_knowledge_item_id in knowledge_items or db.get_knowledge_item(proc_knowledge_item_id)):
+                                db.link_exercise_to_knowledge_item(
                                     exercise_id=first_id,
-                                    core_loop_id=proc_core_loop_id,
+                                    knowledge_item_id=proc_knowledge_item_id,
                                     step_number=procedure_info.point_number
                                 )
 
@@ -1443,7 +1443,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                     db.update_exercise_analysis(
                         exercise_id=first_id,
                         topic_id=topic_id,
-                        core_loop_id=primary_core_loop_id,
+                        knowledge_item_id=primary_knowledge_item_id,
                         difficulty=analysis.difficulty,
                         variations=analysis.variations,
                         analyzed=True
@@ -1473,10 +1473,10 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
         vector_store.add_exercises_batch(course_code, discovery_result['merged_exercises'])
 
         # Add core loops to vector store
-        for loop_id, loop_data in core_loops.items():
-            vector_store.add_core_loop(
+        for loop_id, loop_data in knowledge_items.items():
+            vector_store.add_knowledge_item(
                 course_code=course_code,
-                core_loop_id=loop_id,
+                knowledge_item_id=loop_id,
                 name=loop_data['name'],
                 description=loop_data.get('description', ''),
                 procedure=loop_data['procedure'],
@@ -1513,7 +1513,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
         # Summary
         console.print("[bold green]✨ Analysis complete![/bold green]\n")
         console.print(f"Topics: {len(topics)}")
-        console.print(f"Core loops: {len(core_loops)}")
+        console.print(f"Core loops: {len(knowledge_items)}")
         console.print(f"Exercises: {discovery_result['merged_count']}\n")
         console.print(f"Next steps:")
         console.print(f"  • examina info --course {course} - View updated course info")
@@ -1684,7 +1684,7 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
             console.print(f"\n[yellow]Found {len(generic_topics)} generic topic(s):[/yellow]\n")
             for topic_info in generic_topics:
                 console.print(f"  • {topic_info['name']}")
-                console.print(f"    - Core loops: {topic_info['core_loop_count']}")
+                console.print(f"    - Core loops: {topic_info['knowledge_item_count']}")
                 console.print(f"    - Reason: {topic_info['reason']}\n")
 
             if dry_run:
@@ -1695,14 +1695,14 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
                 console.print(f"\n[bold]Processing topic: {topic_info['name']}[/bold]")
 
                 # Get core loops for this topic
-                core_loops = db.get_core_loops_by_topic(topic_info['id'])
+                knowledge_items = db.get_knowledge_items_by_topic(topic_info['id'])
 
                 # Cluster core loops using LLM
-                console.print(f"  Clustering {len(core_loops)} core loops...")
-                clusters = analyzer.cluster_core_loops_for_topic(
+                console.print(f"  Clustering {len(knowledge_items)} core loops...")
+                clusters = analyzer.cluster_knowledge_items_for_topic(
                     topic_info['id'],
                     topic_info['name'],
-                    core_loops
+                    knowledge_items
                 )
 
                 if not clusters:
@@ -1713,10 +1713,10 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
                 console.print(f"\n  [green]✓ Generated {len(clusters)} new topics:[/green]\n")
                 for i, cluster in enumerate(clusters, 1):
                     console.print(f"    {i}. [bold]{cluster['topic_name']}[/bold]")
-                    console.print(f"       Core loops: {len(cluster['core_loop_ids'])}")
+                    console.print(f"       Core loops: {len(cluster['knowledge_item_ids'])}")
 
                     # Show core loop names
-                    loop_names = [cl['name'] for cl in core_loops if cl['id'] in cluster['core_loop_ids']]
+                    loop_names = [cl['name'] for cl in knowledge_items if cl['id'] in cluster['knowledge_item_ids']]
                     for loop_name in loop_names[:3]:  # Show first 3
                         console.print(f"         - {loop_name}")
                     if len(loop_names) > 3:
@@ -1747,12 +1747,12 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
                     console.print(f"\n  [green]✓ Successfully split topic![/green]")
                     console.print(f"    - Old topic: {stats['old_topic_name']}")
                     console.print(f"    - New topics: {len(stats['new_topics'])}")
-                    console.print(f"    - Core loops moved: {stats['core_loops_moved']}")
+                    console.print(f"    - Core loops moved: {stats['knowledge_items_moved']}")
 
                     if delete_old and stats.get('old_topic_deleted'):
                         console.print(f"    - Old topic deleted: Yes")
                     elif delete_old:
-                        console.print(f"    - Old topic deleted: No ({stats.get('remaining_core_loops', 0)} core loops remain)")
+                        console.print(f"    - Old topic deleted: No ({stats.get('remaining_knowledge_items', 0)} core loops remain)")
 
                     if stats.get('errors'):
                         console.print(f"\n  [yellow]Warnings:[/yellow]")
@@ -1822,18 +1822,18 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, 
             course_code = found_course['code']
 
             # Look up core loop by name to get its ID
-            core_loop_row = db.conn.execute("""
-                SELECT cl.id FROM core_loops cl
+            knowledge_item_row = db.conn.execute("""
+                SELECT cl.id FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE cl.name = ? AND t.course_code = ?
             """, (loop, course_code)).fetchone()
 
-            if not core_loop_row:
+            if not knowledge_item_row:
                 console.print(f"[red]Core loop '{loop}' not found in course {course_code}.[/red]\n")
                 console.print("[dim]Use 'examina info --course CODE' to see available core loops.[/dim]\n")
                 return
 
-            core_loop_id = core_loop_row['id']
+            knowledge_item_id = knowledge_item_row['id']
 
             # Check prerequisite mastery (unless --force is used)
             if not force:
@@ -1867,7 +1867,7 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, 
         console.print("🤖 Generating deep explanation with reasoning...\n")
         result = tutor.learn(
             course_code=course_code,
-            core_loop_id=core_loop_id,
+            knowledge_item_id=knowledge_item_id,
             explain_concepts=not no_concepts,
             depth=depth,
             adaptive=adaptive,
@@ -2408,7 +2408,7 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
                 course_code=course_code,
                 num_questions=questions,
                 topic=topic,
-                core_loop=loop,
+                knowledge_item=loop,
                 difficulty=difficulty,
                 review_only=review_only,
                 procedure_type=procedure,
@@ -2429,12 +2429,12 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
 
             with Database() as db:
                 aggregator = MasteryAggregator(db)
-                weak_loops = aggregator.get_weak_core_loops(course_code, threshold=0.4)
+                weak_loops = aggregator.get_weak_knowledge_items(course_code, threshold=0.4)
 
                 if weak_loops:
                     console.print("[dim]📊 Adaptive mode detected weak areas:[/dim]")
                     for wl in weak_loops[:3]:
-                        console.print(f"   [yellow]• {wl['core_loop_name']}[/yellow] ({wl['mastery_score']:.0%} mastery)")
+                        console.print(f"   [yellow]• {wl['knowledge_item_name']}[/yellow] ({wl['mastery_score']:.0%} mastery)")
                     console.print("[dim]   Quiz will prioritize these areas.\n[/dim]")
 
                 # If filtering by specific core loop, check prerequisites
@@ -2474,15 +2474,15 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
             console.print(f"[bold]Question {i}/{session.total_questions}[/bold]")
 
             # Display metadata - check if multi-procedure exercise
-            if question.core_loops and len(question.core_loops) > 1:
+            if question.knowledge_items and len(question.knowledge_items) > 1:
                 console.print(f"[dim]Topic: {question.topic_name} | Difficulty: {question.difficulty}[/dim]")
                 console.print("[dim]Procedures:[/dim]")
-                for idx, loop in enumerate(question.core_loops, 1):
+                for idx, loop in enumerate(question.knowledge_items, 1):
                     loop_name = loop.get('name', 'Unknown')
                     console.print(f"[dim]  {idx}. {loop_name}[/dim]")
                 console.print()
             else:
-                console.print(f"[dim]Topic: {question.topic_name} | Core Loop: {question.core_loop_name} | Difficulty: {question.difficulty}[/dim]\n")
+                console.print(f"[dim]Topic: {question.topic_name} | Core Loop: {question.knowledge_item_name} | Difficulty: {question.difficulty}[/dim]\n")
 
             console.print(Panel(question.exercise_text, title="Exercise", border_style="blue"))
             console.print()
@@ -2598,10 +2598,10 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
         analytics = ProgressAnalytics()
 
         # Get unique core loops from quiz
-        core_loops = set(q.core_loop_id for q in session.questions if q.core_loop_id)
-        for loop_id in core_loops:
-            progress = analytics.get_core_loop_progress(course_code, loop_id)
-            loop_name = next((q.core_loop_name for q in session.questions if q.core_loop_id == loop_id), loop_id)
+        knowledge_items = set(q.knowledge_item_id for q in session.questions if q.knowledge_item_id)
+        for loop_id in knowledge_items:
+            progress = analytics.get_knowledge_item_progress(course_code, loop_id)
+            loop_name = next((q.knowledge_item_name for q in session.questions if q.knowledge_item_id == loop_id), loop_id)
 
             mastery_pct = progress['mastery_score'] * 100
             mastery_color = "green" if mastery_pct >= 80 else "yellow" if mastery_pct >= 50 else "red"
@@ -2622,7 +2622,7 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
                         'review': '🔄', 'strengthen': '💪',
                         'learn': '📖', 'practice': '✏️'
                     }.get(action, '→')
-                    name = item.get('core_loop_name') or item.get('topic_name', 'Unknown')
+                    name = item.get('knowledge_item_name') or item.get('topic_name', 'Unknown')
                     reason = item.get('reason', '')
                     console.print(f"  {action_emoji} {action.capitalize()}: [cyan]{name}[/cyan]")
                     if reason:
@@ -2781,13 +2781,13 @@ def progress(course, topics, detailed):
             console.print(f"Total Time: {summary['total_time_spent']} minutes\n")
 
         # Core loops progress
-        if summary['core_loops_discovered'] > 0:
+        if summary['knowledge_items_discovered'] > 0:
             console.print("[bold]🔄 Core Loops[/bold]\n")
-            console.print(f"Discovered: {summary['core_loops_discovered']}")
-            console.print(f"Attempted: {summary['core_loops_attempted']}")
+            console.print(f"Discovered: {summary['knowledge_items_discovered']}")
+            console.print(f"Attempted: {summary['knowledge_items_attempted']}")
 
-            if summary['core_loops_attempted'] > 0:
-                progress_pct = (summary['core_loops_attempted'] / summary['core_loops_discovered']) * 100
+            if summary['knowledge_items_attempted'] > 0:
+                progress_pct = (summary['knowledge_items_attempted'] / summary['knowledge_items_discovered']) * 100
                 console.print(f"Progress: {progress_pct:.1f}%")
 
             console.print()
@@ -2857,13 +2857,13 @@ def progress(course, topics, detailed):
                 if overdue:
                     console.print(f"[bold red]Overdue Reviews ({len(overdue)}):[/bold red]")
                     for review in overdue[:5]:
-                        console.print(f"  • {review['core_loop_name']}: {review['days_overdue']} days overdue")
+                        console.print(f"  • {review['knowledge_item_name']}: {review['days_overdue']} days overdue")
                     console.print()
 
                 if due_today:
                     console.print(f"[bold yellow]Due Today ({len(due_today)}):[/bold yellow]")
                     for review in due_today[:5]:
-                        console.print(f"  • {review['core_loop_name']}")
+                        console.print(f"  • {review['knowledge_item_name']}")
                     console.print()
 
         # Next steps
@@ -2908,48 +2908,48 @@ def strategy(course, loop, difficulty, lang):
             course_code = found_course['code']
 
             # Get core loop details
-            core_loop = db.conn.execute("""
+            knowledge_item = db.conn.execute("""
                 SELECT cl.*, t.name as topic_name
-                FROM core_loops cl
+                FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE cl.id = ? AND t.course_code = ?
             """, (loop, course_code)).fetchone()
 
-            if not core_loop:
+            if not knowledge_item:
                 # Try searching by name pattern
-                core_loop = db.conn.execute("""
+                knowledge_item = db.conn.execute("""
                     SELECT cl.*, t.name as topic_name
-                    FROM core_loops cl
+                    FROM knowledge_items cl
                     JOIN topics t ON cl.topic_id = t.id
                     WHERE cl.name LIKE ? AND t.course_code = ?
                     LIMIT 1
                 """, (f"%{loop}%", course_code)).fetchone()
 
-            if not core_loop:
+            if not knowledge_item:
                 console.print(f"[red]Core loop '{loop}' not found for course {course}.[/red]\n")
                 console.print("Use 'examina info --course {0}' to see available core loops.\n".format(course))
                 return
 
-        core_loop_dict = dict(core_loop)
-        core_loop_name = core_loop_dict.get('name', '')
+        knowledge_item_dict = dict(knowledge_item)
+        knowledge_item_name = knowledge_item_dict.get('name', '')
 
         # Initialize strategy manager
         strategy_mgr = StudyStrategyManager(language=lang)
 
         # Get strategy
-        strat = strategy_mgr.get_strategy_for_core_loop(core_loop_name, difficulty=difficulty)
+        strat = strategy_mgr.get_strategy_for_knowledge_item(knowledge_item_name, difficulty=difficulty)
 
         if not strat:
-            console.print(f"[yellow]No specific strategy found for '{core_loop_name}'.[/yellow]\n")
+            console.print(f"[yellow]No specific strategy found for '{knowledge_item_name}'.[/yellow]\n")
             console.print("This core loop may be new or not yet covered by the strategy system.\n")
             return
 
         # Format and display
-        formatted_strategy = strategy_mgr.format_strategy_output(strat, core_loop_name)
+        formatted_strategy = strategy_mgr.format_strategy_output(strat, knowledge_item_name)
         md = Markdown(formatted_strategy)
         console.print(md)
 
-        console.print(f"\n[dim]Core loop: {core_loop_name} | Difficulty: {difficulty} | Language: {lang}[/dim]\n")
+        console.print(f"\n[dim]Core loop: {knowledge_item_name} | Difficulty: {difficulty} | Language: {lang}[/dim]\n")
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
@@ -3029,7 +3029,7 @@ def path(course, limit, lang):
             table.add_row(
                 str(item['priority']),
                 action_display,
-                f"[{urgency_color}]{item['core_loop']}[/{urgency_color}]",
+                f"[{urgency_color}]{item['knowledge_item']}[/{urgency_color}]",
                 item['topic'],
                 item['reason'],
                 f"{item['estimated_time']}m"
@@ -3075,7 +3075,7 @@ def gaps(course, loop, lang):
 
         # Detect knowledge gaps
         with AdaptiveTeachingManager() as atm:
-            knowledge_gaps = atm.detect_knowledge_gaps(course_code, core_loop_name=loop)
+            knowledge_gaps = atm.detect_knowledge_gaps(course_code, knowledge_item_name=loop)
 
         if not knowledge_gaps:
             console.print(f"\n[green]✅ No significant knowledge gaps detected![/green]")
@@ -3161,11 +3161,11 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
         else:
             console.print("[info]Semantic matching disabled, using string similarity[/info]")
             use_semantic = False
-            default_threshold = Config.CORE_LOOP_SIMILARITY_THRESHOLD
+            default_threshold = Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
     except ImportError as e:
         console.print(f"[yellow]LLM-based synonym detection not available ({e}), using string similarity[/yellow]")
         use_semantic = False
-        default_threshold = Config.CORE_LOOP_SIMILARITY_THRESHOLD
+        default_threshold = Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
 
     # Use provided threshold or default
     threshold = threshold if threshold is not None else default_threshold
@@ -3325,7 +3325,7 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
 
                         # Update all core loops
                         db.conn.execute("""
-                            UPDATE core_loops SET topic_id = ? WHERE topic_id = ?
+                            UPDATE knowledge_items SET topic_id = ? WHERE topic_id = ?
                         """, (target_id, source_id))
 
                         # Update topic_mastery
@@ -3362,12 +3362,12 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
 
             # Deduplicate core loops
             console.print("[bold]Deduplicating Core Loops...[/bold]")
-            core_loops = db.get_core_loops_by_course(course_code)
+            knowledge_items = db.get_knowledge_items_by_course(course_code)
             loop_merges = []
             loop_skips = []
 
-            for i, loop1 in enumerate(core_loops):
-                for loop2 in core_loops[i+1:]:
+            for i, loop1 in enumerate(knowledge_items):
+                for loop2 in knowledge_items[i+1:]:
                     # First check bilingual translations
                     is_bilingual, bilingual_reason = is_bilingual_match(loop1['name'], loop2['name'])
                     if is_bilingual:
@@ -3418,32 +3418,32 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
 
                     # Apply merges
                     for source_id, target_id in loop_merge_map.items():
-                        # Delete duplicate entries from exercise_core_loops where exercise already has target
+                        # Delete duplicate entries from exercise_knowledge_items where exercise already has target
                         db.conn.execute("""
-                            DELETE FROM exercise_core_loops
-                            WHERE core_loop_id = ?
+                            DELETE FROM exercise_knowledge_items
+                            WHERE knowledge_item_id = ?
                             AND exercise_id IN (
-                                SELECT exercise_id FROM exercise_core_loops WHERE core_loop_id = ?
+                                SELECT exercise_id FROM exercise_knowledge_items WHERE knowledge_item_id = ?
                             )
                         """, (source_id, target_id))
 
-                        # Update remaining exercise_core_loops entries
+                        # Update remaining exercise_knowledge_items entries
                         db.conn.execute("""
-                            UPDATE exercise_core_loops
-                            SET core_loop_id = ?
-                            WHERE core_loop_id = ?
+                            UPDATE exercise_knowledge_items
+                            SET knowledge_item_id = ?
+                            WHERE knowledge_item_id = ?
                         """, (target_id, source_id))
 
-                        # Update legacy core_loop_id in exercises
+                        # Update legacy knowledge_item_id in exercises
                         db.conn.execute("""
                             UPDATE exercises
-                            SET core_loop_id = ?
-                            WHERE core_loop_id = ?
+                            SET knowledge_item_id = ?
+                            WHERE knowledge_item_id = ?
                         """, (target_id, source_id))
 
                     # Delete all merged core loops (sources only)
                     for source_id in loop_merge_map.keys():
-                        db.conn.execute("DELETE FROM core_loops WHERE id = ?", (source_id,))
+                        db.conn.execute("DELETE FROM knowledge_items WHERE id = ?", (source_id,))
 
                     db.conn.commit()
                     console.print(f"\n[green]✓ Merged {len(loop_merges)} duplicate core loops[/green]\n")
@@ -3466,15 +3466,15 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                 # Find core loops with no exercises
                 cursor = db.conn.execute('''
                     SELECT cl.id, cl.name, t.name as topic_name
-                    FROM core_loops cl
+                    FROM knowledge_items cl
                     JOIN topics t ON cl.topic_id = t.id
                     WHERE t.course_code = ?
                     AND cl.id NOT IN (
-                        SELECT DISTINCT core_loop_id FROM exercises
-                        WHERE core_loop_id IS NOT NULL
+                        SELECT DISTINCT knowledge_item_id FROM exercises
+                        WHERE knowledge_item_id IS NOT NULL
                     )
                     AND cl.id NOT IN (
-                        SELECT DISTINCT core_loop_id FROM exercise_core_loops
+                        SELECT DISTINCT knowledge_item_id FROM exercise_knowledge_items
                     )
                     ORDER BY cl.name
                 ''', (course_code,))
@@ -3488,7 +3488,7 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
 
                     if not dry_run:
                         for loop_id, loop_name, topic_name in orphans:
-                            db.conn.execute("DELETE FROM core_loops WHERE id = ?", (loop_id,))
+                            db.conn.execute("DELETE FROM knowledge_items WHERE id = ?", (loop_id,))
                         db.conn.commit()
                         orphan_count = len(orphans)
                         console.print(f"\n[green]✓ Deleted {orphan_count} orphaned core loops[/green]\n")
@@ -3736,44 +3736,44 @@ def pattern_cache(course, action, force):
                 console.print("📊 Scanning analyzed exercises...")
 
                 # Query exercises with core loops (where procedures are stored)
-                # Handle both schemas: junction table AND legacy core_loop_id column
+                # Handle both schemas: junction table AND legacy knowledge_item_id column
                 if course_code:
                     cursor = db.conn.execute("""
                         SELECT e.id, e.text as exercise_text, e.source_pdf,
                                t.name as topic, e.difficulty, e.variations,
-                               cl.procedure as procedures_json, cl.id as core_loop_id
+                               cl.procedure as procedures_json, cl.id as knowledge_item_id
                         FROM exercises e
-                        JOIN exercise_core_loops ecl ON e.id = ecl.exercise_id
-                        JOIN core_loops cl ON ecl.core_loop_id = cl.id
+                        JOIN exercise_knowledge_items ecl ON e.id = ecl.exercise_id
+                        JOIN knowledge_items cl ON ecl.knowledge_item_id = cl.id
                         JOIN topics t ON cl.topic_id = t.id
                         WHERE e.course_code = ? AND cl.procedure IS NOT NULL
                         UNION
                         SELECT e.id, e.text as exercise_text, e.source_pdf,
                                t.name as topic, e.difficulty, e.variations,
-                               cl.procedure as procedures_json, cl.id as core_loop_id
+                               cl.procedure as procedures_json, cl.id as knowledge_item_id
                         FROM exercises e
-                        JOIN core_loops cl ON e.core_loop_id = cl.id
+                        JOIN knowledge_items cl ON e.knowledge_item_id = cl.id
                         JOIN topics t ON cl.topic_id = t.id
-                        WHERE e.course_code = ? AND e.core_loop_id IS NOT NULL AND cl.procedure IS NOT NULL
+                        WHERE e.course_code = ? AND e.knowledge_item_id IS NOT NULL AND cl.procedure IS NOT NULL
                     """, (course_code, course_code))
                 else:
                     cursor = db.conn.execute("""
                         SELECT e.id, e.text as exercise_text, e.source_pdf, e.course_code,
                                t.name as topic, e.difficulty, e.variations,
-                               cl.procedure as procedures_json, cl.id as core_loop_id
+                               cl.procedure as procedures_json, cl.id as knowledge_item_id
                         FROM exercises e
-                        JOIN exercise_core_loops ecl ON e.id = ecl.exercise_id
-                        JOIN core_loops cl ON ecl.core_loop_id = cl.id
+                        JOIN exercise_knowledge_items ecl ON e.id = ecl.exercise_id
+                        JOIN knowledge_items cl ON ecl.knowledge_item_id = cl.id
                         JOIN topics t ON cl.topic_id = t.id
                         WHERE cl.procedure IS NOT NULL
                         UNION
                         SELECT e.id, e.text as exercise_text, e.source_pdf, e.course_code,
                                t.name as topic, e.difficulty, e.variations,
-                               cl.procedure as procedures_json, cl.id as core_loop_id
+                               cl.procedure as procedures_json, cl.id as knowledge_item_id
                         FROM exercises e
-                        JOIN core_loops cl ON e.core_loop_id = cl.id
+                        JOIN knowledge_items cl ON e.knowledge_item_id = cl.id
                         JOIN topics t ON cl.topic_id = t.id
-                        WHERE e.core_loop_id IS NOT NULL AND cl.procedure IS NOT NULL
+                        WHERE e.knowledge_item_id IS NOT NULL AND cl.procedure IS NOT NULL
                     """)
 
                 rows = cursor.fetchall()
@@ -3803,7 +3803,7 @@ def pattern_cache(course, action, force):
                         variations_raw = row_dict.get('variations')
                         variations = json.loads(variations_raw) if variations_raw else []
 
-                        # Procedures are stored as JSON in core_loops.procedure
+                        # Procedures are stored as JSON in knowledge_items.procedure
                         procedures_raw = row_dict.get('procedures_json')
                         procedures = json.loads(procedures_raw) if procedures_raw else []
                     except json.JSONDecodeError:
@@ -3977,14 +3977,14 @@ def detect_languages(course, dry_run, force):
             # Detect for core loops
             if force:
                 query = """
-                    SELECT id, name, language FROM core_loops
+                    SELECT id, name, language FROM knowledge_items
                     WHERE topic_id IN (
                         SELECT id FROM topics WHERE course_code = ?
                     )
                 """
             else:
                 query = """
-                    SELECT id, name, language FROM core_loops
+                    SELECT id, name, language FROM knowledge_items
                     WHERE topic_id IN (
                         SELECT id FROM topics WHERE course_code = ?
                     ) AND language IS NULL
@@ -4025,7 +4025,7 @@ def detect_languages(course, dry_run, force):
                     # Update database
                     if not dry_run and (force or not current_lang):
                         db.conn.execute("""
-                            UPDATE core_loops SET language = ? WHERE id = ?
+                            UPDATE knowledge_items SET language = ? WHERE id = ?
                         """, (lang_info.name, loop_id))
                         updated_count += 1
 

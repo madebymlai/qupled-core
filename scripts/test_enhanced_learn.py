@@ -21,7 +21,7 @@ def test_enhanced_learn():
     # Call enhanced learn method
     response = tutor.learn(
         course_code="B006802",
-        core_loop_id="moore_machine_design",
+        knowledge_item_id="moore_machine_design",
         explain_concepts=True,
         depth="medium"
     )
