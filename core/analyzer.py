@@ -128,20 +128,22 @@ class ExerciseAnalyzer:
         return self.language.upper()
 
     def analyze_exercise(self, exercise_text: str, course_name: str,
-                        parent_context: Optional[str] = None) -> AnalysisResult:
+                        exercise_context: Optional[str] = None,
+                        is_sub_question: bool = False) -> AnalysisResult:
         """Analyze a single exercise.
 
         Args:
             exercise_text: Exercise text
             course_name: Course name for context
-            parent_context: Optional context from parent exercise (for sub-questions)
+            exercise_context: Optional context (parent context for subs, exercise summary for standalone)
+            is_sub_question: Whether this is a sub-question (affects prompt wording)
 
         Returns:
             AnalysisResult with classification
         """
         # Build prompt
         prompt = self._build_analysis_prompt(
-            exercise_text, course_name, parent_context
+            exercise_text, course_name, exercise_context, is_sub_question
         )
 
         # Call LLM
@@ -183,13 +185,15 @@ class ExerciseAnalyzer:
         )
 
     def _build_analysis_prompt(self, exercise_text: str, course_name: str,
-                               parent_context: Optional[str] = None) -> str:
+                               exercise_context: Optional[str] = None,
+                               is_sub_question: bool = False) -> str:
         """Build prompt for exercise analysis.
 
         Args:
             exercise_text: Exercise text
             course_name: Course name
-            parent_context: Optional context from parent exercise (for sub-questions)
+            exercise_context: Optional context (parent context for subs, exercise summary for standalone)
+            is_sub_question: Whether this is a sub-question (affects prompt wording)
 
         Returns:
             Prompt string
@@ -204,14 +208,24 @@ EXERCISE TEXT:
 ```
 """
 
-        if parent_context:
-            base_prompt += f"""
+        if exercise_context:
+            if is_sub_question:
+                base_prompt += f"""
 PARENT CONTEXT (background only):
 ```
-{parent_context[:1000]}
+{exercise_context[:1000]}
 ```
 
 This is background context. Name the knowledge item based on what THIS SUB-QUESTION specifically asks, not the parent context.
+"""
+            else:
+                base_prompt += f"""
+EXERCISE SUMMARY:
+```
+{exercise_context[:1000]}
+```
+
+This summarizes the exercise. Use it to understand the context, but name the knowledge item based on the core skill being tested.
 """
 
         # Build learning approach options from constants

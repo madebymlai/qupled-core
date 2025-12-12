@@ -90,8 +90,8 @@ class Exercise:
     parent_exercise_number: Optional[str] = None  # "2" if this is "2a"
     sub_question_marker: Optional[str] = None     # "a", "b", "c", "i", "ii", etc.
     is_sub_question: bool = False
-    # Parent context (LLM-generated summary of parent exercise setup)
-    parent_context: Optional[str] = None
+    # Exercise context (LLM-generated: parent context for subs, exercise summary for standalone)
+    exercise_context: Optional[str] = None
 
     def get_preview_text(self, max_length: int = 100) -> str:
         """Get a clean preview of the exercise text for display.
@@ -610,13 +610,16 @@ async def _get_sub_end_markers_parallel(
 # =============================================================================
 
 
-async def _get_context_summary_for_parent(
+async def _get_context_summary_for_exercise(
     exercise_num: str,
-    parent_text: str,
+    exercise_text: str,
+    has_sub_questions: bool,
     llm_manager: "LLMManager",
 ) -> Tuple[str, Optional[str]]:
-    """Call 5: Get context summary for one parent exercise."""
-    prompt = f"""Extract the shared context that sub-questions need from this parent exercise.
+    """Call 5: Get context summary for one exercise (parent or standalone)."""
+    if has_sub_questions:
+        # Parent exercise: extract shared context for sub-questions
+        prompt = f"""Extract the shared context that sub-questions need from this parent exercise.
 
 Good context: data values, parameters, scenario setup, definitions that sub-questions reference.
 Return null if sub-questions are independent and don't need shared info.
@@ -624,11 +627,30 @@ IMPORTANT: Return context_summary in ENGLISH, even if source is another language
 
 PARENT EXERCISE:
 \"\"\"
-{parent_text}
+{exercise_text}
 \"\"\"
 
 Return JSON:
 {{"context_summary": "shared context in English" or null}}"""
+    else:
+        # Standalone exercise: summarize what the exercise asks
+        prompt = f"""Summarize this exercise for context.
+
+Focus on:
+- The core skill/concept being tested
+- Key data values, parameters, or given information
+- What the student must do (calculate, explain, design, compare, etc.)
+
+Keep it concise - this summary helps understand what the exercise asks.
+IMPORTANT: Return summary in ENGLISH, even if source is another language.
+
+EXERCISE:
+\"\"\"
+{exercise_text}
+\"\"\"
+
+Return JSON:
+{{"context_summary": "concise exercise summary in English" or null}}"""
 
     try:
         def call_llm():
@@ -651,26 +673,28 @@ Return JSON:
 
 
 async def _get_context_summaries_parallel(
-    parents_with_subs: List[Tuple[str, str]],  # List of (exercise_num, parent_text)
+    exercises_for_context: List[Tuple[str, str, bool]],  # List of (exercise_num, exercise_text, has_sub_questions)
     llm_manager: "LLMManager",
 ) -> Dict[str, str]:
-    """Call 5: Get context summaries in parallel."""
-    if not parents_with_subs:
+    """Call 5: Get context summaries in parallel for all exercises."""
+    if not exercises_for_context:
         return {}
 
-    logger.info(f"Getting context summaries for {len(parents_with_subs)} parents in parallel (Call 5)...")
+    parent_count = sum(1 for _, _, has_subs in exercises_for_context if has_subs)
+    standalone_count = len(exercises_for_context) - parent_count
+    logger.info(f"Getting context summaries for {len(exercises_for_context)} exercises ({parent_count} parents, {standalone_count} standalone) in parallel (Call 5)...")
 
-    async def process_one(item: Tuple[str, str]) -> Tuple[str, Optional[str]]:
-        ex_num, parent_text = item
-        return await _get_context_summary_for_parent(ex_num, parent_text, llm_manager)
+    async def process_one(item: Tuple[str, str, bool]) -> Tuple[str, Optional[str]]:
+        ex_num, exercise_text, has_sub_questions = item
+        return await _get_context_summary_for_exercise(ex_num, exercise_text, has_sub_questions, llm_manager)
 
-    tasks = [process_one(item) for item in parents_with_subs]
+    tasks = [process_one(item) for item in exercises_for_context]
     results = await asyncio.gather(*tasks)
 
     # Filter out None results
     summaries_dict = {num: summary for num, summary in results if summary}
 
-    logger.info(f"Call 5 complete: got context summaries for {len(summaries_dict)}/{len(parents_with_subs)} parents")
+    logger.info(f"Call 5 complete: got context summaries for {len(summaries_dict)}/{len(exercises_for_context)} exercises")
 
     return summaries_dict
 
@@ -1282,7 +1306,7 @@ class ExerciseSplitter:
         2. _analyze_boundaries: end_pos + has_sub_questions (parallel per exercise)
         3. _get_sub_start_markers_parallel: Sub-question start markers (parallel, only if has_subs)
         4. _get_sub_end_markers_parallel: Sub-question end markers (parallel, only if has_subs)
-        5. _get_context_summaries_parallel: Context summaries (parallel, only if has_subs)
+        5. _get_context_summaries_parallel: Context summaries (parallel, for ALL exercises)
 
         Args:
             pdf_content: Extracted PDF content
@@ -1358,7 +1382,7 @@ class ExerciseSplitter:
                 standalone_count = len(boundaries) - len(boundaries_with_subs)
 
                 if standalone_count > 0:
-                    logger.info(f"Skipping Calls 3-5 for {standalone_count} standalone exercises")
+                    logger.info(f"Skipping Calls 3-4 for {standalone_count} standalone exercises (Call 5 runs for all)")
 
                 # Call 3: Sub-question start markers (parallel, only for exercises with subs)
                 if boundaries_with_subs:
@@ -1409,21 +1433,33 @@ class ExerciseSplitter:
                             if pos >= 0:
                                 ex.text = ex.text[:pos + len(end_marker)]
 
-            # Call 5: Context summaries (parallel, only for exercises with subs)
-            if second_pass_llm and boundaries_with_subs:
-                parents_for_call5 = [
-                    (b.number, full_text[b.start_pos:exercise_analysis[b.number].end_pos])
-                    for b in boundaries_with_subs
-                ]
+            # Call 5: Context summaries (parallel, for ALL exercises)
+            if second_pass_llm and exercise_analysis:
+                # Build list of all exercises: parents (has_sub_questions=True) + standalone (False)
+                boundaries_with_subs_numbers = {b.number for b in boundaries_with_subs}
+                exercises_for_call5 = []
+                for b in boundaries:
+                    if b.number in exercise_analysis:
+                        end_pos = exercise_analysis[b.number].end_pos
+                        exercise_text = full_text[b.start_pos:end_pos]
+                        has_subs = b.number in boundaries_with_subs_numbers
+                        exercises_for_call5.append((b.number, exercise_text, has_subs))
+
                 context_summaries = asyncio.run(
-                    _get_context_summaries_parallel(parents_for_call5, second_pass_llm)
+                    _get_context_summaries_parallel(exercises_for_call5, second_pass_llm)
                 )
-                # Apply context summaries to sub-questions
+                # Apply context summaries to exercises
                 for ex in exercises:
                     if ex.is_sub_question and ex.parent_exercise_number:
+                        # Sub-questions inherit parent context
                         ctx = context_summaries.get(ex.parent_exercise_number)
                         if ctx:
-                            ex.parent_context = ctx
+                            ex.exercise_context = ctx
+                    elif not ex.is_sub_question:
+                        # Standalone exercises get their own context
+                        ctx = context_summaries.get(str(ex.exercise_number))
+                        if ctx:
+                            ex.exercise_context = ctx
 
             # Enrich with page data and return
             exercises = self._enrich_with_page_data(exercises, pdf_content)
