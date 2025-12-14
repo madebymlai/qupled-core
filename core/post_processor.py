@@ -16,9 +16,10 @@ def group_items_by_skill(
     llm: LLMManager,
 ) -> list[list[dict]]:
     """
-    Group knowledge items that test the same skill using anonymous LLM approach.
+    Group knowledge items that test the same skill.
 
-    Items are anonymized (Item_1, Item_2) so LLM judges purely on exercises, not names.
+    LLM sees item names + exercises to judge skill equivalence.
+    Names help distinguish different skills, exercises help catch synonyms.
 
     Args:
         items: List of dicts with keys: name, exercises (list of exercise snippets)
@@ -49,15 +50,12 @@ def group_items_by_skill(
         logger.info("No exercises provided, skipping skill grouping")
         return []
 
-    # Build anonymous item mapping: Item_N -> actual item
-    item_mapping: dict[str, dict] = {}
-    for i, item in enumerate(unique_items, 1):
-        item_mapping[f"Item_{i}"] = item
-
-    # Build prompt with exercises
+    # Build prompt with item names + exercises
+    # Names help distinguish different skills, exercises help catch synonyms
     items_text = []
-    for item_id, item in item_mapping.items():
-        item_text = f"- {item_id}"
+    for item in unique_items:
+        name = item.get("name", "unknown")
+        item_text = f"- {name}"
         if item.get("exercises"):
             exercise_snippets = [f'    "{ex}"' for ex in item["exercises"]]
             if exercise_snippets:
@@ -79,11 +77,14 @@ DIFFERENT SKILLS (should NOT group):
 - Mastering one gives only partial mastery of the other
 - They would need separate study sessions
 
-Return JSON: {{"groups": [["Item_1", "Item_2"], ["Item_3", "Item_4"]]}}
+Return JSON: {{"groups": [["item_name_1", "item_name_2"], ["item_name_3", "item_name_4"]]}}
 Return {{"groups": []}} if no items test the same skill."""
 
+    # Build name -> item lookup
+    name_to_item = {item.get("name", ""): item for item in unique_items}
+
     try:
-        logger.info(f"Grouping {len(unique_items)} items by skill (anonymous approach)")
+        logger.info(f"Grouping {len(unique_items)} items by skill")
         response = llm.generate(prompt=prompt, temperature=0.0, json_mode=True)
 
         if not response or not response.text:
@@ -105,12 +106,12 @@ Return {{"groups": []}} if no items test the same skill."""
             logger.info("No skill groups detected")
             return []
 
-        # Convert anonymous IDs back to actual items
+        # Convert item names back to actual items
         result_groups: list[list[dict]] = []
         for group in groups:
             if not isinstance(group, list) or len(group) < 2:
                 continue
-            group_items = [item_mapping[item_id] for item_id in group if item_id in item_mapping]
+            group_items = [name_to_item[name] for name in group if name in name_to_item]
             if len(group_items) >= 2:
                 result_groups.append(group_items)
                 logger.info(f"Skill group: {[item['name'] for item in group_items]}")
