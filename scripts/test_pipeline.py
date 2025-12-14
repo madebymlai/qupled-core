@@ -25,6 +25,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
+import yaml
+
 # Add examina to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -32,6 +34,71 @@ from core.pdf_processor import PDFProcessor, PDFContent
 from core.exercise_splitter import ExerciseSplitter, Exercise
 from core.analyzer import ExerciseAnalyzer
 from core.post_processor import group_items_by_skill, get_canonical_name
+
+
+def generate_item_description(name: str, exercises: list[dict], llm) -> str:
+    """Generate skill-only description from exercises."""
+    if not exercises:
+        return ""
+
+    exercises_text = []
+    for ex in exercises[:6]:
+        if ex.get("is_sub"):
+            exercises_text.append(ex.get("text", ""))
+        else:
+            exercises_text.append(ex.get("context", "") or ex.get("text", ""))
+
+    is_single = len(exercises_text) == 1
+    exercise_word = "exercise" if is_single else "exercises"
+    this_these = "this" if is_single else "these"
+
+    prompt = f"""Describe the skill tested by {this_these} {exercise_word}.
+
+{"Exercise" if is_single else "Exercises"}:
+{chr(10).join(f"- {t}" for t in exercises_text)}
+
+Write a description that:
+- Includes the specific concept tested
+- Excludes facts, data, scenarios, or question format
+- Would fit any exercise testing this specific concept
+
+**Be concise.**
+**NO preambles about skill or exercise.**
+
+Return JSON: {{"description": "..."}}"""
+
+    try:
+        response = llm.generate(prompt=prompt, temperature=0.0, json_mode=True)
+        result = json.loads(response.text)
+        return result.get("description", exercises_text[0][:100] if exercises_text else "")
+    except Exception:
+        return exercises_text[0][:100] if exercises_text else ""
+
+
+def group_items_by_description(items: list[dict], llm) -> list[list[int]]:
+    """Group items by skill using descriptions only (anonymous IDs)."""
+    if len(items) < 2:
+        return []
+
+    items_text = [f"- Item {i+1}: {item['description']}" for i, item in enumerate(items)]
+
+    prompt = f"""Which describe the same task?
+
+{chr(10).join(items_text)}
+
+Same task = **SAME** topic AND **SAME** action.
+Different topics are NEVER the same task, even with same action.
+
+Return JSON: {{"groups": [[1, 2]]}}
+Return {{"groups": []}} if all different."""
+
+    try:
+        response = llm.generate(prompt=prompt, temperature=0.0, json_mode=True)
+        result = json.loads(response.text)
+        groups = result.get("groups", [])
+        return [[idx - 1 for idx in group] for group in groups if len(group) >= 2]
+    except Exception:
+        return []
 from models.llm_manager import LLMManager
 
 # =============================================================================
@@ -52,29 +119,22 @@ COURSES = {
     "SO-EXAMS": "Sistemi Operativi",
 }
 
-GOLDEN_TESTS = [
-    {
-        "path": "ADE-EXAMS/Prova intermedia 2024-01-29 - SOLUZIONI v4.pdf",
-        "expected": {"total": 13, "parents": 1, "subs": 12, "with_solutions": 13},
-    },
-    {
-        "path": "ADE-EXAMS/Compito - Prima Prova Intermedia 10-02-2020 - Soluzioni.pdf",
-        "expected": {"total": 11, "parents": 2, "subs": 9, "with_solutions": 11},
-    },
-    {
-        "path": "AL-EXAMS/20120612 - appello.pdf",
-        "expected": {"total": 10, "parents": 0, "subs": 10, "with_solutions": 0},
-    },
-    {
-        "path": "SO-EXAMS/SOfebbraio2020.pdf",
-        "expected": {"total": 21, "parents": 6, "subs": 15, "with_solutions": 0},
-    },
-]
+GOLDEN_TESTS_FILE = Path(__file__).parent / "golden-tests.yaml"
+
+def load_golden_tests() -> tuple[list[dict], int]:
+    """Load golden tests from YAML config file."""
+    if not GOLDEN_TESTS_FILE.exists():
+        print(f"Warning: {GOLDEN_TESTS_FILE} not found, using empty list")
+        return [], 1
+
+    with open(GOLDEN_TESTS_FILE) as f:
+        config = yaml.safe_load(f)
+
+    tolerance = config.get("tolerance", 1)
+    tests = config.get("tests", [])
+    return tests, tolerance
 
 VALID_APPROACHES = ["procedural", "conceptual", "factual", "analytical", "hybrid"]
-
-# Golden test tolerance for LLM non-determinism
-GOLDEN_TOLERANCE = 1
 
 # =============================================================================
 # ANSI Colors
@@ -122,6 +182,7 @@ class TestResult:
     """Result of testing a single PDF."""
     pdf_path: str
     status: str = ""  # PASS, FAIL, ERROR
+    error_stage: str = ""  # parse, split, analyze, full
     pages: int = 0
     language: str = ""
     exercises: int = 0
@@ -195,9 +256,11 @@ class PipelineTester:
 
         except AssertionError as e:
             result.status = "FAIL"
+            result.error_stage = "parse"
             result.error = str(e)
         except Exception as e:
             result.status = "ERROR"
+            result.error_stage = "parse"
             result.error = f"Parse failed: {str(e)}"
 
         result.duration = time.time() - start
@@ -254,9 +317,11 @@ class PipelineTester:
 
         except AssertionError as e:
             result.status = "FAIL"
+            result.error_stage = "split"
             result.error = str(e)
         except Exception as e:
             result.status = "ERROR"
+            result.error_stage = "split"
             result.error = f"Split failed: {str(e)}"
 
         result.duration = time.time() - start
@@ -297,6 +362,7 @@ class PipelineTester:
 
         except Exception as e:
             result.status = "ERROR"
+            result.error_stage = "analyze"
             result.error = f"Analyze failed: {str(e)}"
 
         result.duration += time.time() - start
@@ -337,28 +403,32 @@ class PipelineTester:
                     "snippet": snippet,
                 })
 
-            # Build items for grouping
-            items = [
-                {"name": name, "exercises": [e["snippet"] for e in exs]}
-                for name, exs in ki_exercises.items()
-            ]
+            # Build items with descriptions (new approach)
+            items = []
+            for name, exs in ki_exercises.items():
+                description = generate_item_description(name, exs, self.llm)
+                items.append({
+                    "name": name,
+                    "description": description,
+                    "exercises": exs,
+                })
 
             if len(items) >= 2:
-                # Run skill grouping
-                groups = group_items_by_skill(items, self.llm)
+                # Run skill grouping with descriptions (anonymous IDs)
+                group_indices = group_items_by_description(items, self.llm)
 
                 # Format skill groups with exercise context
-                for group_items in groups:
-                    group_names = [item["name"] for item in group_items]
+                for indices in group_indices:
+                    group_items_list = [items[i] for i in indices]
+                    group_names = [item["name"] for item in group_items_list]
                     canonical = get_canonical_name(group_names, self.llm)
 
                     members = []
-                    for item in group_items:
-                        name = item["name"]
-                        exercises = ki_exercises.get(name, [])
+                    for item in group_items_list:
                         members.append({
-                            "name": name,
-                            "exercises": exercises,
+                            "name": item["name"],
+                            "description": item["description"],
+                            "exercises": item["exercises"],
                         })
 
                     result.skill_groups.append({
@@ -370,6 +440,7 @@ class PipelineTester:
 
         except Exception as e:
             result.status = "ERROR"
+            result.error_stage = "full"
             result.error = f"Full pipeline failed: {str(e)}"
 
         result.duration += time.time() - start
@@ -414,6 +485,8 @@ class TestRunner:
         self._interrupted = False
         self._start_time = None
         self._times = []  # Track PDF processing times for ETA
+        self._total_llm_hits = 0
+        self._total_llm_misses = 0
 
         # Set up interrupt handler
         signal.signal(signal.SIGINT, self._handle_interrupt)
@@ -446,8 +519,11 @@ class TestRunner:
             course_name = self.tester._get_course_name(course_folder)
             self._print_progress(i, total, pdf_path)
 
-            # Reset cache stats for per-PDF tracking
+            # Accumulate and reset cache stats for per-PDF tracking
             if self.tester.llm:
+                stats = self.tester.llm.get_cache_stats()
+                self._total_llm_hits += stats['hits']
+                self._total_llm_misses += stats['misses']
                 self.tester.llm.reset_cache_stats()
 
             # Run appropriate test level
@@ -465,6 +541,12 @@ class TestRunner:
 
             if not self.args.quiet:
                 self._print_result(result)
+
+        # Capture final PDF's LLM stats
+        if self.tester.llm:
+            stats = self.tester.llm.get_cache_stats()
+            self._total_llm_hits += stats['hits']
+            self._total_llm_misses += stats['misses']
 
         # Print summary
         self.summary.duration = time.time() - self._start_time
@@ -487,9 +569,14 @@ class TestRunner:
         self._start_time = time.time()
         print(bold("=== GOLDEN REGRESSION TESTS ===\n"))
 
+        golden_tests, tolerance = load_golden_tests()
+        if not golden_tests:
+            print(red("No golden tests found!"))
+            return 1
+
         all_passed = True
 
-        for test in GOLDEN_TESTS:
+        for test in golden_tests:
             pdf_path = TEST_DATA_PATH / test["path"]
             if not pdf_path.exists():
                 print(red(f"MISSING: {test['path']}"))
@@ -524,7 +611,7 @@ class TestRunner:
                 exp_val = expected[key]
                 act_val = actual[key]
                 diff = abs(exp_val - act_val)
-                if diff > GOLDEN_TOLERANCE:
+                if diff > tolerance:
                     errors.append(f"{key}: expected {exp_val}, got {act_val}")
 
             if errors:
@@ -734,10 +821,36 @@ class TestRunner:
         """Print test summary."""
         print(f"\n{bold('=== SUMMARY ===')}")
         print(f"Passed: {green(str(self.summary.passed))}/{self.summary.total}")
-        print(f"Failed: {red(str(self.summary.failed))}/{self.summary.total}")
-        if self.summary.errors > 0:
-            print(f"Errors: {red(str(self.summary.errors))}/{self.summary.total}")
+
+        # Show failures with stage breakdown
+        failed_results = [r for r in self.summary.results if r.status != "PASS"]
+        if failed_results:
+            # Group by error stage
+            by_stage = {}
+            for r in failed_results:
+                stage = r.error_stage or "unknown"
+                if stage not in by_stage:
+                    by_stage[stage] = []
+                by_stage[stage].append(r)
+
+            total_failed = len(failed_results)
+            stage_summary = ", ".join(f"{len(v)} {k}" for k, v in sorted(by_stage.items()))
+            print(f"Failed: {red(str(total_failed))}/{self.summary.total} ({stage_summary})")
         print(f"Duration: {self.summary.duration:.1f}s")
+
+        # Aggregate stats
+        total_exercises = sum(r.exercises for r in self.summary.results)
+        total_subs = sum(r.sub_questions for r in self.summary.results)
+        passed_count = len([r for r in self.summary.results if r.status == "PASS"])
+        if passed_count > 0:
+            avg_exercises = total_exercises / passed_count
+            print(f"\nExercises: {total_exercises} total ({total_subs} subs), avg {avg_exercises:.1f}/PDF")
+
+        # LLM stats (accumulated across all PDFs)
+        total_llm = self._total_llm_hits + self._total_llm_misses
+        if total_llm > 0:
+            hit_rate = (self._total_llm_hits / total_llm) * 100
+            print(f"LLM calls: {total_llm} ({self._total_llm_hits} cached, {self._total_llm_misses} new, {hit_rate:.0f}% hit rate)")
 
         if self.summary.warnings:
             print(f"\n{yellow('Warnings')}:")
@@ -879,10 +992,15 @@ class TestRunner:
                         for sub in subs:
                             sub_sol = " [+sol]" if sub["has_solution"] else ""
                             prefix = f"    - {sub['number']}:{sub_sol} "
-                            wrapped = textwrap.fill(sub['text_preview'], width=80,
+                            wrapped = textwrap.fill(sub['text_preview'], width=78,
                                                     initial_indent=prefix,
-                                                    subsequent_indent="        ")
-                            lines.append(wrapped)
+                                                    subsequent_indent=" " * len(prefix))
+                            # Add continuation marker at end of lines that wrap
+                            wrap_lines = wrapped.split('\n')
+                            if len(wrap_lines) > 1:
+                                wrap_lines = [l + "-" if i < len(wrap_lines) - 1 else l
+                                              for i, l in enumerate(wrap_lines)]
+                            lines.append('\n'.join(wrap_lines))
 
                     # Print standalone exercises (no subs)
                     for parent_ex in standalone:
@@ -891,10 +1009,15 @@ class TestRunner:
                             continue  # Already printed as grouped
                         sol = " [+sol]" if parent_ex["has_solution"] else ""
                         prefix = f"  - Ex {parent_num}:{sol} "
-                        wrapped = textwrap.fill(parent_ex['text_preview'], width=80,
+                        wrapped = textwrap.fill(parent_ex['text_preview'], width=78,
                                                 initial_indent=prefix,
-                                                subsequent_indent="      ")
-                        lines.append(wrapped)
+                                                subsequent_indent=" " * len(prefix))
+                        # Add continuation marker at end of lines that wrap
+                        wrap_lines = wrapped.split('\n')
+                        if len(wrap_lines) > 1:
+                            wrap_lines = [l + "-" if i < len(wrap_lines) - 1 else l
+                                          for i, l in enumerate(wrap_lines)]
+                        lines.append('\n'.join(wrap_lines))
                 lines.append("")
 
             # Mode: analyze - exercises with KI names, no skill groups
