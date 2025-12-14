@@ -39,15 +39,17 @@ class LLMResponse:
 class LLMManager:
     """Manages LLM interactions for Examina."""
 
-    def __init__(self, provider: str = "deepseek", base_url: Optional[str] = None):
+    def __init__(self, provider: str = "deepseek", base_url: Optional[str] = None, quiet: bool = False):
         """Initialize LLM manager.
 
         Args:
             provider: LLM provider ("ollama", "anthropic", "openai", "groq", "deepseek")
             base_url: Base URL for API (for Ollama)
+            quiet: If True, suppress cache hit/miss messages (use get_cache_stats() for summary)
         """
         self.provider = provider
         self.base_url = base_url or Config.OLLAMA_BASE_URL
+        self.quiet = quiet
 
         # Model selection
         if provider == "groq":
@@ -159,7 +161,8 @@ class LLMManager:
 
             # Cache hit!
             self.cache_hits += 1
-            print(f"  [CACHE HIT] Using cached response")
+            if not self.quiet:
+                print(f"  [CACHE HIT] Using cached response")
 
             return LLMResponse(
                 text=cache_data.get("text", ""),
@@ -198,7 +201,8 @@ class LLMManager:
             with open(cache_file, 'w') as f:
                 json.dump(cache_data, f, indent=2)
 
-            print(f"  [CACHE MISS] Response cached for future use")
+            if not self.quiet:
+                print(f"  [CACHE MISS] Response cached for future use")
             self.cache_misses += 1
 
         except Exception as e:
@@ -214,11 +218,16 @@ class LLMManager:
         hit_rate = (self.cache_hits / total * 100) if total > 0 else 0
 
         return {
-            "cache_hits": self.cache_hits,
-            "cache_misses": self.cache_misses,
-            "total_requests": total,
-            "hit_rate_percent": round(hit_rate, 2)
+            "hits": self.cache_hits,
+            "misses": self.cache_misses,
+            "total": total,
+            "hit_rate": round(hit_rate, 2)
         }
+
+    def reset_cache_stats(self):
+        """Reset cache statistics counters."""
+        self.cache_hits = 0
+        self.cache_misses = 0
 
     def get_rate_limit_stats(self, provider: Optional[str] = None) -> Dict[str, Any]:
         """Get rate limit statistics.
@@ -1070,37 +1079,47 @@ class LLMManager:
                     messages.append({"role": "system", "content": system})
                 messages.append({"role": "user", "content": prompt})
 
+                # Reasoner model doesn't support temperature or json_mode
+                is_reasoner = model == "deepseek-reasoner"
+
                 payload = {
                     "model": model,
                     "messages": messages,
-                    "temperature": temperature,
                 }
+
+                if not is_reasoner:
+                    payload["temperature"] = temperature
+                    if json_mode:
+                        payload["response_format"] = {"type": "json_object"}
 
                 if max_tokens:
                     payload["max_tokens"] = max_tokens
-
-                if json_mode:
-                    payload["response_format"] = {"type": "json_object"}
 
                 headers = {
                     "Authorization": f"Bearer {Config.DEEPSEEK_API_KEY}",
                     "Content-Type": "application/json"
                 }
 
-                response = requests.post(url, json=payload, headers=headers, timeout=60)
+                response = requests.post(url, json=payload, headers=headers, timeout=60 if not is_reasoner else 300)
                 response.raise_for_status()
 
                 result = response.json()
-                text = result["choices"][0]["message"]["content"]
+                message = result["choices"][0]["message"]
+                text = message["content"]
+
+                # Capture reasoning for reasoner model
+                metadata = {
+                    "usage": result.get("usage"),
+                    "finish_reason": result["choices"][0].get("finish_reason"),
+                }
+                if is_reasoner and "reasoning_content" in message:
+                    metadata["reasoning"] = message["reasoning_content"]
 
                 llm_response = LLMResponse(
                     text=text,
                     model=model,
                     success=True,
-                    metadata={
-                        "usage": result.get("usage"),
-                        "finish_reason": result["choices"][0].get("finish_reason"),
-                    }
+                    metadata=metadata
                 )
 
                 # Cache successful response

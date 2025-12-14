@@ -1777,3 +1777,58 @@ No markdown code blocks, just JSON."""
         except Exception as e:
             print(f"[ERROR] Clustering failed: {e}")
             return None
+
+
+def generate_item_description(
+    exercises: list[dict],
+    llm: LLMManager,
+) -> str:
+    """
+    Generate a skill description from exercises.
+
+    Uses exercise text to create a concise description of what skill is tested.
+    Sub-questions use their text only (no parent context to avoid over-grouping).
+
+    Args:
+        exercises: List of exercise dicts with keys: text, is_sub, context
+        llm: LLMManager instance
+
+    Returns:
+        Description string (falls back to first exercise text on error)
+    """
+    if not exercises:
+        return ""
+
+    # Build text from exercises (cap at 6)
+    exercises_text = []
+    for ex in exercises[:6]:
+        context = ex.get("context", "")
+        text = ex.get("text", "")
+        if ex.get("is_sub") and context:
+            # Sub-question: show parent context + question
+            exercises_text.append(f"Context: {context}\nQuestion: {text}")
+        else:
+            # Standalone: just the context summary
+            exercises_text.append(context or text)
+
+    exercises_text = [t for t in exercises_text if t]
+    if not exercises_text:
+        return ""
+
+    system = "You are a teacher identifying what concept students need to learn."
+
+    prompt = f"""What skill/concept is being tested? Take your time and think carefully.
+
+{chr(10).join(f"- {t}" for t in exercises_text)}
+
+Return JSON: {{"description": "short description"}}"""
+
+    try:
+        response = llm.generate(prompt=prompt, model="deepseek-reasoner", system=system)
+        if response and response.text:
+            result = json.loads(response.text)
+            return result.get("description", exercises_text[0][:100])
+        return exercises_text[0][:100]
+    except Exception as e:
+        logger.warning(f"Description generation failed: {e}")
+        return exercises_text[0][:100] if exercises_text else ""

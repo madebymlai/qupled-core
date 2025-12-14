@@ -79,6 +79,7 @@ class Config:
 
     # DeepSeek Settings
     DEEPSEEK_MODEL = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")  # DeepSeek v3 (671B MoE)
+    DEEPSEEK_REASONER_MODEL = os.getenv("DEEPSEEK_REASONER_MODEL", "deepseek-reasoner")  # R1 with CoT
 
     # Processing Settings
     PDF_MAX_SIZE_MB = 50

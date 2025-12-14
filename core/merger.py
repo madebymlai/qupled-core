@@ -12,67 +12,6 @@ from models.llm_manager import LLMManager
 logger = logging.getLogger(__name__)
 
 
-def generate_item_description(
-    exercises: list[dict],
-    llm: LLMManager,
-) -> str:
-    """
-    Generate a skill description from exercises.
-
-    Uses exercise text to create a concise description of what skill is tested.
-    Sub-questions use their text only (no parent context to avoid over-grouping).
-
-    Args:
-        exercises: List of exercise dicts with keys: text, is_sub, context
-        llm: LLMManager instance
-
-    Returns:
-        Description string (falls back to first exercise text on error)
-    """
-    if not exercises:
-        return ""
-
-    # Build text from exercises (cap at 6)
-    exercises_text = []
-    for ex in exercises[:6]:
-        if ex.get("is_sub"):
-            exercises_text.append(ex.get("text", ""))
-        else:
-            exercises_text.append(ex.get("context", "") or ex.get("text", ""))
-
-    exercises_text = [t for t in exercises_text if t]
-    if not exercises_text:
-        return ""
-
-    is_single = len(exercises_text) == 1
-    exercise_word = "exercise" if is_single else "exercises"
-    this_these = "this" if is_single else "these"
-
-    prompt = f"""Describe the skill tested by {this_these} {exercise_word}.
-
-{"Exercise" if is_single else "Exercises"}:
-{chr(10).join(f"- {t}" for t in exercises_text)}
-
-Write a description that:
-- Includes the specific concept tested
-- Excludes facts, data, scenarios, or question format
-- Would fit any exercise testing this specific concept
-
-**Start with action verb (define, state, compute, find, explain, apply, etc.)**
-
-Return JSON: {{"description": "..."}}"""
-
-    try:
-        response = llm.generate(prompt=prompt, temperature=0.0, json_mode=True)
-        if response and response.text:
-            result = json.loads(response.text)
-            return result.get("description", exercises_text[0][:100])
-        return exercises_text[0][:100]
-    except Exception as e:
-        logger.warning(f"Description generation failed: {e}")
-        return exercises_text[0][:100] if exercises_text else ""
-
-
 def group_items(
     items: list[dict],
     llm: LLMManager,
@@ -102,25 +41,20 @@ def group_items(
     # Build prompt with anonymous IDs - LLM never sees names
     items_text = [f"- Item {i+1}: {item['description']}" for i, item in enumerate(items)]
 
-    prompt = f"""Which describe the same task?
+    system = "You are a teacher grouping concepts for students to study."
+
+    prompt = f"""Which test the same concept? Take your time and think carefully.
 
 {chr(10).join(items_text)}
 
-Group only if: **SAME** topic AND **SAME** task type.
-
-Topic = the specific concept being tested
-- Related concepts are still different topics
-
-Theoretical ≠ Practical (different task types)
-- Theoretical: define, explain, state, describe
-- Practical: compute, calculate, find, apply, solve
+Same concept = would go on the same flashcard/study topic.
 
 Return JSON: {{"reasoning": "...", "groups": [[1, 2]]}}
 Return {{"reasoning": "...", "groups": []}} if all different."""
 
     try:
         logger.info(f"Grouping {len(items)} items by description")
-        response = llm.generate(prompt=prompt, temperature=0.0, json_mode=True)
+        response = llm.generate(prompt=prompt, model="deepseek-reasoner", system=system)
 
         if not response or not response.text:
             logger.warning("Empty response from grouping LLM call")
