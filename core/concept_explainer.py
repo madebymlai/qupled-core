@@ -3,15 +3,15 @@ Concept explainer module for foundational learning.
 Identifies prerequisites and generates deep explanations.
 """
 
-from typing import List, Dict, Any, Optional
+from typing import List, Optional
 from dataclasses import dataclass
 from models.llm_manager import LLMManager
-from storage.database import Database
 
 
 @dataclass
 class Concept:
     """Represents a foundational concept."""
+
     name: str
     description: str
     importance: int  # 1=required, 2=helpful, 3=optional
@@ -23,6 +23,7 @@ class Concept:
 @dataclass
 class ConceptExplanation:
     """Generated explanation for a concept."""
+
     concept_name: str
     explanation: str
     prerequisites: List[str]
@@ -44,18 +45,18 @@ class ConceptExplainer:
                 examples=[
                     "Traffic light: states = {Red, Yellow, Green}",
                     "Vending machine: states = {Idle, CoinInserted, DispensingItem}",
-                    "Light switch: states = {On, Off}"
+                    "Light switch: states = {On, Off}",
                 ],
                 analogies=[
                     "Like a simple robot that follows a flowchart",
                     "Like a game character with different modes (idle, running, jumping)",
-                    "Like a door that can be open or closed, nothing in between"
+                    "Like a door that can be open or closed, nothing in between",
                 ],
                 common_misconceptions=[
                     "FSMs can remember past events (they only know current state)",
                     "FSMs can count to infinity (they have finite states)",
-                    "FSMs are only for hardware (used in software, protocols, UIs too)"
-                ]
+                    "FSMs are only for hardware (used in software, protocols, UIs too)",
+                ],
             ),
             Concept(
                 name="Moore vs Mealy Machines",
@@ -65,19 +66,19 @@ class ConceptExplainer:
                     "Moore: Traffic light (output = light color, depends only on state)",
                     "Mealy: Vending machine (output = 'dispense item', depends on coin input)",
                     "Moore: Digital clock display (time shown = current state)",
-                    "Mealy: ATM (output depends on button pressed + current screen)"
+                    "Mealy: ATM (output depends on button pressed + current screen)",
                 ],
                 analogies=[
                     "Moore: Actor that wears different costumes (state) and audience sees costume",
                     "Mealy: Actor that responds differently based on costume AND what you say",
                     "Moore: Room with colored walls (you see color = state)",
-                    "Mealy: Echo chamber that modifies your voice based on where you stand AND what you say"
+                    "Mealy: Echo chamber that modifies your voice based on where you stand AND what you say",
                 ],
                 common_misconceptions=[
                     "Moore machines are more powerful (they're equivalent in expressiveness)",
                     "Mealy machines are always better (Moore can be simpler for some problems)",
-                    "Outputs in Moore machines can't change (they change with state transitions)"
-                ]
+                    "Outputs in Moore machines can't change (they change with state transitions)",
+                ],
             ),
             Concept(
                 name="State Transitions",
@@ -86,20 +87,19 @@ class ConceptExplainer:
                 examples=[
                     "Light switch: if state=Off AND input=press → state=On",
                     "Password checker: if state=2CharsEntered AND input=correctChar → state=3CharsEntered",
-                    "Elevator: if state=Floor2 AND input=buttonFloor5 → state=MovingUp"
+                    "Elevator: if state=Floor2 AND input=buttonFloor5 → state=MovingUp",
                 ],
                 analogies=[
                     "Like rules in a board game: if you're on space X and roll Y, move to space Z",
-                    "Like choosing paths in a 'choose your own adventure' book"
+                    "Like choosing paths in a 'choose your own adventure' book",
                 ],
                 common_misconceptions=[
                     "Transitions happen automatically (they need triggers/inputs)",
                     "Multiple states can be active (only one state at a time)",
-                    "Transitions are instantaneous (in hardware they take time)"
-                ]
-            )
+                    "Transitions are instantaneous (in hardware they take time)",
+                ],
+            ),
         ],
-
         "mealy_machine_design": [
             Concept(
                 name="Finite State Machine (FSM)",
@@ -107,7 +107,7 @@ class ConceptExplainer:
                 importance=1,
                 examples=["Traffic light controller", "Vending machine", "Elevator controller"],
                 analogies=["Like a simple robot following a flowchart"],
-                common_misconceptions=["FSMs can remember unlimited history"]
+                common_misconceptions=["FSMs can remember unlimited history"],
             ),
             Concept(
                 name="Moore vs Mealy Machines",
@@ -115,13 +115,12 @@ class ConceptExplainer:
                 importance=1,
                 examples=[
                     "Mealy: ATM (output depends on button + screen state)",
-                    "Moore: Digital clock (output = time shown = state)"
+                    "Moore: Digital clock (output = time shown = state)",
                 ],
                 analogies=["Mealy: reactive assistant (responds to you based on context)"],
-                common_misconceptions=["Mealy is always more efficient than Moore"]
-            )
+                common_misconceptions=["Mealy is always more efficient than Moore"],
+            ),
         ],
-
         "conversione_mealy_moore": [
             Concept(
                 name="Moore vs Mealy Equivalence",
@@ -129,7 +128,7 @@ class ConceptExplainer:
                 importance=1,
                 examples=["Mealy with 3 states → Moore with 3-9 states (depends on transitions)"],
                 analogies=["Like translating between languages: meaning preserved, words differ"],
-                common_misconceptions=["Conversion always creates more states"]
+                common_misconceptions=["Conversion always creates more states"],
             ),
             Concept(
                 name="Output Timing",
@@ -137,13 +136,12 @@ class ConceptExplainer:
                 importance=2,
                 examples=[
                     "Moore: Output stable for entire clock cycle",
-                    "Mealy: Output can change within clock cycle"
+                    "Mealy: Output can change within clock cycle",
                 ],
                 analogies=["Moore: Sign that shows one message per room"],
-                common_misconceptions=["Faster always means better"]
-            )
+                common_misconceptions=["Faster always means better"],
+            ),
         ],
-
         "minimizzazione_con_tabella_delle_implicazioni": [
             Concept(
                 name="State Equivalence",
@@ -151,14 +149,14 @@ class ConceptExplainer:
                 importance=1,
                 examples=[
                     "States A and B both output '1' and both go to C on input '0'",
-                    "If A and B behave identically for all possible input sequences, they're equivalent"
+                    "If A and B behave identically for all possible input sequences, they're equivalent",
                 ],
                 analogies=[
                     "Like two identical doors: if they look the same and lead to same places, keep only one"
                 ],
                 common_misconceptions=[
                     "States with same output are always equivalent (transitions matter too)"
-                ]
+                ],
             ),
             Concept(
                 name="Implication Table Method",
@@ -166,17 +164,14 @@ class ConceptExplainer:
                 importance=1,
                 examples=[
                     "Compare all state pairs (A-B, A-C, B-C, etc.)",
-                    "Mark pairs as different if outputs differ or if they lead to different states"
+                    "Mark pairs as different if outputs differ or if they lead to different states",
                 ],
                 analogies=[
                     "Like playing 'spot the difference' game: mark everything that differs, what remains is same"
                 ],
-                common_misconceptions=[
-                    "One pass is enough (need to iterate until no changes)"
-                ]
-            )
+                common_misconceptions=["One pass is enough (need to iterate until no changes)"],
+            ),
         ],
-
         # Linear Algebra
         "gauss_elimination": [
             Concept(
@@ -185,7 +180,7 @@ class ConceptExplainer:
                 importance=1,
                 examples=["2x + 3y = 8 and x - y = 1"],
                 analogies=["Like finding intersection of lines on a graph"],
-                common_misconceptions=["Systems always have exactly one solution"]
+                common_misconceptions=["Systems always have exactly one solution"],
             ),
             Concept(
                 name="Row Operations",
@@ -193,10 +188,9 @@ class ConceptExplainer:
                 importance=1,
                 examples=["Row2 = Row2 - 2*Row1"],
                 analogies=["Like simplifying fractions: looks different, same value"],
-                common_misconceptions=["Order of operations doesn't matter"]
-            )
+                common_misconceptions=["Order of operations doesn't matter"],
+            ),
         ],
-
         "determinante_matrice": [
             Concept(
                 name="Matrix Determinant",
@@ -204,10 +198,9 @@ class ConceptExplainer:
                 importance=1,
                 examples=["det([[1,2],[3,4]]) = 1*4 - 2*3 = -2"],
                 analogies=["Like checking if a transformation squishes space to zero volume"],
-                common_misconceptions=["Determinant measures matrix size"]
+                common_misconceptions=["Determinant measures matrix size"],
             )
         ],
-
         # Concurrent Programming
         "sincronizzazione_semafori": [
             Concept(
@@ -215,8 +208,10 @@ class ConceptExplainer:
                 description="Bug where program behavior depends on timing of uncontrolled events",
                 importance=1,
                 examples=["Two threads incrementing shared counter without locks"],
-                analogies=["Like two people editing same document simultaneously, changes conflict"],
-                common_misconceptions=["Race conditions are rare in practice"]
+                analogies=[
+                    "Like two people editing same document simultaneously, changes conflict"
+                ],
+                common_misconceptions=["Race conditions are rare in practice"],
             ),
             Concept(
                 name="Semaphore",
@@ -224,9 +219,9 @@ class ConceptExplainer:
                 importance=1,
                 examples=["Binary semaphore (mutex): 0 or 1", "Counting semaphore: 0 to N"],
                 analogies=["Like a ticket system: wait() takes ticket, signal() returns ticket"],
-                common_misconceptions=["Semaphores prevent all deadlocks"]
-            )
-        ]
+                common_misconceptions=["Semaphores prevent all deadlocks"],
+            ),
+        ],
     }
 
     def __init__(self, llm_manager: Optional[LLMManager] = None, language: str = "en"):
@@ -253,7 +248,7 @@ class ConceptExplainer:
             List of prerequisite concepts
         """
         # Normalize name for lookup
-        normalized_name = knowledge_item_name.lower().replace(' ', '_')
+        normalized_name = knowledge_item_name.lower().replace(" ", "_")
 
         # Try direct match
         if normalized_name in self.CONCEPT_HIERARCHY:
@@ -268,10 +263,7 @@ class ConceptExplainer:
         return []
 
     def explain_concept(
-        self,
-        concept: Concept,
-        depth: str = "medium",
-        include_examples: bool = True
+        self, concept: Concept, depth: str = "medium", include_examples: bool = True
     ) -> str:
         """Generate detailed explanation for a concept.
 
@@ -286,11 +278,7 @@ class ConceptExplainer:
         sections = []
 
         # Header
-        importance_labels = {
-            1: "REQUIRED",
-            2: "HELPFUL",
-            3: "OPTIONAL"
-        }
+        importance_labels = {1: "REQUIRED", 2: "HELPFUL", 3: "OPTIONAL"}
         importance = importance_labels.get(concept.importance, "REQUIRED")
         sections.append(f"**{concept.name}** [{importance}]")
         sections.append(f"{concept.description}")
@@ -319,11 +307,7 @@ class ConceptExplainer:
 
         return "\n".join(sections)
 
-    def explain_prerequisites(
-        self,
-        knowledge_item_name: str,
-        depth: str = "medium"
-    ) -> str:
+    def explain_prerequisites(self, knowledge_item_name: str, depth: str = "medium") -> str:
         """Generate formatted explanation of all prerequisites.
 
         Args:
@@ -354,7 +338,11 @@ class ConceptExplainer:
         helpful = [c for c in prerequisites if c.importance == 2]
         optional = [c for c in prerequisites if c.importance == 3]
 
-        for concepts, label in [(required, "Required"), (helpful, "Helpful"), (optional, "Optional")]:
+        for concepts, label in [
+            (required, "Required"),
+            (helpful, "Helpful"),
+            (optional, "Optional"),
+        ]:
             if not concepts:
                 continue
 
@@ -371,10 +359,7 @@ class ConceptExplainer:
         return "\n".join(sections)
 
     def generate_deep_explanation(
-        self,
-        knowledge_item_name: str,
-        procedure_steps: List[str],
-        topic_name: str
+        self, knowledge_item_name: str, procedure_steps: List[str], topic_name: str
     ) -> str:
         """Generate LLM-based deep explanation with reasoning.
 
@@ -445,10 +430,7 @@ Structure your response as:
 """
 
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.primary_model,
-            temperature=0.4,
-            max_tokens=3000
+            prompt=prompt, model=self.llm.primary_model, temperature=0.4, max_tokens=3000
         )
 
         if response.success:
@@ -460,7 +442,7 @@ Structure your response as:
         """Format procedure steps."""
         if not steps:
             return "No steps provided."
-        return "\n".join([f"{i+1}. {step}" for i, step in enumerate(steps)])
+        return "\n".join([f"{i + 1}. {step}" for i, step in enumerate(steps)])
 
 
 def test_concept_explainer():

@@ -8,7 +8,7 @@ import json
 import hashlib
 import logging
 import asyncio
-from typing import List, Dict, Any, Optional, Tuple, TYPE_CHECKING
+from typing import List, Dict, Optional, Tuple, TYPE_CHECKING
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -28,18 +28,18 @@ def _strip_inline_flags(pattern: str) -> Tuple[str, int]:
     """
     flags = 0
     # Match inline flags at start or anywhere in pattern
-    inline_flag_pattern = r'\(\?([imslux]+)\)'
+    inline_flag_pattern = r"\(\?([imslux]+)\)"
 
     def replace_flags(match):
         nonlocal flags
         for char in match.group(1):
-            if char == 'i':
+            if char == "i":
                 flags |= re.IGNORECASE
-            elif char == 'm':
+            elif char == "m":
                 flags |= re.MULTILINE
-            elif char == 's':
+            elif char == "s":
                 flags |= re.DOTALL
-        return ''
+        return ""
 
     clean_pattern = re.sub(inline_flag_pattern, replace_flags, pattern)
     return clean_pattern, flags
@@ -49,7 +49,7 @@ def _is_roman_numeral(s: str) -> bool:
     """Check if string is a valid roman numeral (i, ii, iii, iv, v, etc.)."""
     if not s:
         return False
-    return bool(re.match(r'^[ivxlcdm]+$', s.lower()))
+    return bool(re.match(r"^[ivxlcdm]+$", s.lower()))
 
 
 def _roman_to_int(s: str) -> int:
@@ -57,7 +57,7 @@ def _roman_to_int(s: str) -> int:
 
     Examples: i=1, ii=2, iii=3, iv=4, v=5, vi=6, ix=9, x=10
     """
-    roman_map = {'i': 1, 'v': 5, 'x': 10, 'l': 50, 'c': 100, 'd': 500, 'm': 1000}
+    roman_map = {"i": 1, "v": 5, "x": 10, "l": 50, "c": 100, "d": 500, "m": 1000}
     s = s.lower()
     result = 0
     prev = 0
@@ -74,6 +74,7 @@ def _roman_to_int(s: str) -> int:
 @dataclass
 class Exercise:
     """Represents a single exercise extracted from a PDF."""
+
     id: str
     text: str
     page_number: int
@@ -88,7 +89,7 @@ class Exercise:
     solution_page: Optional[int] = None
     # Sub-question support (added for unified knowledge model)
     parent_exercise_number: Optional[str] = None  # "2" if this is "2a"
-    sub_question_marker: Optional[str] = None     # "a", "b", "c", "i", "ii", etc.
+    sub_question_marker: Optional[str] = None  # "a", "b", "c", "i", "ii", etc.
     is_sub_question: bool = False
     # Exercise context (LLM-generated: parent context for subs, exercise summary for standalone)
     exercise_context: Optional[str] = None
@@ -106,7 +107,7 @@ class Exercise:
             Clean preview text suitable for display
         """
         # Split into lines and find first meaningful content line
-        lines = self.text.strip().split('\n')
+        lines = self.text.strip().split("\n")
 
         for line in lines:
             line = line.strip()
@@ -116,7 +117,7 @@ class Exercise:
                 continue
 
             # Skip lines with form fields (underscores, dots as blanks)
-            if '_____' in line or '.....' in line or '___' in line:
+            if "_____" in line or "....." in line or "___" in line:
                 continue
 
             # Skip very short lines (likely headers or labels)
@@ -129,57 +130,59 @@ class Exercise:
 
             # Skip lines that start with "word + number" pattern (exercise markers)
             # This catches "Esercizio 1", "Exercise 2", "Aufgabe 3", etc.
-            if re.match(r'^[A-Za-z\u00C0-\u024F]+\s+\d+\s*$', line):
+            if re.match(r"^[A-Za-z\u00C0-\u024F]+\s+\d+\s*$", line):
                 continue
 
             # Found a good line - clean it up
             # Remove leading "word + number" if followed by more content
-            cleaned = re.sub(r'^[A-Za-z\u00C0-\u024F]+\s+\d+\s*', '', line).strip()
+            cleaned = re.sub(r"^[A-Za-z\u00C0-\u024F]+\s+\d+\s*", "", line).strip()
             if not cleaned or len(cleaned) < 15:
                 cleaned = line  # Use original if cleaning removed too much
 
             # Remove leading number patterns like "1.", "1)"
-            cleaned = re.sub(r'^\d+[\.\)\:]\s*', '', cleaned).strip()
+            cleaned = re.sub(r"^\d+[\.\)\:]\s*", "", cleaned).strip()
 
             # Get first sentence or truncate
-            if '.' in cleaned[:120] and cleaned.index('.') > 20:
-                preview = cleaned[:cleaned.index('.') + 1]
+            if "." in cleaned[:120] and cleaned.index(".") > 20:
+                preview = cleaned[: cleaned.index(".") + 1]
             else:
                 preview = cleaned[:max_length]
 
             # Truncate if needed
             if len(preview) > max_length:
-                preview = preview[:max_length].rsplit(' ', 1)[0] + "..."
+                preview = preview[:max_length].rsplit(" ", 1)[0] + "..."
             elif len(cleaned) > len(preview):
-                preview = preview.rstrip('.') + "..."
+                preview = preview.rstrip(".") + "..."
 
             return preview
 
         # Fallback - no good lines found
         # Just return first N chars of raw text, cleaned of obvious junk
         text = self.text.strip()
-        text = re.sub(r'[_]{3,}', '', text)  # Remove underscores
-        text = re.sub(r'\s+', ' ', text)  # Normalize whitespace
+        text = re.sub(r"[_]{3,}", "", text)  # Remove underscores
+        text = re.sub(r"\s+", " ", text)  # Normalize whitespace
         preview = text[:max_length].strip()
         if len(text) > max_length:
-            preview = preview.rsplit(' ', 1)[0] + "..."
+            preview = preview.rsplit(" ", 1)[0] + "..."
         return preview if preview else f"#{self.exercise_number or '?'}"
 
 
 class MarkerType(Enum):
     """Type of exercise marker."""
+
     PARENT = "parent"  # Main exercise marker (e.g., "Exercise 1")
-    SUB = "sub"        # Sub-question marker (e.g., "1.", "a)")
+    SUB = "sub"  # Sub-question marker (e.g., "1.", "a)")
 
 
 @dataclass
 class Marker:
     """A detected exercise marker in the document."""
+
     marker_type: MarkerType
-    marker_text: str       # The actual marker text (e.g., "Exercise 1", "a)")
-    number: str            # Extracted number/letter ("1", "a", etc.)
-    start_position: int    # Character position where marker starts
-    question_start: int    # Character position where question text begins
+    marker_text: str  # The actual marker text (e.g., "Exercise 1", "a)")
+    number: str  # Extracted number/letter ("1", "a", etc.)
+    start_position: int  # Character position where marker starts
+    question_start: int  # Character position where question text begins
 
 
 @dataclass
@@ -192,7 +195,8 @@ class MarkerPattern:
     Per-exercise sub_patterns are now determined in Call 3 after parent boundaries
     are known, to avoid false positives from inline conditions like "i) X or ii) Y".
     """
-    exercise_pattern: str                   # Regex for exercise markers (e.g., "Esercizio\\s+(\\d+)")
+
+    exercise_pattern: str  # Regex for exercise markers (e.g., "Esercizio\\s+(\\d+)")
     sub_patterns: Optional[List[str]] = None  # DEPRECATED: Now determined per-exercise in Call 3
     solution_pattern: Optional[str] = None  # Keyword or regex for solutions (e.g., "Soluzione")
 
@@ -205,9 +209,10 @@ class MarkerPattern:
 @dataclass
 class ExerciseNode:
     """Hierarchical exercise structure for building parent-child relationships."""
+
     marker: Marker
-    context: str              # Setup text (for parents)
-    question_text: str        # The actual question
+    context: str  # Setup text (for parents)
+    question_text: str  # The actual question
     children: List["ExerciseNode"] = field(default_factory=list)
     parent: Optional["ExerciseNode"] = None
 
@@ -215,6 +220,7 @@ class ExerciseNode:
 @dataclass
 class ExplicitExercise:
     """Explicit exercise markers from LLM detection."""
+
     number: str
     start_marker: str  # First ~50 chars of exercise
     end_marker: Optional[str] = None  # Last ~50 chars of QUESTION (before junk)
@@ -223,6 +229,7 @@ class ExplicitExercise:
 @dataclass
 class DetectionResult:
     """Result from LLM exercise detection."""
+
     pattern: Optional[MarkerPattern] = None  # Pattern-based detection (legacy)
     explicit_markers: Optional[List[str]] = None  # Legacy: simple marker texts
     explicit_exercises: Optional[List[ExplicitExercise]] = None  # Explicit start markers
@@ -232,6 +239,7 @@ class DetectionResult:
 @dataclass
 class ExerciseAnalysis:
     """Result from Call 2: per-exercise analysis."""
+
     end_pos: int  # Character position where exercise ends
     has_sub_questions: bool  # Whether exercise contains sub-questions
 
@@ -279,13 +287,13 @@ If no clear exercise divisions:
         )
 
         # Check if the response was successful
-        if hasattr(llm_response, 'success') and not llm_response.success:
-            error_msg = getattr(llm_response, 'error', 'Unknown error')
+        if hasattr(llm_response, "success") and not llm_response.success:
+            error_msg = getattr(llm_response, "error", "Unknown error")
             logger.warning(f"LLM exercise detection failed: {error_msg}")
             return None
 
         # Extract text from LLMResponse object
-        response = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
+        response = llm_response.text if hasattr(llm_response, "text") else str(llm_response)
 
         if not response or not response.strip():
             logger.warning("LLM returned empty response for exercise detection")
@@ -306,13 +314,15 @@ If no clear exercise divisions:
             if not marker:
                 continue
             # Try to extract number from marker
-            num_match = re.match(r'^[^\d]*(\d+)', marker)
+            num_match = re.match(r"^[^\d]*(\d+)", marker)
             number = num_match.group(1) if num_match else str(i + 1)
-            explicit_exercises.append(ExplicitExercise(
-                number=number,
-                start_marker=marker,
-                end_marker=None,
-            ))
+            explicit_exercises.append(
+                ExplicitExercise(
+                    number=number,
+                    start_marker=marker,
+                    end_marker=None,
+                )
+            )
 
         if not explicit_exercises:
             return None
@@ -334,6 +344,7 @@ If no clear exercise divisions:
 @dataclass
 class ExerciseBoundary:
     """Exercise boundaries found in document."""
+
     number: str
     start_pos: int
     end_pos: Optional[int]  # None if end_marker not found
@@ -386,12 +397,10 @@ Return JSON:
 {{"end_marker": "last 40-60 chars verbatim", "has_sub_questions": true/false}}"""
 
     try:
-        llm_response = await asyncio.to_thread(
-            llm_manager.generate, prompt, temperature=0.0
-        )
-        response_text = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
+        llm_response = await asyncio.to_thread(llm_manager.generate, prompt, temperature=0.0)
+        response_text = llm_response.text if hasattr(llm_response, "text") else str(llm_response)
 
-        json_match = re.search(r'\{[\s\S]*\}', response_text)
+        json_match = re.search(r"\{[\s\S]*\}", response_text)
         if json_match:
             data = json.loads(json_match.group())
             end_marker = data.get("end_marker", "")
@@ -412,8 +421,7 @@ Return JSON:
 
     # Fallback: assume has subs (safe), use rough end
     return exercise_num, ExerciseAnalysis(
-        end_pos=start_pos + len(exercise_text),
-        has_sub_questions=True
+        end_pos=start_pos + len(exercise_text), has_sub_questions=True
     )
 
 
@@ -494,13 +502,14 @@ Return JSON:
 {{"sub_questions": ["exact first 10-15 words of sub 1...", "exact first 10-15 words of sub 2..."] or null}}"""
 
     try:
+
         def call_llm():
             return llm_manager.generate(prompt, temperature=0.0)
 
         llm_response = await asyncio.to_thread(call_llm)
-        response_text = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
+        response_text = llm_response.text if hasattr(llm_response, "text") else str(llm_response)
 
-        json_match = re.search(r'\{[\s\S]*\}', response_text)
+        json_match = re.search(r"\{[\s\S]*\}", response_text)
         if json_match:
             data = json.loads(json_match.group())
             subs = data.get("sub_questions")
@@ -520,7 +529,9 @@ async def _get_sub_start_markers_parallel(
     if not exercises_with_subs:
         return {}
 
-    logger.info(f"Getting sub-question start markers for {len(exercises_with_subs)} exercises in parallel (Call 3)...")
+    logger.info(
+        f"Getting sub-question start markers for {len(exercises_with_subs)} exercises in parallel (Call 3)..."
+    )
 
     async def process_one(item: Tuple[str, str]) -> Tuple[str, Optional[List[str]]]:
         ex_num, ex_text = item
@@ -533,7 +544,9 @@ async def _get_sub_start_markers_parallel(
     results_dict = {num: subs for num, subs in results if subs}
 
     with_subs = len(results_dict)
-    logger.info(f"Call 3 complete: found sub-questions in {with_subs}/{len(exercises_with_subs)} exercises")
+    logger.info(
+        f"Call 3 complete: found sub-questions in {with_subs}/{len(exercises_with_subs)} exercises"
+    )
 
     return results_dict
 
@@ -563,13 +576,14 @@ Return JSON:
 **IMPORTANT**: end_marker must be **EXACT** text, used to find where to trim."""
 
     try:
+
         def call_llm():
             return llm_manager.generate(prompt, temperature=0.0)
 
         llm_response = await asyncio.to_thread(call_llm)
-        response_text = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
+        response_text = llm_response.text if hasattr(llm_response, "text") else str(llm_response)
 
-        json_match = re.search(r'\{[\s\S]*\}', response_text)
+        json_match = re.search(r"\{[\s\S]*\}", response_text)
         if json_match:
             data = json.loads(json_match.group())
             end_marker = data.get("end_marker")
@@ -589,7 +603,9 @@ async def _get_sub_end_markers_parallel(
     if not sub_questions:
         return {}
 
-    logger.info(f"Getting end markers for {len(sub_questions)} sub-questions in parallel (Call 4)...")
+    logger.info(
+        f"Getting end markers for {len(sub_questions)} sub-questions in parallel (Call 4)..."
+    )
 
     async def process_one(item: Tuple[str, str]) -> Tuple[str, Optional[str]]:
         sub_id, sub_text = item
@@ -601,7 +617,9 @@ async def _get_sub_end_markers_parallel(
     # Filter out None results
     results_dict = {sub_id: marker for sub_id, marker in results if marker}
 
-    logger.info(f"Call 4 complete: found end markers for {len(results_dict)}/{len(sub_questions)} sub-questions")
+    logger.info(
+        f"Call 4 complete: found end markers for {len(results_dict)}/{len(sub_questions)} sub-questions"
+    )
 
     return results_dict
 
@@ -654,13 +672,14 @@ Return JSON:
 {{"context_summary": "concise exercise summary in English" or null}}"""
 
     try:
+
         def call_llm():
             return llm_manager.generate(prompt, temperature=0.0)
 
         llm_response = await asyncio.to_thread(call_llm)
-        response_text = llm_response.text if hasattr(llm_response, 'text') else str(llm_response)
+        response_text = llm_response.text if hasattr(llm_response, "text") else str(llm_response)
 
-        json_match = re.search(r'\{[\s\S]*\}', response_text)
+        json_match = re.search(r"\{[\s\S]*\}", response_text)
         if json_match:
             data = json.loads(json_match.group())
             summary = data.get("context_summary")
@@ -674,7 +693,9 @@ Return JSON:
 
 
 async def _get_context_summaries_parallel(
-    exercises_for_context: List[Tuple[str, str, bool]],  # List of (exercise_num, exercise_text, has_sub_questions)
+    exercises_for_context: List[
+        Tuple[str, str, bool]
+    ],  # List of (exercise_num, exercise_text, has_sub_questions)
     llm_manager: "LLMManager",
 ) -> Dict[str, str]:
     """Call 5: Get context summaries in parallel for all exercises."""
@@ -683,11 +704,15 @@ async def _get_context_summaries_parallel(
 
     parent_count = sum(1 for _, _, has_subs in exercises_for_context if has_subs)
     standalone_count = len(exercises_for_context) - parent_count
-    logger.info(f"Getting context summaries for {len(exercises_for_context)} exercises ({parent_count} parents, {standalone_count} standalone) in parallel (Call 5)...")
+    logger.info(
+        f"Getting context summaries for {len(exercises_for_context)} exercises ({parent_count} parents, {standalone_count} standalone) in parallel (Call 5)..."
+    )
 
     async def process_one(item: Tuple[str, str, bool]) -> Tuple[str, Optional[str]]:
         ex_num, exercise_text, has_sub_questions = item
-        return await _get_context_summary_for_exercise(ex_num, exercise_text, has_sub_questions, llm_manager)
+        return await _get_context_summary_for_exercise(
+            ex_num, exercise_text, has_sub_questions, llm_manager
+        )
 
     tasks = [process_one(item) for item in exercises_for_context]
     results = await asyncio.gather(*tasks)
@@ -695,7 +720,9 @@ async def _get_context_summaries_parallel(
     # Filter out None results
     summaries_dict = {num: summary for num, summary in results if summary}
 
-    logger.info(f"Call 5 complete: got context summaries for {len(summaries_dict)}/{len(exercises_for_context)} exercises")
+    logger.info(
+        f"Call 5 complete: got context summaries for {len(summaries_dict)}/{len(exercises_for_context)} exercises"
+    )
 
     return summaries_dict
 
@@ -733,11 +760,13 @@ def _find_explicit_exercises(
             else:
                 logger.warning(f"End marker not found for exercise {ex.number}: '{ex.end_marker}'")
 
-        boundaries.append(ExerciseBoundary(
-            number=ex.number,
-            start_pos=start_pos,
-            end_pos=end_pos,
-        ))
+        boundaries.append(
+            ExerciseBoundary(
+                number=ex.number,
+                start_pos=start_pos,
+                end_pos=end_pos,
+            )
+        )
 
     # Sort by start position
     boundaries.sort(key=lambda b: b.start_pos)
@@ -789,7 +818,7 @@ def _create_exercises_from_boundaries(
             end_pos = len(full_text)
 
         # Extract text
-        text = full_text[boundary.start_pos:end_pos].strip()
+        text = full_text[boundary.start_pos : end_pos].strip()
 
         # Generate exercise ID
         page_num = get_page_number(boundary.start_pos)
@@ -797,17 +826,19 @@ def _create_exercises_from_boundaries(
             course_code, pdf_content.file_path.name, page_num, i + 1
         )
 
-        exercises.append(Exercise(
-            id=exercise_id,
-            text=text,
-            page_number=page_num,
-            exercise_number=boundary.number,
-            has_images=False,
-            image_data=[],
-            has_latex=False,
-            latex_content=None,
-            source_pdf=pdf_content.file_path.name,
-        ))
+        exercises.append(
+            Exercise(
+                id=exercise_id,
+                text=text,
+                page_number=page_num,
+                exercise_number=boundary.number,
+                has_images=False,
+                image_data=[],
+                has_latex=False,
+                latex_content=None,
+                source_pdf=pdf_content.file_path.name,
+            )
+        )
 
     return exercises
 
@@ -856,7 +887,7 @@ def _create_exercises_from_explicit_boundaries(
         else:
             parent_end = len(full_text)
 
-        parent_text = full_text[boundary.start_pos:parent_end].strip()
+        parent_text = full_text[boundary.start_pos : parent_end].strip()
         page_num = get_page_number(boundary.start_pos)
 
         # Check for sub-questions
@@ -899,37 +930,41 @@ def _create_exercises_from_explicit_boundaries(
                     course_code, pdf_content.file_path.name, ex_num, abs_pos
                 )
 
-                exercises.append(Exercise(
-                    id=exercise_id,
-                    text=sub_text,
-                    page_number=sub_page,
-                    exercise_number=ex_num,
-                    has_images=False,
-                    image_data=[],
-                    has_latex=False,
-                    latex_content=None,
-                    source_pdf=pdf_content.file_path.name,
-                    parent_exercise_number=parent_num,
-                    sub_question_marker=sub_num,
-                    is_sub_question=True,
-                ))
+                exercises.append(
+                    Exercise(
+                        id=exercise_id,
+                        text=sub_text,
+                        page_number=sub_page,
+                        exercise_number=ex_num,
+                        has_images=False,
+                        image_data=[],
+                        has_latex=False,
+                        latex_content=None,
+                        source_pdf=pdf_content.file_path.name,
+                        parent_exercise_number=parent_num,
+                        sub_question_marker=sub_num,
+                        is_sub_question=True,
+                    )
+                )
         else:
             # No sub-questions - create single exercise
             exercise_id = _generate_exercise_id(
                 course_code, pdf_content.file_path.name, parent_num, boundary.start_pos
             )
 
-            exercises.append(Exercise(
-                id=exercise_id,
-                text=parent_text,
-                page_number=page_num,
-                exercise_number=parent_num,
-                has_images=False,
-                image_data=[],
-                has_latex=False,
-                latex_content=None,
-                source_pdf=pdf_content.file_path.name,
-            ))
+            exercises.append(
+                Exercise(
+                    id=exercise_id,
+                    text=parent_text,
+                    page_number=page_num,
+                    exercise_number=parent_num,
+                    has_images=False,
+                    image_data=[],
+                    has_latex=False,
+                    latex_content=None,
+                    source_pdf=pdf_content.file_path.name,
+                )
+            )
 
     return exercises
 
@@ -947,27 +982,41 @@ def _normalize_unicode(s: str) -> str:
     import unicodedata
 
     # Pre-NFKD: remove chars that NFKD mangles into space + combining
-    s = s.replace('\u00b4', '')  # Acute accent
+    s = s.replace("\u00b4", "")  # Acute accent
 
     # NFKD decomposition handles ligatures and compatibility chars
-    s = unicodedata.normalize('NFKD', s)
+    s = unicodedata.normalize("NFKD", s)
 
     # Remove combining marks (accents) - keep base chars
-    s = ''.join(c for c in s if not unicodedata.combining(c))
+    s = "".join(c for c in s if not unicodedata.combining(c))
 
     # Additional replacements PDF OCR often produces
     replacements = {
-        '³': '3', '²': '2', '¹': '1',
-        '₀': '0', '₁': '1', '₂': '2', '₃': '3',
-        '→': '->', '←': '<-', '∈': 'in',
-        '\u2018': "'", '\u2019': "'",  # Curly single quotes
-        '\u201c': '"', '\u201d': '"',  # Curly double quotes
-        '`': "'",
+        "³": "3",
+        "²": "2",
+        "¹": "1",
+        "₀": "0",
+        "₁": "1",
+        "₂": "2",
+        "₃": "3",
+        "→": "->",
+        "←": "<-",
+        "∈": "in",
+        "\u2018": "'",
+        "\u2019": "'",  # Curly single quotes
+        "\u201c": '"',
+        "\u201d": '"',  # Curly double quotes
+        "`": "'",
         # PDF Private Use Area chars (mathematical delimiters)
-        '\uf8eb': '(', '\uf8ed': '(',  # Left brackets
-        '\uf8f6': ')', '\uf8f8': ')',  # Right brackets
+        "\uf8eb": "(",
+        "\uf8ed": "(",  # Left brackets
+        "\uf8f6": ")",
+        "\uf8f8": ")",  # Right brackets
         # Normalize all brackets to parentheses (LLM uses []{} for matrices/sets, PDF uses special chars → ())
-        '[': '(', ']': ')', '{': '(', '}': ')',
+        "[": "(",
+        "]": ")",
+        "{": "(",
+        "}": ")",
     }
     for old, new in replacements.items():
         s = s.replace(old, new)
@@ -1007,7 +1056,7 @@ def _fuzzy_find(text: str, search_term: str, start_from: int = 0) -> int:
     words = search_term.split()
     if words:
         pattern_parts = [re.escape(word) for word in words]
-        search_pattern = r'\s+'.join(pattern_parts)
+        search_pattern = r"\s+".join(pattern_parts)
         pattern = re.compile(search_pattern, re.IGNORECASE)
         match = pattern.search(text, start_from)
         if match:
@@ -1025,7 +1074,7 @@ def _fuzzy_find(text: str, search_term: str, start_from: int = 0) -> int:
     if words:
         # Allow optional whitespace between any characters
         pattern_parts = [re.escape(word) for word in words]
-        search_pattern = r'\s*'.join(pattern_parts)
+        search_pattern = r"\s*".join(pattern_parts)
         pattern = re.compile(search_pattern, re.IGNORECASE)
         match = pattern.search(text_norm, start_from)
         if match:
@@ -1033,8 +1082,8 @@ def _fuzzy_find(text: str, search_term: str, start_from: int = 0) -> int:
 
     # Last resort: strip all non-alphanumeric chars for prefix match
     # Handles all punctuation differences (commas, brackets, parens, etc.)
-    text_alnum = re.sub(r'[^a-z0-9]', '', text_norm.lower())
-    search_alnum = re.sub(r'[^a-z0-9]', '', search_norm.lower())
+    text_alnum = re.sub(r"[^a-z0-9]", "", text_norm.lower())
+    search_alnum = re.sub(r"[^a-z0-9]", "", search_norm.lower())
     search_prefix = search_alnum[:50]  # Can use longer prefix since only alphanum
 
     if search_prefix and len(search_prefix) <= len(text_alnum):
@@ -1090,7 +1139,7 @@ def _fuzzy_rfind(text: str, search_term: str, end_before: int = None) -> int:
     words = search_term.split()
     if words:
         pattern_parts = [re.escape(word) for word in words]
-        search_pattern = r'\s+'.join(pattern_parts)
+        search_pattern = r"\s+".join(pattern_parts)
         pattern = re.compile(search_pattern, re.IGNORECASE)
         matches = list(pattern.finditer(search_text))
         if matches:
@@ -1107,15 +1156,15 @@ def _fuzzy_rfind(text: str, search_term: str, end_before: int = None) -> int:
     words = search_norm.split()
     if words:
         pattern_parts = [re.escape(word) for word in words]
-        search_pattern = r'\s*'.join(pattern_parts)
+        search_pattern = r"\s*".join(pattern_parts)
         pattern = re.compile(search_pattern, re.IGNORECASE)
         matches = list(pattern.finditer(text_norm))
         if matches:
             return matches[-1].start()
 
     # Last resort: alphanumeric suffix match (search from end)
-    text_alnum = re.sub(r'[^a-z0-9]', '', text_norm.lower())
-    search_alnum = re.sub(r'[^a-z0-9]', '', search_norm.lower())
+    text_alnum = re.sub(r"[^a-z0-9]", "", text_norm.lower())
+    search_alnum = re.sub(r"[^a-z0-9]", "", search_norm.lower())
     search_suffix = search_alnum[-50:] if len(search_alnum) > 50 else search_alnum
 
     if search_suffix and len(search_suffix) <= len(text_alnum):
@@ -1158,13 +1207,10 @@ def _fix_decimal_pattern(pattern_str: str) -> str:
         return pattern_str
 
     import re
+
     # Only fix \d+\. that is followed by \s, ), or end of pattern (not \d)
     # This preserves nested numbering like \d+\.\d+ for "1.1" format
-    fixed = re.sub(
-        r'(\\d\+\)?\\\.)(\\s|\)|$)',
-        r'\1(?!\\d)\2',
-        pattern_str
-    )
+    fixed = re.sub(r"(\\d\+\)?\\\.)(\\s|\)|$)", r"\1(?!\\d)\2", pattern_str)
     return fixed
 
 
@@ -1189,7 +1235,7 @@ def _generate_exercise_id(
     components = f"{course_code}_{source_pdf}_{exercise_number}_{char_position}"
     hash_obj = hashlib.md5(components.encode())
     short_hash = hash_obj.hexdigest()[:12]
-    course_abbrev = course_code.lower().replace('b', '').replace('0', '')[:6]
+    course_abbrev = course_code.lower().replace("b", "").replace("0", "")[:6]
     ex_num_clean = exercise_number.replace(".", "_")
     return f"{course_abbrev}_{ex_num_clean}_{short_hash}"
 
@@ -1223,17 +1269,19 @@ def _split_unstructured(
             counter,
         )
 
-        exercises.append(Exercise(
-            id=exercise_id,
-            text=text,
-            page_number=page.page_number,
-            exercise_number=str(counter),
-            has_images=len(page.images) > 0,
-            image_data=page.images if page.images else [],
-            has_latex=page.has_latex,
-            latex_content=page.latex_content,
-            source_pdf=pdf_content.file_path.name,
-        ))
+        exercises.append(
+            Exercise(
+                id=exercise_id,
+                text=text,
+                page_number=page.page_number,
+                exercise_number=str(counter),
+                has_images=len(page.images) > 0,
+                image_data=page.images if page.images else [],
+                has_latex=page.has_latex,
+                latex_content=page.latex_content,
+                source_pdf=pdf_content.file_path.name,
+            )
+        )
 
     return exercises
 
@@ -1243,25 +1291,27 @@ class ExerciseSplitter:
 
     # Structural patterns (language-agnostic fallback)
     STRUCTURAL_PATTERNS = [
-        r'(?:^|\n)\s*(\d+)\.\s+',       # "1. " at line start
-        r'(?:^|\n)\s*(\d+)\)\s+',       # "1) " at line start
-        r'(?:^|\n)\s*\((\d+)\)\s*',     # "(1)" at line start
-        r'(?:^|\n)\s*\[(\d+)\]',        # "[1]" at line start
-        r'(?:^|\n)\s*([IVXLCDM]+)\.\s', # Roman numerals "I. ", "II. "
+        r"(?:^|\n)\s*(\d+)\.\s+",  # "1. " at line start
+        r"(?:^|\n)\s*(\d+)\)\s+",  # "1) " at line start
+        r"(?:^|\n)\s*\((\d+)\)\s*",  # "(1)" at line start
+        r"(?:^|\n)\s*\[(\d+)\]",  # "[1]" at line start
+        r"(?:^|\n)\s*([IVXLCDM]+)\.\s",  # Roman numerals "I. ", "II. "
     ]
 
     # Language-agnostic instruction patterns (structural, not language-specific)
     INSTRUCTION_PATTERNS = [
-        r'(?:^|\n)\s*[-•]\s+',          # Bullet points (likely instructions)
-        r':\s*$',                        # Lines ending with colon (likely headers)
+        r"(?:^|\n)\s*[-•]\s+",  # Bullet points (likely instructions)
+        r":\s*$",  # Lines ending with colon (likely headers)
     ]
 
     def __init__(self):
         """Initialize exercise splitter."""
-        self.structural_patterns = [re.compile(p, re.MULTILINE | re.IGNORECASE)
-                                   for p in self.STRUCTURAL_PATTERNS]
-        self.instruction_patterns = [re.compile(p, re.MULTILINE | re.IGNORECASE)
-                                    for p in self.INSTRUCTION_PATTERNS]
+        self.structural_patterns = [
+            re.compile(p, re.MULTILINE | re.IGNORECASE) for p in self.STRUCTURAL_PATTERNS
+        ]
+        self.instruction_patterns = [
+            re.compile(p, re.MULTILINE | re.IGNORECASE) for p in self.INSTRUCTION_PATTERNS
+        ]
         self.exercise_counter = 0
         self._detected_pattern_cache: Dict[str, Optional[re.Pattern]] = {}
 
@@ -1347,9 +1397,7 @@ class ExerciseSplitter:
                 self._document_pattern = regex_pattern
                 exercises = []
                 for page in pdf_content.pages:
-                    page_exercises = self._split_page(
-                        page, pdf_content.file_path.name, course_code
-                    )
+                    page_exercises = self._split_page(page, pdf_content.file_path.name, course_code)
                     exercises.extend(page_exercises)
                 self._document_pattern = None
                 return exercises
@@ -1377,18 +1425,21 @@ class ExerciseSplitter:
 
                 # Filter exercises that have sub-questions
                 boundaries_with_subs = [
-                    b for b in boundaries
+                    b
+                    for b in boundaries
                     if exercise_analysis.get(b.number, ExerciseAnalysis(0, True)).has_sub_questions
                 ]
                 standalone_count = len(boundaries) - len(boundaries_with_subs)
 
                 if standalone_count > 0:
-                    logger.info(f"Skipping Calls 3-4 for {standalone_count} standalone exercises (Call 5 runs for all)")
+                    logger.info(
+                        f"Skipping Calls 3-4 for {standalone_count} standalone exercises (Call 5 runs for all)"
+                    )
 
                 # Call 3: Sub-question start markers (parallel, only for exercises with subs)
                 if boundaries_with_subs:
                     exercises_for_call3 = [
-                        (b.number, full_text[b.start_pos:exercise_analysis[b.number].end_pos])
+                        (b.number, full_text[b.start_pos : exercise_analysis[b.number].end_pos])
                         for b in boundaries_with_subs
                     ]
                     explicit_subs = asyncio.run(
@@ -1398,11 +1449,15 @@ class ExerciseSplitter:
                     # Validation: if only 1 sub found, Call 3 likely failed - treat as standalone
                     for ex_num in list(explicit_subs.keys()):
                         if len(explicit_subs[ex_num]) == 1:
-                            logger.warning(f"Exercise {ex_num}: expected multiple subs, got 1 - treating as standalone")
+                            logger.warning(
+                                f"Exercise {ex_num}: expected multiple subs, got 1 - treating as standalone"
+                            )
                             del explicit_subs[ex_num]
 
                     # Update boundaries_with_subs to only include exercises that still have subs
-                    boundaries_with_subs = [b for b in boundaries_with_subs if b.number in explicit_subs]
+                    boundaries_with_subs = [
+                        b for b in boundaries_with_subs if b.number in explicit_subs
+                    ]
                 else:
                     explicit_subs = {}
             else:
@@ -1432,7 +1487,7 @@ class ExerciseSplitter:
                         if end_marker:
                             pos = _fuzzy_rfind(ex.text, end_marker)
                             if pos >= 0:
-                                ex.text = ex.text[:pos + len(end_marker)]
+                                ex.text = ex.text[: pos + len(end_marker)]
 
             # Call 5: Context summaries (parallel, for ALL exercises)
             if second_pass_llm and exercise_analysis:
@@ -1442,7 +1497,7 @@ class ExerciseSplitter:
                 for b in boundaries:
                     if b.number in exercise_analysis:
                         end_pos = exercise_analysis[b.number].end_pos
-                        exercise_text = full_text[b.start_pos:end_pos]
+                        exercise_text = full_text[b.start_pos : end_pos]
                         has_subs = b.number in boundaries_with_subs_numbers
                         exercises_for_call5.append((b.number, exercise_text, has_subs))
 
@@ -1526,7 +1581,7 @@ class ExerciseSplitter:
             # - Continuation of previous exercise (don't create new exercise)
             # - Header/instruction pages (already handled above)
             # So skip them to avoid inflating exercise count
-            if getattr(self, '_document_pattern', None) is not None:
+            if getattr(self, "_document_pattern", None) is not None:
                 return []  # Skip - this is likely continuation text
 
             # No document pattern AND no page markers - fallback behavior:
@@ -1534,16 +1589,18 @@ class ExerciseSplitter:
             if len(text.strip()) < 50:  # Too short to be a real exercise
                 return []
 
-            return [self._create_exercise(
-                text=text,
-                page_number=page.page_number,
-                exercise_number=None,
-                images=page.images,
-                has_latex=page.has_latex,
-                latex_content=page.latex_content,
-                source_pdf=source_pdf,
-                course_code=course_code
-            )]
+            return [
+                self._create_exercise(
+                    text=text,
+                    page_number=page.page_number,
+                    exercise_number=None,
+                    images=page.images,
+                    has_latex=page.has_latex,
+                    latex_content=page.latex_content,
+                    source_pdf=source_pdf,
+                    course_code=course_code,
+                )
+            ]
 
         # Split text at markers
         exercises = []
@@ -1560,16 +1617,18 @@ class ExerciseSplitter:
                 # For now, assign all images from the page to each exercise
                 # In a more sophisticated version, we could detect which images
                 # belong to which exercise based on position
-                exercises.append(self._create_exercise(
-                    text=exercise_text,
-                    page_number=page.page_number,
-                    exercise_number=ex_number,
-                    images=page.images if page.images else [],
-                    has_latex=page.has_latex,
-                    latex_content=page.latex_content,
-                    source_pdf=source_pdf,
-                    course_code=course_code
-                ))
+                exercises.append(
+                    self._create_exercise(
+                        text=exercise_text,
+                        page_number=page.page_number,
+                        exercise_number=ex_number,
+                        images=page.images if page.images else [],
+                        has_latex=page.has_latex,
+                        latex_content=page.latex_content,
+                        source_pdf=source_pdf,
+                        course_code=course_code,
+                    )
+                )
 
         return exercises
 
@@ -1593,7 +1652,9 @@ class ExerciseSplitter:
         # Look for repeated pattern: <word> <number> appearing multiple times
         # E.g., "Esercizio 1", "Esercizio 2" → pattern is "Esercizio"
         # Supports any language including CJK characters
-        word_num_pattern = r'\b([A-Za-z\u00C0-\u024F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]+)\s+(\d+)\b'
+        word_num_pattern = (
+            r"\b([A-Za-z\u00C0-\u024F\u4E00-\u9FFF\u3040-\u309F\u30A0-\u30FF]+)\s+(\d+)\b"
+        )
         matches = re.findall(word_num_pattern, text, re.IGNORECASE)
 
         # Count which words appear with multiple different numbers
@@ -1611,7 +1672,9 @@ class ExerciseSplitter:
             # Use the word that appears with most different numbers
             exercise_words.sort(key=lambda x: x[1], reverse=True)
             word = exercise_words[0][0]
-            pattern = re.compile(rf'(?:^|\n)\s*{re.escape(word)}\s+(\d+)', re.IGNORECASE | re.MULTILINE)
+            pattern = re.compile(
+                rf"(?:^|\n)\s*{re.escape(word)}\s+(\d+)", re.IGNORECASE | re.MULTILINE
+            )
             self._detected_pattern_cache[cache_key] = pattern
             return pattern
 
@@ -1636,7 +1699,7 @@ class ExerciseSplitter:
 
         # Step 1: Use document-wide pattern if available (set by split_pdf_content)
         # This handles PDFs where each page has only one exercise marker
-        detected_pattern = getattr(self, '_document_pattern', None)
+        detected_pattern = getattr(self, "_document_pattern", None)
         if detected_pattern is None:
             # Fall back to page-level detection
             detected_pattern = self._detect_exercise_pattern(text)
@@ -1656,8 +1719,9 @@ class ExerciseSplitter:
         # Step 2: Fall back to structural patterns (1., 2., etc.)
         for pattern in self.structural_patterns:
             # Collect ALL matches first to calculate gaps correctly
-            all_matches = [(m.start(), m.group(1) if m.groups() else None)
-                          for m in pattern.finditer(text)]
+            all_matches = [
+                (m.start(), m.group(1) if m.groups() else None) for m in pattern.finditer(text)
+            ]
 
             for i, (position, ex_number) in enumerate(all_matches):
                 # Calculate fragment length (distance to next marker or end)
@@ -1692,14 +1756,17 @@ class ExerciseSplitter:
         # Language-agnostic structural indicators of instruction pages
         # These patterns work across languages
         structural_indicators = [
-            r'(?:^|\n)\s*[-•]\s+.{10,}',  # Multiple bullet points
-            r':\s*\n',                     # Lines ending with colon then newline
-            r'\b\d{4}[-/]\d{2}[-/]\d{2}\b',  # Date patterns (exam dates)
+            r"(?:^|\n)\s*[-•]\s+.{10,}",  # Multiple bullet points
+            r":\s*\n",  # Lines ending with colon then newline
+            r"\b\d{4}[-/]\d{2}[-/]\d{2}\b",  # Date patterns (exam dates)
         ]
 
         # Count structural instruction patterns
-        matches = sum(1 for pattern in [re.compile(p, re.MULTILINE) for p in structural_indicators]
-                     if len(pattern.findall(text)) >= 2)
+        matches = sum(
+            1
+            for pattern in [re.compile(p, re.MULTILINE) for p in structural_indicators]
+            if len(pattern.findall(text)) >= 2
+        )
 
         # If page has many instruction-like structures and is short, likely instructions
         if matches >= 2 and len(text.strip()) < 500:
@@ -1708,18 +1775,24 @@ class ExerciseSplitter:
         # Check if there are NO exercise-like patterns (no repeated word+number)
         # but there ARE multiple bullet points
         detected_pattern = self._detect_exercise_pattern(text)
-        bullet_count = len(re.findall(r'(?:^|\n)\s*[-•]\s+', text, re.MULTILINE))
+        bullet_count = len(re.findall(r"(?:^|\n)\s*[-•]\s+", text, re.MULTILINE))
 
         if detected_pattern is None and bullet_count >= 5:
             return True
 
         return False
 
-    def _create_exercise(self, text: str, page_number: int,
-                        exercise_number: Optional[str],
-                        images: List[bytes], has_latex: bool,
-                        latex_content: Optional[str], source_pdf: str,
-                        course_code: str) -> Exercise:
+    def _create_exercise(
+        self,
+        text: str,
+        page_number: int,
+        exercise_number: Optional[str],
+        images: List[bytes],
+        has_latex: bool,
+        latex_content: Optional[str],
+        source_pdf: str,
+        course_code: str,
+    ) -> Exercise:
         """Create an Exercise object.
 
         Args:
@@ -1749,11 +1822,12 @@ class ExerciseSplitter:
             image_data=images,
             has_latex=has_latex,
             latex_content=latex_content,
-            source_pdf=source_pdf
+            source_pdf=source_pdf,
         )
 
-    def _generate_exercise_id(self, course_code: str, source_pdf: str,
-                             page_number: int, exercise_number: Optional[str]) -> str:
+    def _generate_exercise_id(
+        self, course_code: str, source_pdf: str, page_number: int, exercise_number: Optional[str]
+    ) -> str:
         """Generate a unique exercise ID.
 
         Args:
@@ -1776,7 +1850,7 @@ class ExerciseSplitter:
         short_hash = hash_obj.hexdigest()[:12]
 
         # Create ID: course abbreviation + counter + hash
-        course_abbrev = course_code.lower().replace('b', '').replace('0', '')[:6]
+        course_abbrev = course_code.lower().replace("b", "").replace("0", "")[:6]
         return f"{course_abbrev}_{self.exercise_counter:04d}_{short_hash}"
 
     def merge_split_exercises(self, exercises: List[Exercise]) -> List[Exercise]:
@@ -1816,12 +1890,14 @@ class ExerciseSplitter:
             Cleaned text
         """
         # Remove excessive whitespace
-        text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)
+        text = re.sub(r"\n\s*\n\s*\n+", "\n\n", text)
 
         # Remove page numbers (language-agnostic structural pattern)
         # Pattern: short line with just a number, or "word + number" where line is short
-        text = re.sub(r'(?:^|\n)\s*\d+\s*(?:\n|$)', '\n', text)  # Standalone numbers
-        text = re.sub(r'(?:^|\n)\s*[A-Za-z]+\s+\d+\s*(?:\n|$)', '\n', text)  # "Word 123" short lines
+        text = re.sub(r"(?:^|\n)\s*\d+\s*(?:\n|$)", "\n", text)  # Standalone numbers
+        text = re.sub(
+            r"(?:^|\n)\s*[A-Za-z]+\s+\d+\s*(?:\n|$)", "\n", text
+        )  # "Word 123" short lines
 
         # Strip leading/trailing whitespace
         text = text.strip()

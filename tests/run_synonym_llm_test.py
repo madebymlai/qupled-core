@@ -11,7 +11,7 @@ import os
 import argparse
 import json
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models.llm_manager import LLMManager
 from test_anonymous_synonym_detection import (
@@ -73,9 +73,9 @@ def run_test_suite(llm: LLMManager, verbose: bool = False):
         "details": [],
     }
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SHOULD MERGE CASES")
-    print("="*70)
+    print("=" * 70)
 
     for case in SHOULD_MERGE_CASES:
         items = case["items"]
@@ -98,18 +98,20 @@ def run_test_suite(llm: LLMManager, verbose: bool = False):
         else:
             results["failed"] += 1
 
-        results["details"].append({
-            "case": case["name"],
-            "category": "should_merge",
-            "passed": passed,
-            "expected": expected,
-            "actual": num_groups,
-            "groups": result["groups"],
-        })
+        results["details"].append(
+            {
+                "case": case["name"],
+                "category": "should_merge",
+                "passed": passed,
+                "expected": expected,
+                "actual": num_groups,
+                "groups": result["groups"],
+            }
+        )
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SHOULD NOT MERGE CASES")
-    print("="*70)
+    print("=" * 70)
 
     for case in SHOULD_NOT_MERGE_CASES:
         items = case["items"]
@@ -132,18 +134,20 @@ def run_test_suite(llm: LLMManager, verbose: bool = False):
         else:
             results["failed"] += 1
 
-        results["details"].append({
-            "case": case["name"],
-            "category": "should_not_merge",
-            "passed": passed,
-            "expected": 0,
-            "actual": num_groups,
-            "groups": result["groups"],
-        })
+        results["details"].append(
+            {
+                "case": case["name"],
+                "category": "should_not_merge",
+                "passed": passed,
+                "expected": 0,
+                "actual": num_groups,
+                "groups": result["groups"],
+            }
+        )
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EDGE CASES")
-    print("="*70)
+    print("=" * 70)
 
     for case in EDGE_CASES:
         items = case["items"]
@@ -170,18 +174,20 @@ def run_test_suite(llm: LLMManager, verbose: bool = False):
         else:
             results["failed"] += 1
 
-        results["details"].append({
-            "case": case["name"],
-            "category": "edge_case",
-            "passed": passed,
-            "expected": expected,
-            "actual": num_groups,
-            "groups": result["groups"],
-        })
+        results["details"].append(
+            {
+                "case": case["name"],
+                "category": "edge_case",
+                "passed": passed,
+                "expected": expected,
+                "actual": num_groups,
+                "groups": result["groups"],
+            }
+        )
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("MULTI-ITEM CASES")
-    print("="*70)
+    print("=" * 70)
 
     for case in MULTI_ITEM_CASES:
         items = case["items"]
@@ -204,19 +210,21 @@ def run_test_suite(llm: LLMManager, verbose: bool = False):
         else:
             results["failed"] += 1
 
-        results["details"].append({
-            "case": case["name"],
-            "category": "multi_item",
-            "passed": passed,
-            "expected": expected,
-            "actual": num_groups,
-            "groups": result["groups"],
-        })
+        results["details"].append(
+            {
+                "case": case["name"],
+                "category": "multi_item",
+                "passed": passed,
+                "expected": expected,
+                "actual": num_groups,
+                "groups": result["groups"],
+            }
+        )
 
     # Summary
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SUMMARY")
-    print("="*70)
+    print("=" * 70)
     total = results["passed"] + results["failed"]
     print(f"Passed: {results['passed']}/{total}")
     print(f"Failed: {results['failed']}/{total}")
@@ -225,17 +233,24 @@ def run_test_suite(llm: LLMManager, verbose: bool = False):
         print("\nFailed cases:")
         for detail in results["details"]:
             if not detail["passed"]:
-                print(f"  - {detail['case']} ({detail['category']}): expected {detail['expected']}, got {detail['actual']}")
+                print(
+                    f"  - {detail['case']} ({detail['category']}): expected {detail['expected']}, got {detail['actual']}"
+                )
 
     return results
 
 
 def main():
     parser = argparse.ArgumentParser(description="Run synonym detection LLM tests")
-    parser.add_argument("--provider", choices=["deepseek", "anthropic"], default="deepseek",
-                       help="LLM provider to use (default: deepseek)")
-    parser.add_argument("--verbose", "-v", action="store_true",
-                       help="Show full prompts and responses")
+    parser.add_argument(
+        "--provider",
+        choices=["deepseek", "anthropic"],
+        default="deepseek",
+        help="LLM provider to use (default: deepseek)",
+    )
+    parser.add_argument(
+        "--verbose", "-v", action="store_true", help="Show full prompts and responses"
+    )
     args = parser.parse_args()
 
     print(f"Using LLM provider: {args.provider}")

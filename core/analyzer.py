@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from difflib import SequenceMatcher
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from models.llm_manager import LLMManager, LLMResponse
+from models.llm_manager import LLMManager
 from storage.database import Database
 from config import Config
 
@@ -21,23 +21,23 @@ logger = logging.getLogger(__name__)
 
 # Knowledge item types - what kind of knowledge is being tested
 KNOWLEDGE_TYPES = [
-    "procedure",     # Step-by-step method to solve a problem
-    "algorithm",     # Formal algorithm with specific steps
-    "definition",    # Formal definition of a concept
-    "theorem",       # Mathematical/scientific theorem
-    "proof",         # Proof of a theorem or property
-    "derivation",    # Derivation of a formula or result
-    "formula",       # Mathematical formula to remember
-    "fact",          # Factual information to memorize
-    "key_concept",   # Important concept to understand
+    "procedure",  # Step-by-step method to solve a problem
+    "algorithm",  # Formal algorithm with specific steps
+    "definition",  # Formal definition of a concept
+    "theorem",  # Mathematical/scientific theorem
+    "proof",  # Proof of a theorem or property
+    "derivation",  # Derivation of a formula or result
+    "formula",  # Mathematical formula to remember
+    "fact",  # Factual information to memorize
+    "key_concept",  # Important concept to understand
 ]
 
 # Learning approaches - how to best teach this knowledge
 LEARNING_APPROACHES = [
-    "procedural",    # Step-by-step problem solving
-    "conceptual",    # Understanding principles and "why"
-    "factual",       # Memorizing facts/terminology
-    "analytical",    # Critical thinking, evaluating evidence
+    "procedural",  # Step-by-step problem solving
+    "conceptual",  # Understanding principles and "why"
+    "factual",  # Memorizing facts/terminology
+    "analytical",  # Critical thinking, evaluating evidence
 ]
 
 # Type checking imports (avoid circular dependencies)
@@ -51,6 +51,7 @@ class KnowledgeItemInfo:
 
     The primary format for knowledge extraction. Replaces ProcedureInfo.
     """
+
     name: str  # snake_case identifier
     knowledge_type: Optional[str] = None  # DEPRECATED - no longer extracted, will be removed
     learning_approach: Optional[str] = None  # procedural, conceptual, factual, analytical
@@ -59,12 +60,13 @@ class KnowledgeItemInfo:
 @dataclass
 class AnalysisResult:
     """Result of exercise analysis."""
+
     is_valid_exercise: bool
     is_fragment: bool
     should_merge_with_previous: bool
     difficulty: Optional[str]
     confidence: float
-    knowledge_items: Optional[List['KnowledgeItemInfo']] = None
+    knowledge_items: Optional[List["KnowledgeItemInfo"]] = None
 
     @staticmethod
     def _normalize_name(name: Optional[str]) -> Optional[str]:
@@ -72,16 +74,21 @@ class AnalysisResult:
         if not name:
             return None
         normalized = name.lower()
-        normalized = re.sub(r'[^\w\s-]', '', normalized)
-        normalized = re.sub(r'[\s-]+', '_', normalized)
+        normalized = re.sub(r"[^\w\s-]", "", normalized)
+        normalized = re.sub(r"[\s-]+", "_", normalized)
         return normalized
 
 
 class ExerciseAnalyzer:
     """Analyzes exercises using LLM to discover topics and core loops."""
 
-    def __init__(self, llm_manager: Optional[LLMManager] = None, language: str = "en",
-                 monolingual: bool = False, procedure_cache: Optional['ProcedureCache'] = None):
+    def __init__(
+        self,
+        llm_manager: Optional[LLMManager] = None,
+        language: str = "en",
+        monolingual: bool = False,
+        procedure_cache: Optional["ProcedureCache"] = None,
+    ):
         """Initialize analyzer.
 
         Args:
@@ -97,17 +104,20 @@ class ExerciseAnalyzer:
 
         # Option 3: Procedure Pattern Caching
         self.procedure_cache = procedure_cache
-        self.cache_stats = {'hits': 0, 'misses': 0}
+        self.cache_stats = {"hits": 0, "misses": 0}
 
         # Initialize translation detector for monolingual mode
         self.translation_detector = None
         if self.monolingual:
             try:
                 from core.translation_detector import TranslationDetector
+
                 self.translation_detector = TranslationDetector(llm_manager=self.llm)
                 print("[INFO] Translation detector initialized for monolingual mode")
             except Exception as e:
-                print(f"[WARNING] Failed to initialize TranslationDetector for monolingual mode: {e}")
+                print(
+                    f"[WARNING] Failed to initialize TranslationDetector for monolingual mode: {e}"
+                )
                 print("  Monolingual mode will be disabled")
                 self.monolingual = False  # Disable if can't initialize
 
@@ -127,9 +137,13 @@ class ExerciseAnalyzer:
         """Get full language name for prompts."""
         return self.language.upper()
 
-    def analyze_exercise(self, exercise_text: str, course_name: str,
-                        exercise_context: Optional[str] = None,
-                        is_sub_question: bool = False) -> AnalysisResult:
+    def analyze_exercise(
+        self,
+        exercise_text: str,
+        course_name: str,
+        exercise_context: Optional[str] = None,
+        is_sub_question: bool = False,
+    ) -> AnalysisResult:
         """Analyze a single exercise.
 
         Args:
@@ -151,7 +165,7 @@ class ExerciseAnalyzer:
             prompt=prompt,
             model=self.llm.primary_model,
             temperature=0.3,  # Lower temp for more consistent analysis
-            json_mode=True
+            json_mode=True,
         )
 
         if not response.success:
@@ -169,11 +183,13 @@ class ExerciseAnalyzer:
         knowledge_items = []
         if "knowledge_item" in data and data["knowledge_item"]:
             item_data = data["knowledge_item"]
-            knowledge_items.append(KnowledgeItemInfo(
-                name=item_data.get("name", "unknown"),
-                knowledge_type=None,  # DEPRECATED - no longer extracted
-                learning_approach=item_data.get("learning_approach"),
-            ))
+            knowledge_items.append(
+                KnowledgeItemInfo(
+                    name=item_data.get("name", "unknown"),
+                    knowledge_type=None,  # DEPRECATED - no longer extracted
+                    learning_approach=item_data.get("learning_approach"),
+                )
+            )
 
         return AnalysisResult(
             is_valid_exercise=data.get("is_valid_exercise", True),
@@ -184,9 +200,13 @@ class ExerciseAnalyzer:
             knowledge_items=knowledge_items if knowledge_items else None,
         )
 
-    def _build_analysis_prompt(self, exercise_text: str, course_name: str,
-                               exercise_context: Optional[str] = None,
-                               is_sub_question: bool = False) -> str:
+    def _build_analysis_prompt(
+        self,
+        exercise_text: str,
+        course_name: str,
+        exercise_context: Optional[str] = None,
+        is_sub_question: bool = False,
+    ) -> str:
         """Build prompt for exercise analysis.
 
         Args:
@@ -283,8 +303,8 @@ Respond ONLY with valid JSON.
 
         # Convert to lowercase, replace spaces with underscores
         knowledge_item_id = knowledge_item_name.lower()
-        knowledge_item_id = re.sub(r'[^\w\s-]', '', knowledge_item_id)
-        knowledge_item_id = re.sub(r'[\s-]+', '_', knowledge_item_id)
+        knowledge_item_id = re.sub(r"[^\w\s-]", "", knowledge_item_id)
+        knowledge_item_id = re.sub(r"[\s-]+", "_", knowledge_item_id)
 
         return knowledge_item_id
 
@@ -299,7 +319,7 @@ Respond ONLY with valid JSON.
             knowledge_items=None,
         )
 
-    def _build_result_from_cache(self, cache_hit: 'CacheHit', exercise_text: str) -> AnalysisResult:
+    def _build_result_from_cache(self, cache_hit: "CacheHit", exercise_text: str) -> AnalysisResult:
         """Build AnalysisResult from cache hit (Option 3: Procedure Pattern Caching).
 
         Args:
@@ -313,11 +333,13 @@ Respond ONLY with valid JSON.
         knowledge_items = []
         if cache_hit.knowledge_items:
             for ki in cache_hit.knowledge_items:
-                knowledge_items.append(KnowledgeItemInfo(
-                    name=ki.get('name', 'unknown'),
-                    knowledge_type=None,  # DEPRECATED - no longer extracted
-                    learning_approach=ki.get('learning_approach'),
-                ))
+                knowledge_items.append(
+                    KnowledgeItemInfo(
+                        name=ki.get("name", "unknown"),
+                        knowledge_type=None,  # DEPRECATED - no longer extracted
+                        learning_approach=ki.get("learning_approach"),
+                    )
+                )
 
         return AnalysisResult(
             is_valid_exercise=True,
@@ -347,7 +369,7 @@ Respond ONLY with valid JSON.
         language_counts = {}
 
         for exercise in exercises[:sample_size]:
-            text = exercise.get('text', '')
+            text = exercise.get("text", "")
             if not text:
                 continue
 
@@ -358,14 +380,18 @@ Respond ONLY with valid JSON.
         # Get most common language
         if language_counts:
             primary_lang = max(language_counts, key=language_counts.get)
-            print(f"[INFO] Detected primary course language: {primary_lang} (from {sample_size} exercises)")
+            print(
+                f"[INFO] Detected primary course language: {primary_lang} (from {sample_size} exercises)"
+            )
             return primary_lang
         else:
             # Fallback to analysis language (supports any language)
             print(f"[INFO] Could not detect language, using fallback: {self.language}")
             return self.language
 
-    def merge_exercises(self, exercises: List[Dict[str, Any]], skip_analyzed: bool = False) -> List[Dict[str, Any]]:
+    def merge_exercises(
+        self, exercises: List[Dict[str, Any]], skip_analyzed: bool = False
+    ) -> List[Dict[str, Any]]:
         """Analyze exercises (no fragment merging - Smart Split handles that).
 
         Args:
@@ -382,7 +408,7 @@ Respond ONLY with valid JSON.
 
         for exercise in exercises:
             # Skip already analyzed exercises if requested
-            if skip_analyzed and exercise.get('analyzed'):
+            if skip_analyzed and exercise.get("analyzed"):
                 print(f"[DEBUG] Skipping already analyzed exercise: {exercise['id'][:40]}...")
                 continue
 
@@ -392,16 +418,13 @@ Respond ONLY with valid JSON.
                 exercise.get("course_name", "Unknown Course"),
             )
 
-            results.append({
-                **exercise,
-                "merged_from": [exercise["id"]],
-                "analysis": analysis
-            })
+            results.append({**exercise, "merged_from": [exercise["id"]], "analysis": analysis})
 
         return results
 
-    def _analyze_exercise_with_retry(self, exercise_text: str, course_name: str,
-                                     max_retries: int = 2) -> AnalysisResult:
+    def _analyze_exercise_with_retry(
+        self, exercise_text: str, course_name: str, max_retries: int = 2
+    ) -> AnalysisResult:
         """Analyze exercise with retry logic for failed API calls.
 
         Args:
@@ -416,12 +439,12 @@ Respond ONLY with valid JSON.
         if self.procedure_cache and Config.PROCEDURE_CACHE_ENABLED:
             cache_hit = self.procedure_cache.lookup(exercise_text, course_code=course_name)
             if cache_hit and cache_hit.confidence >= Config.PROCEDURE_CACHE_MIN_CONFIDENCE:
-                self.cache_stats['hits'] += 1
+                self.cache_stats["hits"] += 1
                 # Build result from cache
                 return self._build_result_from_cache(cache_hit, exercise_text)
             else:
                 # No cache hit or low confidence - track as miss
-                self.cache_stats['misses'] += 1
+                self.cache_stats["misses"] += 1
 
         last_error = None
         for attempt in range(max_retries + 1):
@@ -430,15 +453,22 @@ Respond ONLY with valid JSON.
                 # Check if analysis was successful
                 if result.confidence > 0.0 or result.topic is not None:
                     # Add to procedure cache for future use (Option 3)
-                    if self.procedure_cache and Config.PROCEDURE_CACHE_ENABLED and result.procedures:
+                    if (
+                        self.procedure_cache
+                        and Config.PROCEDURE_CACHE_ENABLED
+                        and result.procedures
+                    ):
                         self.procedure_cache.add(
                             exercise_text=exercise_text,
-                            topic=result.topic or '',
-                            difficulty=result.difficulty or 'medium',
+                            topic=result.topic or "",
+                            difficulty=result.difficulty or "medium",
                             variations=result.variations or [],
-                            procedures=[p.__dict__ if hasattr(p, '__dict__') else p for p in result.procedures],
+                            procedures=[
+                                p.__dict__ if hasattr(p, "__dict__") else p
+                                for p in result.procedures
+                            ],
                             confidence=result.confidence,
-                            course_code=course_name
+                            course_code=course_name,
                         )
                     return result
                 # If we got default result, retry
@@ -458,8 +488,9 @@ Respond ONLY with valid JSON.
         print(f"  All retries failed: {last_error}")
         return self._default_analysis_result()
 
-    async def _analyze_exercise_with_retry_async(self, exercise_text: str, course_name: str,
-                                                  max_retries: int = 2) -> AnalysisResult:
+    async def _analyze_exercise_with_retry_async(
+        self, exercise_text: str, course_name: str, max_retries: int = 2
+    ) -> AnalysisResult:
         """Analyze exercise asynchronously with retry logic for failed API calls.
 
         Args:
@@ -475,33 +506,30 @@ Respond ONLY with valid JSON.
         if self.procedure_cache and Config.PROCEDURE_CACHE_ENABLED:
             cache_hit = self.procedure_cache.lookup(exercise_text, course_code=course_name)
             if cache_hit and cache_hit.confidence >= Config.PROCEDURE_CACHE_MIN_CONFIDENCE:
-                self.cache_stats['hits'] += 1
+                self.cache_stats["hits"] += 1
                 # Build result from cache
                 return self._build_result_from_cache(cache_hit, exercise_text)
             else:
                 # No cache hit or low confidence - track as miss
-                self.cache_stats['misses'] += 1
+                self.cache_stats["misses"] += 1
 
         last_error = None
         for attempt in range(max_retries + 1):
             try:
                 # Build prompt
-                prompt = self._build_analysis_prompt(
-                    exercise_text, course_name
-                )
+                prompt = self._build_analysis_prompt(exercise_text, course_name)
 
                 # Call LLM asynchronously
                 response = await self.llm.generate_async(
-                    prompt=prompt,
-                    model=self.llm.primary_model,
-                    temperature=0.3,
-                    json_mode=True
+                    prompt=prompt, model=self.llm.primary_model, temperature=0.3, json_mode=True
                 )
 
                 if not response.success:
                     # Log error and retry or return default
                     if attempt < max_retries:
-                        print(f"  Retry {attempt + 1}/{max_retries} for exercise (error: {response.error})...")
+                        print(
+                            f"  Retry {attempt + 1}/{max_retries} for exercise (error: {response.error})..."
+                        )
                         await asyncio.sleep(1 * (attempt + 1))  # Exponential backoff
                         continue
                     print(f"[ERROR] LLM failed for exercise: {response.error}")
@@ -522,22 +550,26 @@ Respond ONLY with valid JSON.
                 if "procedures" in data and data["procedures"]:
                     # New format: multiple procedures
                     for proc_data in data["procedures"]:
-                        procedures.append(ProcedureInfo(
-                            name=proc_data.get("name", "Unknown Procedure"),
-                            type=proc_data.get("type", "other"),
-                            steps=proc_data.get("steps", []),
-                            point_number=proc_data.get("point_number"),
-                            transformation=proc_data.get("transformation")
-                        ))
+                        procedures.append(
+                            ProcedureInfo(
+                                name=proc_data.get("name", "Unknown Procedure"),
+                                type=proc_data.get("type", "other"),
+                                steps=proc_data.get("steps", []),
+                                point_number=proc_data.get("point_number"),
+                                transformation=proc_data.get("transformation"),
+                            )
+                        )
                 elif "knowledge_item_name" in data and data["knowledge_item_name"]:
                     # Old format: single procedure - convert to new format
-                    procedures.append(ProcedureInfo(
-                        name=data["knowledge_item_name"],
-                        type="other",
-                        steps=data.get("procedure", []),
-                        point_number=None,
-                        transformation=None
-                    ))
+                    procedures.append(
+                        ProcedureInfo(
+                            name=data["knowledge_item_name"],
+                            type="other",
+                            steps=data.get("procedure", []),
+                            point_number=None,
+                            transformation=None,
+                        )
+                    )
 
                 # Normalize procedures to primary language if monolingual mode enabled
                 if self.monolingual and procedures:
@@ -578,21 +610,28 @@ Respond ONLY with valid JSON.
                     concept_id=concept_id,
                     prerequisite_concepts=prerequisite_concepts,
                     parent_concept_name=parent_concept_name,
-                    variation_parameter=variation_parameter
+                    variation_parameter=variation_parameter,
                 )
 
                 # Check if analysis was successful
                 if result.confidence > 0.0 or result.topic is not None:
                     # Add to procedure cache for future use (Option 3)
-                    if self.procedure_cache and Config.PROCEDURE_CACHE_ENABLED and result.procedures:
+                    if (
+                        self.procedure_cache
+                        and Config.PROCEDURE_CACHE_ENABLED
+                        and result.procedures
+                    ):
                         self.procedure_cache.add(
                             exercise_text=exercise_text,
-                            topic=result.topic or '',
-                            difficulty=result.difficulty or 'medium',
+                            topic=result.topic or "",
+                            difficulty=result.difficulty or "medium",
                             variations=result.variations or [],
-                            procedures=[p.__dict__ if hasattr(p, '__dict__') else p for p in result.procedures],
+                            procedures=[
+                                p.__dict__ if hasattr(p, "__dict__") else p
+                                for p in result.procedures
+                            ],
                             confidence=result.confidence,
-                            course_code=course_name
+                            course_code=course_name,
                         )
                     return result
 
@@ -615,10 +654,13 @@ Respond ONLY with valid JSON.
         print(f"  All retries failed: {last_error}")
         return self._default_analysis_result()
 
-    def merge_exercises_parallel(self, exercises: List[Dict[str, Any]],
-                                 batch_size: Optional[int] = None,
-                                 show_progress: bool = True,
-                                 skip_analyzed: bool = False) -> List[Dict[str, Any]]:
+    def merge_exercises_parallel(
+        self,
+        exercises: List[Dict[str, Any]],
+        batch_size: Optional[int] = None,
+        show_progress: bool = True,
+        skip_analyzed: bool = False,
+    ) -> List[Dict[str, Any]]:
         """Analyze exercises in parallel batches (no fragment merging - Smart Split handles that).
 
         Args:
@@ -636,7 +678,9 @@ Respond ONLY with valid JSON.
         batch_size = batch_size or Config.BATCH_SIZE
         total = len(exercises)
 
-        print(f"[INFO] Starting parallel batch analysis of {total} exercises (batch_size={batch_size})...")
+        print(
+            f"[INFO] Starting parallel batch analysis of {total} exercises (batch_size={batch_size})..."
+        )
         start_time = time.time()
 
         # Store analysis results indexed by exercise position
@@ -647,7 +691,7 @@ Respond ONLY with valid JSON.
             """Analyze a single exercise and return (index, analysis, error)."""
             try:
                 # Skip already analyzed if requested
-                if skip_analyzed and exercise.get('analyzed'):
+                if skip_analyzed and exercise.get("analyzed"):
                     return (index, None, None)  # Signal to skip
 
                 analysis = self._analyze_exercise_with_retry(
@@ -670,7 +714,9 @@ Respond ONLY with valid JSON.
             batch_indices = list(range(batch_start, batch_end))
 
             if show_progress:
-                print(f"  Processing batch {batch_start//batch_size + 1}/{(total + batch_size - 1)//batch_size} (exercises {batch_start+1}-{batch_end}/{total})...")
+                print(
+                    f"  Processing batch {batch_start // batch_size + 1}/{(total + batch_size - 1) // batch_size} (exercises {batch_start + 1}-{batch_end}/{total})..."
+                )
 
             # Prepare analysis tasks for this batch
             with ThreadPoolExecutor(max_workers=batch_size) as executor:
@@ -698,7 +744,9 @@ Respond ONLY with valid JSON.
                         elapsed = time.time() - start_time
                         rate = processed / elapsed if elapsed > 0 else 0
                         eta = (total - processed) / rate if rate > 0 else 0
-                        print(f"    Progress: {processed}/{total} ({100*processed/total:.1f}%) | {rate:.1f} ex/s | ETA: {eta:.0f}s")
+                        print(
+                            f"    Progress: {processed}/{total} ({100 * processed / total:.1f}%) | {rate:.1f} ex/s | ETA: {eta:.0f}s"
+                        )
 
         elapsed_time = time.time() - start_time
 
@@ -707,7 +755,7 @@ Respond ONLY with valid JSON.
         if skipped_count > 0:
             print(f"  Skipped (already analyzed): {skipped_count} exercises")
         print(f"  Failed: {failed_count} exercises")
-        print(f"  Rate: {processed/elapsed_time:.1f} exercises/second")
+        print(f"  Rate: {processed / elapsed_time:.1f} exercises/second")
 
         # Build results list (each exercise is standalone - no fragment merging)
         results = []
@@ -715,20 +763,21 @@ Respond ONLY with valid JSON.
             if i not in analysis_results:
                 continue
 
-            results.append({
-                **exercise,
-                "merged_from": [exercise["id"]],
-                "analysis": analysis_results[i]
-            })
+            results.append(
+                {**exercise, "merged_from": [exercise["id"]], "analysis": analysis_results[i]}
+            )
 
         print(f"[INFO] Analyzed {len(results)} exercises")
 
         return results
 
-    async def merge_exercises_async(self, exercises: List[Dict[str, Any]],
-                                    batch_size: Optional[int] = None,
-                                    show_progress: bool = True,
-                                    skip_analyzed: bool = False) -> List[Dict[str, Any]]:
+    async def merge_exercises_async(
+        self,
+        exercises: List[Dict[str, Any]],
+        batch_size: Optional[int] = None,
+        show_progress: bool = True,
+        skip_analyzed: bool = False,
+    ) -> List[Dict[str, Any]]:
         """Analyze exercises using async batch processing (no fragment merging - Smart Split handles that).
 
         Args:
@@ -746,7 +795,9 @@ Respond ONLY with valid JSON.
         batch_size = batch_size or Config.BATCH_SIZE
         total = len(exercises)
 
-        print(f"[INFO] Starting async batch analysis of {total} exercises (batch_size={batch_size})...")
+        print(
+            f"[INFO] Starting async batch analysis of {total} exercises (batch_size={batch_size})..."
+        )
         start_time = time.time()
 
         # Store analysis results indexed by exercise position
@@ -757,7 +808,7 @@ Respond ONLY with valid JSON.
             """Analyze a single exercise and return (index, analysis, error)."""
             try:
                 # Skip already analyzed if requested
-                if skip_analyzed and exercise.get('analyzed'):
+                if skip_analyzed and exercise.get("analyzed"):
                     return (index, None, None)  # Signal to skip
 
                 analysis = await self._analyze_exercise_with_retry_async(
@@ -780,7 +831,9 @@ Respond ONLY with valid JSON.
             batch_indices = list(range(batch_start, batch_end))
 
             if show_progress:
-                print(f"  Processing batch {batch_start//batch_size + 1}/{(total + batch_size - 1)//batch_size} (exercises {batch_start+1}-{batch_end}/{total})...")
+                print(
+                    f"  Processing batch {batch_start // batch_size + 1}/{(total + batch_size - 1) // batch_size} (exercises {batch_start + 1}-{batch_end}/{total})..."
+                )
 
             # Prepare analysis tasks for this batch
             tasks = []
@@ -816,7 +869,9 @@ Respond ONLY with valid JSON.
                     elapsed = time.time() - start_time
                     rate = processed / elapsed if elapsed > 0 else 0
                     eta = (total - processed) / rate if rate > 0 else 0
-                    print(f"    Progress: {processed}/{total} ({100*processed/total:.1f}%) | {rate:.1f} ex/s | ETA: {eta:.0f}s")
+                    print(
+                        f"    Progress: {processed}/{total} ({100 * processed / total:.1f}%) | {rate:.1f} ex/s | ETA: {eta:.0f}s"
+                    )
 
         elapsed_time = time.time() - start_time
 
@@ -825,7 +880,7 @@ Respond ONLY with valid JSON.
         if skipped_count > 0:
             print(f"  Skipped (already analyzed): {skipped_count} exercises")
         print(f"  Failed: {failed_count} exercises")
-        print(f"  Rate: {processed/elapsed_time:.1f} exercises/second")
+        print(f"  Rate: {processed / elapsed_time:.1f} exercises/second")
 
         # Build results list (each exercise is standalone - no fragment merging)
         results_list = []
@@ -833,20 +888,21 @@ Respond ONLY with valid JSON.
             if i not in analysis_results:
                 continue
 
-            results_list.append({
-                **exercise,
-                "merged_from": [exercise["id"]],
-                "analysis": analysis_results[i]
-            })
+            results_list.append(
+                {**exercise, "merged_from": [exercise["id"]], "analysis": analysis_results[i]}
+            )
 
         print(f"[INFO] Analyzed {len(results_list)} exercises")
 
         return results_list
 
-    def discover_knowledge_items(self, course_code: str,
-                            batch_size: int = 10,
-                            skip_analyzed: bool = False,
-                            use_parallel: bool = True) -> Dict[str, Any]:
+    def discover_knowledge_items(
+        self,
+        course_code: str,
+        batch_size: int = 10,
+        skip_analyzed: bool = False,
+        use_parallel: bool = True,
+    ) -> Dict[str, Any]:
         """Discover core loops for a course.
 
         Args:
@@ -868,7 +924,7 @@ Respond ONLY with valid JSON.
             # Detect primary language if monolingual mode enabled
             if self.monolingual and not self.primary_language:
                 course = db.get_course(course_code)
-                course_name = course['name'] if course else course_code
+                course_name = course["name"] if course else course_code
                 self.primary_language = self._detect_primary_language(exercises, course_name)
                 print(f"[MONOLINGUAL MODE] Primary language set to: {self.primary_language}")
                 print(f"  All procedures will be normalized to {self.primary_language}\n")
@@ -876,9 +932,7 @@ Respond ONLY with valid JSON.
             # Merge fragments first - use parallel or sequential mode
             if use_parallel:
                 merged_exercises = self.merge_exercises_parallel(
-                    exercises,
-                    batch_size=batch_size,
-                    skip_analyzed=skip_analyzed
+                    exercises, batch_size=batch_size, skip_analyzed=skip_analyzed
                 )
             else:
                 merged_exercises = self.merge_exercises(exercises, skip_analyzed=skip_analyzed)
@@ -895,16 +949,22 @@ Respond ONLY with valid JSON.
                 # Skip low-confidence analyses
                 if analysis.confidence < Config.MIN_ANALYSIS_CONFIDENCE:
                     low_confidence_count += 1
-                    print(f"[INFO] Skipping exercise due to low confidence ({analysis.confidence:.2f} < {Config.MIN_ANALYSIS_CONFIDENCE}): {merged_ex['id'][:40]}...")
+                    print(
+                        f"[INFO] Skipping exercise due to low confidence ({analysis.confidence:.2f} < {Config.MIN_ANALYSIS_CONFIDENCE}): {merged_ex['id'][:40]}..."
+                    )
                     merged_ex["low_confidence_skipped"] = True
                     continue
 
                 # Process ALL procedures (multi-procedure support)
                 if analysis.procedures:
                     if len(analysis.procedures) > 1:
-                        print(f"[INFO] Multiple procedures detected ({len(analysis.procedures)}) in exercise {merged_ex['id'][:40]}:")
+                        print(
+                            f"[INFO] Multiple procedures detected ({len(analysis.procedures)}) in exercise {merged_ex['id'][:40]}:"
+                        )
                         for i, proc in enumerate(analysis.procedures, 1):
-                            print(f"  {i}. {proc.name} (type: {proc.type}, point: {proc.point_number})")
+                            print(
+                                f"  {i}. {proc.name} (type: {proc.type}, point: {proc.point_number})"
+                            )
 
                     for procedure_info in analysis.procedures:
                         knowledge_item_id = self._normalize_knowledge_item_id(procedure_info.name)
@@ -918,21 +978,30 @@ Respond ONLY with valid JSON.
                                     "type": procedure_info.type,
                                     "transformation": procedure_info.transformation,
                                     "exercise_count": 0,
-                                    "exercises": []
+                                    "exercises": [],
                                 }
                             knowledge_items[knowledge_item_id]["exercise_count"] += 1
-                            if merged_ex["id"] not in knowledge_items[knowledge_item_id]["exercises"]:
-                                knowledge_items[knowledge_item_id]["exercises"].append(merged_ex["id"])
+                            if (
+                                merged_ex["id"]
+                                not in knowledge_items[knowledge_item_id]["exercises"]
+                            ):
+                                knowledge_items[knowledge_item_id]["exercises"].append(
+                                    merged_ex["id"]
+                                )
 
             # Deduplicate against existing database entries
-            knowledge_items = self._deduplicate_knowledge_items_with_database(knowledge_items, course_code, db)
+            knowledge_items = self._deduplicate_knowledge_items_with_database(
+                knowledge_items, course_code, db
+            )
 
             # Log summary statistics
             accepted_count = len(merged_exercises) - low_confidence_count
             if low_confidence_count > 0:
                 print(f"\n[SUMMARY] Confidence Filtering Results:")
                 print(f"  Total merged exercises: {len(merged_exercises)}")
-                print(f"  Accepted (>= {Config.MIN_ANALYSIS_CONFIDENCE} confidence): {accepted_count}")
+                print(
+                    f"  Accepted (>= {Config.MIN_ANALYSIS_CONFIDENCE} confidence): {accepted_count}"
+                )
                 print(f"  Skipped (low confidence): {low_confidence_count}")
                 print(f"  Skip rate: {(low_confidence_count / len(merged_exercises) * 100):.1f}%\n")
 
@@ -942,7 +1011,7 @@ Respond ONLY with valid JSON.
                 "original_count": len(exercises),
                 "merged_count": len(merged_exercises),
                 "low_confidence_skipped": low_confidence_count,
-                "accepted_count": accepted_count
+                "accepted_count": accepted_count,
             }
 
     # Backwards compatibility alias
@@ -952,9 +1021,9 @@ Respond ONLY with valid JSON.
         result["topics"] = {}  # Empty for backwards compatibility
         return result
 
-    async def discover_knowledge_items_async(self, course_code: str,
-                                        batch_size: int = 10,
-                                        skip_analyzed: bool = False) -> Dict[str, Any]:
+    async def discover_knowledge_items_async(
+        self, course_code: str, batch_size: int = 10, skip_analyzed: bool = False
+    ) -> Dict[str, Any]:
         """Discover core loops for a course using async processing.
 
         Args:
@@ -975,16 +1044,14 @@ Respond ONLY with valid JSON.
             # Detect primary language if monolingual mode enabled
             if self.monolingual and not self.primary_language:
                 course = db.get_course(course_code)
-                course_name = course['name'] if course else course_code
+                course_name = course["name"] if course else course_code
                 self.primary_language = self._detect_primary_language(exercises, course_name)
                 print(f"[MONOLINGUAL MODE] Primary language set to: {self.primary_language}")
                 print(f"  All procedures will be normalized to {self.primary_language}\n")
 
             # Merge fragments using async processing
             merged_exercises = await self.merge_exercises_async(
-                exercises,
-                batch_size=batch_size,
-                skip_analyzed=skip_analyzed
+                exercises, batch_size=batch_size, skip_analyzed=skip_analyzed
             )
 
             # Collect all analyses
@@ -999,16 +1066,22 @@ Respond ONLY with valid JSON.
                 # Skip low-confidence analyses
                 if analysis.confidence < Config.MIN_ANALYSIS_CONFIDENCE:
                     low_confidence_count += 1
-                    print(f"[INFO] Skipping exercise due to low confidence ({analysis.confidence:.2f} < {Config.MIN_ANALYSIS_CONFIDENCE}): {merged_ex['id'][:40]}...")
+                    print(
+                        f"[INFO] Skipping exercise due to low confidence ({analysis.confidence:.2f} < {Config.MIN_ANALYSIS_CONFIDENCE}): {merged_ex['id'][:40]}..."
+                    )
                     merged_ex["low_confidence_skipped"] = True
                     continue
 
                 # Process ALL procedures
                 if analysis.procedures:
                     if len(analysis.procedures) > 1:
-                        print(f"[INFO] Multiple procedures detected ({len(analysis.procedures)}) in exercise {merged_ex['id'][:40]}:")
+                        print(
+                            f"[INFO] Multiple procedures detected ({len(analysis.procedures)}) in exercise {merged_ex['id'][:40]}:"
+                        )
                         for i, proc in enumerate(analysis.procedures, 1):
-                            print(f"  {i}. {proc.name} (type: {proc.type}, point: {proc.point_number})")
+                            print(
+                                f"  {i}. {proc.name} (type: {proc.type}, point: {proc.point_number})"
+                            )
 
                     for procedure_info in analysis.procedures:
                         knowledge_item_id = self._normalize_knowledge_item_id(procedure_info.name)
@@ -1022,21 +1095,30 @@ Respond ONLY with valid JSON.
                                     "type": procedure_info.type,
                                     "transformation": procedure_info.transformation,
                                     "exercise_count": 0,
-                                    "exercises": []
+                                    "exercises": [],
                                 }
                             knowledge_items[knowledge_item_id]["exercise_count"] += 1
-                            if merged_ex["id"] not in knowledge_items[knowledge_item_id]["exercises"]:
-                                knowledge_items[knowledge_item_id]["exercises"].append(merged_ex["id"])
+                            if (
+                                merged_ex["id"]
+                                not in knowledge_items[knowledge_item_id]["exercises"]
+                            ):
+                                knowledge_items[knowledge_item_id]["exercises"].append(
+                                    merged_ex["id"]
+                                )
 
             # Deduplicate against existing database entries
-            knowledge_items = self._deduplicate_knowledge_items_with_database(knowledge_items, course_code, db)
+            knowledge_items = self._deduplicate_knowledge_items_with_database(
+                knowledge_items, course_code, db
+            )
 
             # Log summary statistics
             accepted_count = len(merged_exercises) - low_confidence_count
             if low_confidence_count > 0:
                 print(f"\n[SUMMARY] Confidence Filtering Results:")
                 print(f"  Total merged exercises: {len(merged_exercises)}")
-                print(f"  Accepted (>= {Config.MIN_ANALYSIS_CONFIDENCE} confidence): {accepted_count}")
+                print(
+                    f"  Accepted (>= {Config.MIN_ANALYSIS_CONFIDENCE} confidence): {accepted_count}"
+                )
                 print(f"  Skipped (low confidence): {low_confidence_count}")
                 print(f"  Skip rate: {(low_confidence_count / len(merged_exercises) * 100):.1f}%\n")
 
@@ -1046,7 +1128,7 @@ Respond ONLY with valid JSON.
                 "original_count": len(exercises),
                 "merged_count": len(merged_exercises),
                 "low_confidence_skipped": low_confidence_count,
-                "accepted_count": accepted_count
+                "accepted_count": accepted_count,
             }
 
     # Backwards compatibility alias
@@ -1089,7 +1171,11 @@ Respond ONLY with valid JSON.
         if len(knowledge_items) <= 1:
             return knowledge_items
 
-        threshold = Config.SEMANTIC_SIMILARITY_THRESHOLD if self.use_semantic else Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
+        threshold = (
+            Config.SEMANTIC_SIMILARITY_THRESHOLD
+            if self.use_semantic
+            else Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
+        )
         loop_ids = list(knowledge_items.keys())
         merged_loops = {}
         skip_loops = set()
@@ -1109,7 +1195,7 @@ Respond ONLY with valid JSON.
             self.knowledge_item_id_mapping[canonical_id] = canonical_id
 
             # Check for similar core loops (compare names, not IDs)
-            for loop2_id in loop_ids[i+1:]:
+            for loop2_id in loop_ids[i + 1 :]:
                 if loop2_id in skip_loops:
                     continue
 
@@ -1121,28 +1207,42 @@ Respond ONLY with valid JSON.
                         loop1["name"], loop2["name"], threshold
                     )
                     if result.should_merge:
-                        print(f"[DEDUP] Core loop '{loop1['name']}' → '{loop2['name']}' (similarity: {result.similarity_score:.2f}, reason: {result.reason})")
+                        print(
+                            f"[DEDUP] Core loop '{loop1['name']}' → '{loop2['name']}' (similarity: {result.similarity_score:.2f}, reason: {result.reason})"
+                        )
                         # Merge loop2 into canonical
                         canonical_data["exercise_count"] += loop2["exercise_count"]
-                        canonical_data["exercises"] = list(set(canonical_data["exercises"]) | set(loop2["exercises"]))
+                        canonical_data["exercises"] = list(
+                            set(canonical_data["exercises"]) | set(loop2["exercises"])
+                        )
                         # Merge procedures (prefer longer/more detailed one)
-                        if len(loop2.get("procedure", [])) > len(canonical_data.get("procedure", [])):
+                        if len(loop2.get("procedure", [])) > len(
+                            canonical_data.get("procedure", [])
+                        ):
                             canonical_data["procedure"] = loop2["procedure"]
                         skip_loops.add(loop2_id)
                         # Map merged ID to canonical ID
                         self.knowledge_item_id_mapping[loop2_id] = canonical_id
                     elif Config.SEMANTIC_LOG_NEAR_MISSES and result.similarity_score >= 0.80:
-                        print(f"[SKIP] Core loop '{loop1['name']}' ≠ '{loop2['name']}' (similarity: {result.similarity_score:.2f}, reason: {result.reason})")
+                        print(
+                            f"[SKIP] Core loop '{loop1['name']}' ≠ '{loop2['name']}' (similarity: {result.similarity_score:.2f}, reason: {result.reason})"
+                        )
                 else:
                     # Fallback to string similarity
                     similarity, reason = self._similarity(loop1["name"], loop2["name"])
                     if similarity >= threshold:
-                        print(f"[DEBUG] Merging similar core loops: '{loop1['name']}' ≈ '{loop2['name']}' (similarity: {similarity:.2f})")
+                        print(
+                            f"[DEBUG] Merging similar core loops: '{loop1['name']}' ≈ '{loop2['name']}' (similarity: {similarity:.2f})"
+                        )
                         # Merge loop2 into canonical
                         canonical_data["exercise_count"] += loop2["exercise_count"]
-                        canonical_data["exercises"] = list(set(canonical_data["exercises"]) | set(loop2["exercises"]))
+                        canonical_data["exercises"] = list(
+                            set(canonical_data["exercises"]) | set(loop2["exercises"])
+                        )
                         # Merge procedures (prefer longer/more detailed one)
-                        if len(loop2.get("procedure", [])) > len(canonical_data.get("procedure", [])):
+                        if len(loop2.get("procedure", [])) > len(
+                            canonical_data.get("procedure", [])
+                        ):
                             canonical_data["procedure"] = loop2["procedure"]
                         skip_loops.add(loop2_id)
                         # Map merged ID to canonical ID
@@ -1152,9 +1252,9 @@ Respond ONLY with valid JSON.
 
         return merged_loops
 
-    def _deduplicate_knowledge_items_with_database(self, knowledge_items: Dict[str, Any],
-                                              course_code: str,
-                                              db) -> Dict[str, Any]:
+    def _deduplicate_knowledge_items_with_database(
+        self, knowledge_items: Dict[str, Any], course_code: str, db
+    ) -> Dict[str, Any]:
         """Deduplicate core loops against existing database entries, then within batch.
 
         Args:
@@ -1165,11 +1265,15 @@ Respond ONLY with valid JSON.
         Returns:
             Deduplicated core loops dictionary with mappings to existing DB loops
         """
-        threshold = Config.SEMANTIC_SIMILARITY_THRESHOLD if self.use_semantic else Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
+        threshold = (
+            Config.SEMANTIC_SIMILARITY_THRESHOLD
+            if self.use_semantic
+            else Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
+        )
 
         # Load existing core loops from database
         existing_loops = db.get_knowledge_items_by_course(course_code)
-        existing_loop_map = {loop['id']: loop for loop in existing_loops}
+        existing_loop_map = {loop["id"]: loop for loop in existing_loops}
 
         # Track mappings from new loop IDs to canonical (db or batch) IDs
         loop_id_mapping = {}
@@ -1184,22 +1288,26 @@ Respond ONLY with valid JSON.
             for existing_loop in existing_loops:
                 if self.use_semantic and self.semantic_matcher:
                     result = self.semantic_matcher.should_merge(
-                        new_loop_data['name'], existing_loop['name'], threshold
+                        new_loop_data["name"], existing_loop["name"], threshold
                     )
                     if result.should_merge and result.similarity_score > best_similarity:
                         best_similarity = result.similarity_score
-                        matched_existing = existing_loop['id']
+                        matched_existing = existing_loop["id"]
                         best_reason = result.reason
                 else:
-                    similarity, reason = self._similarity(new_loop_data['name'], existing_loop['name'])
+                    similarity, reason = self._similarity(
+                        new_loop_data["name"], existing_loop["name"]
+                    )
                     if similarity >= threshold and similarity > best_similarity:
                         best_similarity = similarity
-                        matched_existing = existing_loop['id']
+                        matched_existing = existing_loop["id"]
                         best_reason = reason
 
             if matched_existing:
                 # Reuse existing loop
-                print(f"[DEDUP] Core loop '{new_loop_data['name']}' → existing '{existing_loop_map[matched_existing]['name']}' (similarity: {best_similarity:.2f}, reason: {best_reason})")
+                print(
+                    f"[DEDUP] Core loop '{new_loop_data['name']}' → existing '{existing_loop_map[matched_existing]['name']}' (similarity: {best_similarity:.2f}, reason: {best_reason})"
+                )
                 loop_id_mapping[new_loop_id] = matched_existing
                 # Don't add to deduplicated_loops, we'll use DB entry
             else:
@@ -1211,7 +1319,7 @@ Respond ONLY with valid JSON.
         deduplicated_loops = self._deduplicate_knowledge_items(deduplicated_loops)
 
         # Update loop mapping with any batch deduplication
-        if hasattr(self, 'knowledge_item_id_mapping'):
+        if hasattr(self, "knowledge_item_id_mapping"):
             for old_id, canonical_id in self.knowledge_item_id_mapping.items():
                 if old_id in loop_id_mapping:
                     loop_id_mapping[old_id] = canonical_id
@@ -1243,10 +1351,7 @@ Respond ONLY with valid JSON.
 
         # Call LLM
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.primary_model,
-            temperature=0.3,
-            json_mode=True
+            prompt=prompt, model=self.llm.primary_model, temperature=0.3, json_mode=True
         )
 
         if not response.success:
@@ -1267,13 +1372,15 @@ Respond ONLY with valid JSON.
         procedures = []
         if "procedures" in data and data["procedures"]:
             for proc_data in data["procedures"]:
-                procedures.append(ProcedureInfo(
-                    name=proc_data.get("name", "Unknown Procedure"),
-                    type=proc_data.get("type", "other"),
-                    steps=proc_data.get("steps", []),
-                    point_number=proc_data.get("point_number"),
-                    transformation=proc_data.get("transformation")
-                ))
+                procedures.append(
+                    ProcedureInfo(
+                        name=proc_data.get("name", "Unknown Procedure"),
+                        type=proc_data.get("type", "other"),
+                        steps=proc_data.get("steps", []),
+                        point_number=proc_data.get("point_number"),
+                        transformation=proc_data.get("transformation"),
+                    )
+                )
 
         # Return analysis result
         return AnalysisResult(
@@ -1286,7 +1393,7 @@ Respond ONLY with valid JSON.
             confidence=data.get("confidence", 0.5),
             procedures=procedures,
             exercise_type=data.get("material_type", "theory"),
-            type_confidence=data.get("type_confidence", 0.8)
+            type_confidence=data.get("type_confidence", 0.8),
         )
 
     def _build_material_analysis_prompt(self, material_text: str, course_name: str) -> str:
@@ -1376,7 +1483,7 @@ Respond ONLY with valid JSON, no other text.
 
             # Get existing topics for this course
             course_topics = db.get_topics_by_course(course_code)
-            topic_map = {t['name']: t for t in course_topics}
+            topic_map = {t["name"]: t for t in course_topics}
 
             if not course_topics:
                 print(f"[WARNING] No topics found for course {course_code}. Run 'analyze' first.")
@@ -1384,7 +1491,7 @@ Respond ONLY with valid JSON, no other text.
 
             # Get course name for context
             course = db.get_course(course_code)
-            course_name = course['name'] if course else course_code
+            course_name = course["name"] if course else course_code
 
             print(f"[INFO] Linking {len(materials)} materials to {len(course_topics)} topics...")
 
@@ -1393,21 +1500,24 @@ Respond ONLY with valid JSON, no other text.
 
             for material in materials:
                 # Check if already linked
-                existing_topics = db.get_topics_for_material(material['id'])
+                existing_topics = db.get_topics_for_material(material["id"])
                 if existing_topics:
-                    print(f"[DEBUG] Material {material['id'][:40]} already linked to {len(existing_topics)} topic(s), skipping")
+                    print(
+                        f"[DEBUG] Material {material['id'][:40]} already linked to {len(existing_topics)} topic(s), skipping"
+                    )
                     skipped_count += 1
                     continue
 
                 # Analyze material to detect topics
-                print(f"[DEBUG] Analyzing material: {material['id'][:40]}... (type: {material['material_type']})")
-                analysis = self.analyze_learning_material(
-                    material['content'],
-                    course_name
+                print(
+                    f"[DEBUG] Analyzing material: {material['id'][:40]}... (type: {material['material_type']})"
                 )
+                analysis = self.analyze_learning_material(material["content"], course_name)
 
                 if analysis.confidence < Config.MIN_ANALYSIS_CONFIDENCE:
-                    print(f"[WARNING] Low confidence analysis ({analysis.confidence:.2f}), skipping material")
+                    print(
+                        f"[WARNING] Low confidence analysis ({analysis.confidence:.2f}), skipping material"
+                    )
                     continue
 
                 # Collect all detected topics (primary + variations)
@@ -1424,25 +1534,28 @@ Respond ONLY with valid JSON, no other text.
                 # Match each detected topic to existing course topics
                 for detected_topic in detected_topics:
                     matched_topic_id = self._match_topic_to_existing(
-                        detected_topic,
-                        course_topics,
-                        db
+                        detected_topic, course_topics, db
                     )
 
                     if matched_topic_id:
-                        db.link_material_to_topic(material['id'], matched_topic_id)
-                        matched_topic = next(t for t in course_topics if t['id'] == matched_topic_id)
+                        db.link_material_to_topic(material["id"], matched_topic_id)
+                        matched_topic = next(
+                            t for t in course_topics if t["id"] == matched_topic_id
+                        )
                         print(f"[INFO] Linked material to topic: '{matched_topic['name']}'")
                         linked_count += 1
                     else:
-                        print(f"[WARNING] Could not match detected topic '{detected_topic}' to existing topics")
+                        print(
+                            f"[WARNING] Could not match detected topic '{detected_topic}' to existing topics"
+                        )
 
             print(f"\n[SUMMARY] Material linking complete:")
             print(f"  Linked: {linked_count} material-topic links created")
             print(f"  Skipped (already linked): {skipped_count} materials")
 
-    def _match_topic_to_existing(self, detected_topic: str, course_topics: List[Dict[str, Any]],
-                                  db) -> Optional[int]:
+    def _match_topic_to_existing(
+        self, detected_topic: str, course_topics: List[Dict[str, Any]], db
+    ) -> Optional[int]:
         """Match a detected topic name to an existing course topic.
 
         Uses semantic similarity to find the best match.
@@ -1455,7 +1568,11 @@ Respond ONLY with valid JSON, no other text.
         Returns:
             Topic ID if match found, None otherwise
         """
-        threshold = Config.SEMANTIC_SIMILARITY_THRESHOLD if self.use_semantic else Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
+        threshold = (
+            Config.SEMANTIC_SIMILARITY_THRESHOLD
+            if self.use_semantic
+            else Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
+        )
 
         best_match_id = None
         best_similarity = 0.0
@@ -1465,23 +1582,25 @@ Respond ONLY with valid JSON, no other text.
             # Try semantic matching if available
             if self.use_semantic and self.semantic_matcher:
                 result = self.semantic_matcher.should_merge(
-                    detected_topic, topic['name'], threshold
+                    detected_topic, topic["name"], threshold
                 )
                 if result.should_merge and result.similarity_score > best_similarity:
                     best_similarity = result.similarity_score
-                    best_match_id = topic['id']
+                    best_match_id = topic["id"]
                     best_reason = result.reason
             else:
                 # Fallback to string similarity
-                similarity, reason = self._similarity(detected_topic, topic['name'])
+                similarity, reason = self._similarity(detected_topic, topic["name"])
                 if similarity >= threshold and similarity > best_similarity:
                     best_similarity = similarity
-                    best_match_id = topic['id']
+                    best_match_id = topic["id"]
                     best_reason = reason
 
         if best_match_id:
-            matched_topic = next(t for t in course_topics if t['id'] == best_match_id)
-            print(f"[MATCH] '{detected_topic}' → '{matched_topic['name']}' (similarity: {best_similarity:.2f}, reason: {best_reason})")
+            matched_topic = next(t for t in course_topics if t["id"] == best_match_id)
+            print(
+                f"[MATCH] '{detected_topic}' → '{matched_topic['name']}' (similarity: {best_similarity:.2f}, reason: {best_reason})"
+            )
 
         return best_match_id
 
@@ -1501,8 +1620,7 @@ Respond ONLY with valid JSON, no other text.
         with Database() as db:
             # Get all worked example materials
             worked_examples = db.get_learning_materials_by_course(
-                course_code,
-                material_type='worked_example'
+                course_code, material_type="worked_example"
             )
 
             if not worked_examples:
@@ -1515,31 +1633,35 @@ Respond ONLY with valid JSON, no other text.
 
             for example in worked_examples:
                 # Get topics for this worked example
-                example_topics = db.get_topics_for_material(example['id'])
+                example_topics = db.get_topics_for_material(example["id"])
 
                 if not example_topics:
                     print(f"[WARNING] Worked example {example['id'][:40]} has no topics, skipping")
                     continue
 
-                print(f"[DEBUG] Processing example {example['id'][:40]} with {len(example_topics)} topic(s)")
+                print(
+                    f"[DEBUG] Processing example {example['id'][:40]} with {len(example_topics)} topic(s)"
+                )
 
                 # Find exercises with same topics
                 candidate_exercises = []
                 for topic in example_topics:
                     # Get core loops for this topic
-                    knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
+                    knowledge_items = db.get_knowledge_items_by_topic(topic["id"])
 
                     # Get exercises for each core loop
                     for knowledge_item in knowledge_items:
-                        exercises = db.get_exercises_by_knowledge_item(knowledge_item['id'])
+                        exercises = db.get_exercises_by_knowledge_item(knowledge_item["id"])
                         candidate_exercises.extend(exercises)
 
                 # Remove duplicates
-                candidate_exercises = {ex['id']: ex for ex in candidate_exercises}.values()
+                candidate_exercises = {ex["id"]: ex for ex in candidate_exercises}.values()
                 candidate_exercises = list(candidate_exercises)
 
                 if not candidate_exercises:
-                    print(f"[WARNING] No candidate exercises found for topics: {[t['name'] for t in example_topics]}")
+                    print(
+                        f"[WARNING] No candidate exercises found for topics: {[t['name'] for t in example_topics]}"
+                    )
                     continue
 
                 print(f"[DEBUG] Found {len(candidate_exercises)} candidate exercises")
@@ -1548,10 +1670,9 @@ Respond ONLY with valid JSON, no other text.
                 similarities = []
                 for exercise in candidate_exercises:
                     similarity = self._calculate_text_similarity(
-                        example['content'],
-                        exercise['text']
+                        example["content"], exercise["text"]
                     )
-                    similarities.append((exercise['id'], similarity))
+                    similarities.append((exercise["id"], similarity))
 
                 # Sort by similarity (highest first) and take top N
                 similarities.sort(key=lambda x: x[1], reverse=True)
@@ -1561,12 +1682,12 @@ Respond ONLY with valid JSON, no other text.
                 for exercise_id, similarity in top_matches:
                     if similarity >= Config.WORKED_EXAMPLE_EXERCISE_SIMILARITY_THRESHOLD:
                         db.link_material_to_exercise(
-                            example['id'],
-                            exercise_id,
-                            link_type='worked_example'
+                            example["id"], exercise_id, link_type="worked_example"
                         )
                         total_links += 1
-                        print(f"[LINK] Example → Exercise {exercise_id[:40]} (similarity: {similarity:.2f})")
+                        print(
+                            f"[LINK] Example → Exercise {exercise_id[:40]} (similarity: {similarity:.2f})"
+                        )
 
             print(f"\n[SUMMARY] Worked example linking complete:")
             print(f"  Created {total_links} worked_example links")
@@ -1596,7 +1717,7 @@ Respond ONLY with valid JSON, no other text.
     # Topic Splitting Methods (Phase 6)
     # ========================================================================
 
-    def detect_generic_topics(self, course_code: str, db: 'Database') -> List[Dict[str, Any]]:
+    def detect_generic_topics(self, course_code: str, db: "Database") -> List[Dict[str, Any]]:
         """Detect generic topics that should be split.
 
         Args:
@@ -1614,11 +1735,11 @@ Respond ONLY with valid JSON, no other text.
 
         # Get course info for name comparison
         course = db.get_course(course_code)
-        course_name = course['name'] if course else ""
+        course_name = course["name"] if course else ""
 
         for topic in topics:
             # Get core loops for this topic
-            knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
+            knowledge_items = db.get_knowledge_items_by_topic(topic["id"])
             loop_count = len(knowledge_items)
 
             # Detection criteria
@@ -1628,21 +1749,25 @@ Respond ONLY with valid JSON, no other text.
             # Criterion 1: Topic has too many core loops
             if loop_count >= Config.GENERIC_TOPIC_THRESHOLD:
                 is_generic = True
-                reason.append(f"{loop_count} core loops (threshold: {Config.GENERIC_TOPIC_THRESHOLD})")
+                reason.append(
+                    f"{loop_count} core loops (threshold: {Config.GENERIC_TOPIC_THRESHOLD})"
+                )
 
             # Criterion 2: Topic name matches or is very similar to course name
-            if course_name and self._is_topic_name_generic(topic['name'], course_name):
+            if course_name and self._is_topic_name_generic(topic["name"], course_name):
                 is_generic = True
                 reason.append(f"topic name '{topic['name']}' is generic/matches course")
 
             if is_generic:
-                generic_topics.append({
-                    "id": topic['id'],
-                    "name": topic['name'],
-                    "knowledge_item_count": loop_count,
-                    "knowledge_items": [cl['id'] for cl in knowledge_items],
-                    "reason": "; ".join(reason)
-                })
+                generic_topics.append(
+                    {
+                        "id": topic["id"],
+                        "name": topic["name"],
+                        "knowledge_item_count": loop_count,
+                        "knowledge_items": [cl["id"] for cl in knowledge_items],
+                        "reason": "; ".join(reason),
+                    }
+                )
 
         return generic_topics
 
@@ -1667,8 +1792,9 @@ Respond ONLY with valid JSON, no other text.
 
         return False
 
-    def cluster_knowledge_items_for_topic(self, topic_id: int, topic_name: str,
-                                     knowledge_items: List[Dict[str, Any]]) -> Optional[List[Dict[str, Any]]]:
+    def cluster_knowledge_items_for_topic(
+        self, topic_id: int, topic_name: str, knowledge_items: List[Dict[str, Any]]
+    ) -> Optional[List[Dict[str, Any]]]:
         """Cluster core loops into semantic groups using LLM.
 
         Args:
@@ -1687,13 +1813,14 @@ Respond ONLY with valid JSON, no other text.
             ]
         """
         try:
-            print(f"[INFO] Clustering {len(knowledge_items)} core loops for topic '{topic_name}'...")
+            print(
+                f"[INFO] Clustering {len(knowledge_items)} core loops for topic '{topic_name}'..."
+            )
 
             # Build core loop list for prompt
-            knowledge_item_list = "\n".join([
-                f"{i+1}. {cl['name']} (ID: {cl['id']})"
-                for i, cl in enumerate(knowledge_items)
-            ])
+            knowledge_item_list = "\n".join(
+                [f"{i + 1}. {cl['name']} (ID: {cl['id']})" for i, cl in enumerate(knowledge_items)]
+            )
 
             # Build clustering prompt
             prompt = f"""You are analyzing core loops (procedural problem-solving patterns) from the topic "{topic_name}".
@@ -1728,7 +1855,7 @@ No markdown code blocks, just JSON."""
             response = self.llm.generate(
                 prompt=prompt,
                 temperature=0.5,  # Some creativity for grouping
-                json_mode=True
+                json_mode=True,
             )
 
             if not response.success:
@@ -1737,21 +1864,21 @@ No markdown code blocks, just JSON."""
 
             # Parse response
             data = self.llm.parse_json_response(response)
-            if not data or 'clusters' not in data:
+            if not data or "clusters" not in data:
                 print(f"[ERROR] Invalid clustering response format")
                 return None
 
-            clusters = data['clusters']
+            clusters = data["clusters"]
 
             # Validate clustering
             all_assigned_ids = set()
             for cluster in clusters:
-                if 'topic_name' not in cluster or 'knowledge_item_ids' not in cluster:
+                if "topic_name" not in cluster or "knowledge_item_ids" not in cluster:
                     print(f"[ERROR] Invalid cluster format: {cluster}")
                     return None
-                all_assigned_ids.update(cluster['knowledge_item_ids'])
+                all_assigned_ids.update(cluster["knowledge_item_ids"])
 
-            original_ids = set(cl['id'] for cl in knowledge_items)
+            original_ids = set(cl["id"] for cl in knowledge_items)
 
             # Check if all core loops were assigned
             if all_assigned_ids != original_ids:
@@ -1766,11 +1893,15 @@ No markdown code blocks, just JSON."""
 
             # Check cluster count
             if not (Config.TOPIC_CLUSTER_MIN <= len(clusters) <= Config.TOPIC_CLUSTER_MAX):
-                print(f"[WARNING] Cluster count {len(clusters)} outside range {Config.TOPIC_CLUSTER_MIN}-{Config.TOPIC_CLUSTER_MAX}")
+                print(
+                    f"[WARNING] Cluster count {len(clusters)} outside range {Config.TOPIC_CLUSTER_MIN}-{Config.TOPIC_CLUSTER_MAX}"
+                )
 
             print(f"[INFO] Successfully created {len(clusters)} clusters")
             for i, cluster in enumerate(clusters, 1):
-                print(f"  {i}. {cluster['topic_name']}: {len(cluster['knowledge_item_ids'])} core loops")
+                print(
+                    f"  {i}. {cluster['topic_name']}: {len(cluster['knowledge_item_ids'])} core loops"
+                )
 
             return clusters
 

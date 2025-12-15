@@ -4,9 +4,8 @@ Combines pattern-based and LLM-based splitting for unstructured materials.
 """
 
 import json
-import re
-from typing import List, Dict, Any, Optional, Tuple
-from dataclasses import dataclass, asdict
+from typing import List, Optional, Tuple
+from dataclasses import dataclass
 import hashlib
 
 from core.exercise_splitter import ExerciseSplitter, Exercise
@@ -18,6 +17,7 @@ from config import Config
 @dataclass
 class LearningMaterial:
     """Represents a learning material (theory, worked example, reference)."""
+
     id: str
     title: Optional[str]
     content: str
@@ -33,6 +33,7 @@ class LearningMaterial:
 @dataclass
 class DetectedContent:
     """Content detected by LLM with metadata."""
+
     start_char: int
     end_char: int
     content_type: str  # 'theory', 'worked_example', 'practice_exercise'
@@ -44,6 +45,7 @@ class DetectedContent:
 @dataclass
 class SplitResult:
     """Result of smart splitting operation."""
+
     exercises: List[Exercise]
     learning_materials: List[LearningMaterial]
     pattern_based_count: int
@@ -65,9 +67,12 @@ class SmartExerciseSplitter:
     3. Respects cost controls (max pages, caching)
     """
 
-    def __init__(self, llm_manager: Optional[LLMManager] = None,
-                 enable_smart_detection: bool = True,
-                 notes_mode: bool = False):
+    def __init__(
+        self,
+        llm_manager: Optional[LLMManager] = None,
+        enable_smart_detection: bool = True,
+        notes_mode: bool = False,
+    ):
         """
         Initialize smart splitter.
 
@@ -114,15 +119,15 @@ class SmartExerciseSplitter:
         # Cost control: limit pages if smart detection enabled
         pages_to_process = pdf_content.pages
         if self.enable_smart and len(pages_to_process) > self.max_pages:
-            print(f"⚠️  Warning: PDF has {len(pages_to_process)} pages. "
-                  f"Processing only first {self.max_pages} pages to control costs.")
+            print(
+                f"⚠️  Warning: PDF has {len(pages_to_process)} pages. "
+                f"Processing only first {self.max_pages} pages to control costs."
+            )
             print(f"   Increase with: export EXAMINA_SMART_SPLIT_MAX_PAGES={len(pages_to_process)}")
-            pages_to_process = pages_to_process[:self.max_pages]
+            pages_to_process = pages_to_process[: self.max_pages]
 
         # Phase 1: Pattern-based splitting (fast, free)
-        pattern_exercises = self.pattern_splitter.split_pdf_content(
-            pdf_content, course_code
-        )
+        pattern_exercises = self.pattern_splitter.split_pdf_content(pdf_content, course_code)
 
         # Track which pages had exercises found
         pages_with_exercises = set()
@@ -159,9 +164,9 @@ class SmartExerciseSplitter:
 
                     # Count materials by type
                     for material in detected_materials:
-                        if material.material_type == 'theory':
+                        if material.material_type == "theory":
                             theory_count += 1
-                        elif material.material_type == 'worked_example':
+                        elif material.material_type == "worked_example":
                             worked_example_count += 1
 
                     all_materials.extend(detected_materials)
@@ -180,11 +185,12 @@ class SmartExerciseSplitter:
             worked_example_count=worked_example_count,
             total_pages=len(pdf_content.pages),
             llm_pages_processed=llm_pages_processed,
-            total_cost_estimate=estimated_cost
+            total_cost_estimate=estimated_cost,
         )
 
-    def _detect_exercises_with_llm(self, page: PDFPage, source_pdf: str,
-                                   course_code: str) -> Tuple[List[Exercise], List[LearningMaterial]]:
+    def _detect_exercises_with_llm(
+        self, page: PDFPage, source_pdf: str, course_code: str
+    ) -> Tuple[List[Exercise], List[LearningMaterial]]:
         """
         Use LLM to detect content boundaries in unstructured text.
 
@@ -215,11 +221,7 @@ class SmartExerciseSplitter:
 
         # Call LLM through manager (provider-agnostic)
         try:
-            response = self.llm.generate(
-                prompt=prompt,
-                temperature=0.0,
-                max_tokens=1000
-            )
+            response = self.llm.generate(prompt=prompt, temperature=0.0, max_tokens=1000)
 
             # Check if LLM call was successful
             if not response.success:
@@ -338,13 +340,13 @@ If no content found, return: {{"has_content": false, "content_items": []}}
         """
         # Strip markdown code fences if present (LLM sometimes adds them)
         response_text = response_text.strip()
-        if response_text.startswith('```'):
-            lines = response_text.split('\n')
-            if lines[0].startswith('```'):
+        if response_text.startswith("```"):
+            lines = response_text.split("\n")
+            if lines[0].startswith("```"):
                 lines = lines[1:]
-            if lines and lines[-1].strip() == '```':
+            if lines and lines[-1].strip() == "```":
                 lines = lines[:-1]
-            response_text = '\n'.join(lines)
+            response_text = "\n".join(lines)
 
         # Parse JSON
         try:
@@ -355,24 +357,24 @@ If no content found, return: {{"has_content": false, "content_items": []}}
             return []
 
         # Validate structure
-        if not isinstance(data, dict) or 'has_content' not in data:
+        if not isinstance(data, dict) or "has_content" not in data:
             print(f"⚠️  Invalid response structure: {data}")
             return []
 
-        if not data['has_content']:
+        if not data["has_content"]:
             return []
 
         # Parse content items
         detected_content = []
-        for content_data in data.get('content_items', []):
+        for content_data in data.get("content_items", []):
             try:
                 detected = DetectedContent(
-                    start_char=content_data['start_char'],
-                    end_char=content_data['end_char'],
-                    content_type=content_data['content_type'],
-                    title=content_data.get('title'),
-                    confidence=float(content_data['confidence']),
-                    has_solution_inline=content_data['has_solution_inline']
+                    start_char=content_data["start_char"],
+                    end_char=content_data["end_char"],
+                    content_type=content_data["content_type"],
+                    title=content_data.get("title"),
+                    confidence=float(content_data["confidence"]),
+                    has_solution_inline=content_data["has_solution_inline"],
                 )
 
                 # Filter by confidence threshold
@@ -385,9 +387,9 @@ If no content found, return: {{"has_content": false, "content_items": []}}
 
         return detected_content
 
-    def _create_exercises_from_detected(self, detected_list: List[DetectedContent],
-                                       page: PDFPage, source_pdf: str,
-                                       course_code: str) -> List[Exercise]:
+    def _create_exercises_from_detected(
+        self, detected_list: List[DetectedContent], page: PDFPage, source_pdf: str, course_code: str
+    ) -> List[Exercise]:
         """
         Convert DetectedContent objects to Exercise objects (for practice_exercise type only).
 
@@ -404,19 +406,18 @@ If no content found, return: {{"has_content": false, "content_items": []}}
 
         for i, detected in enumerate(detected_list):
             # Only process practice_exercise content type
-            if detected.content_type != 'practice_exercise':
+            if detected.content_type != "practice_exercise":
                 continue
 
             # Extract text from detected boundaries
-            exercise_text = page.text[detected.start_char:detected.end_char].strip()
+            exercise_text = page.text[detected.start_char : detected.end_char].strip()
 
             if not exercise_text:
                 continue
 
             # Generate unique ID
             exercise_id = self._generate_exercise_id(
-                course_code, source_pdf, page.page_number,
-                f"llm_{i+1}", detected.confidence
+                course_code, source_pdf, page.page_number, f"llm_{i + 1}", detected.confidence
             )
 
             # Create Exercise object
@@ -424,21 +425,21 @@ If no content found, return: {{"has_content": false, "content_items": []}}
                 id=exercise_id,
                 text=exercise_text,
                 page_number=page.page_number,
-                exercise_number=f"LLM-{i+1}",  # Mark as LLM-detected
+                exercise_number=f"LLM-{i + 1}",  # Mark as LLM-detected
                 has_images=len(page.images) > 0,
                 image_data=page.images if page.images else [],
                 has_latex=page.has_latex,
                 latex_content=page.latex_content,
-                source_pdf=source_pdf
+                source_pdf=source_pdf,
             )
 
             exercises.append(exercise)
 
         return exercises
 
-    def _create_materials_from_detected(self, detected_list: List[DetectedContent],
-                                       page: PDFPage, source_pdf: str,
-                                       course_code: str) -> List[LearningMaterial]:
+    def _create_materials_from_detected(
+        self, detected_list: List[DetectedContent], page: PDFPage, source_pdf: str, course_code: str
+    ) -> List[LearningMaterial]:
         """
         Convert DetectedContent objects to LearningMaterial objects (for theory/worked_example types).
 
@@ -455,19 +456,18 @@ If no content found, return: {{"has_content": false, "content_items": []}}
 
         for i, detected in enumerate(detected_list):
             # Only process theory and worked_example content types
-            if detected.content_type not in ['theory', 'worked_example']:
+            if detected.content_type not in ["theory", "worked_example"]:
                 continue
 
             # Extract text from detected boundaries
-            content_text = page.text[detected.start_char:detected.end_char].strip()
+            content_text = page.text[detected.start_char : detected.end_char].strip()
 
             if not content_text:
                 continue
 
             # Generate unique material ID
             material_id = self._generate_material_id(
-                course_code, source_pdf, page.page_number,
-                f"llm_{i+1}", detected.confidence
+                course_code, source_pdf, page.page_number, f"llm_{i + 1}", detected.confidence
             )
 
             # Create LearningMaterial object
@@ -481,16 +481,16 @@ If no content found, return: {{"has_content": false, "content_items": []}}
                 image_data=page.images if page.images else [],
                 has_latex=page.has_latex,
                 latex_content=page.latex_content,
-                source_pdf=source_pdf
+                source_pdf=source_pdf,
             )
 
             materials.append(material)
 
         return materials
 
-    def _generate_exercise_id(self, course_code: str, source_pdf: str,
-                             page_number: int, llm_index: str,
-                             confidence: float) -> str:
+    def _generate_exercise_id(
+        self, course_code: str, source_pdf: str, page_number: int, llm_index: str, confidence: float
+    ) -> str:
         """
         Generate unique exercise ID for LLM-detected exercises.
 
@@ -508,12 +508,12 @@ If no content found, return: {{"has_content": false, "content_items": []}}
         hash_obj = hashlib.md5(components.encode())
         short_hash = hash_obj.hexdigest()[:12]
 
-        course_abbrev = course_code.lower().replace('b', '').replace('0', '')[:6]
+        course_abbrev = course_code.lower().replace("b", "").replace("0", "")[:6]
         return f"{course_abbrev}_smart_{short_hash}"
 
-    def _generate_material_id(self, course_code: str, source_pdf: str,
-                             page_number: int, llm_index: str,
-                             confidence: float) -> str:
+    def _generate_material_id(
+        self, course_code: str, source_pdf: str, page_number: int, llm_index: str, confidence: float
+    ) -> str:
         """
         Generate unique material ID for LLM-detected learning materials.
 
@@ -531,7 +531,7 @@ If no content found, return: {{"has_content": false, "content_items": []}}
         hash_obj = hashlib.md5(components.encode())
         short_hash = hash_obj.hexdigest()[:12]
 
-        course_abbrev = course_code.lower().replace('b', '').replace('0', '')[:6]
+        course_abbrev = course_code.lower().replace("b", "").replace("0", "")[:6]
         return f"{course_abbrev}_mat_{short_hash}"
 
     def _hash_page(self, page_text: str) -> str:

@@ -6,7 +6,7 @@ Handles ZIP extraction, PDF storage, and image storage.
 import shutil
 import hashlib
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 from zipfile import ZipFile, is_zipfile
 
 from config import Config
@@ -48,10 +48,10 @@ class FileManager:
 
         # Extract PDFs
         extracted_pdfs = []
-        with ZipFile(zip_path, 'r') as zip_file:
+        with ZipFile(zip_path, "r") as zip_file:
             for file_info in zip_file.filelist:
                 # Only extract PDF files
-                if file_info.filename.lower().endswith('.pdf'):
+                if file_info.filename.lower().endswith(".pdf"):
                     # Extract to course directory
                     extracted_path = zip_file.extract(file_info, course_pdf_dir)
                     extracted_pdfs.append(Path(extracted_path))
@@ -81,9 +81,14 @@ class FileManager:
         # Return relative path from FILES_PATH
         return dest_path.relative_to(self.base_path)
 
-    def store_image(self, image_data: bytes, course_code: str,
-                    exercise_id: str, image_index: int = 0,
-                    ext: str = "png") -> Path:
+    def store_image(
+        self,
+        image_data: bytes,
+        course_code: str,
+        exercise_id: str,
+        image_index: int = 0,
+        ext: str = "png",
+    ) -> Path:
         """Store an extracted image.
 
         Args:
@@ -107,7 +112,7 @@ class FileManager:
         dest_path = course_images_dir / filename
 
         # Write image data
-        with open(dest_path, 'wb') as f:
+        with open(dest_path, "wb") as f:
             f.write(image_data)
 
         # Return relative path from FILES_PATH
@@ -150,7 +155,7 @@ class FileManager:
             return []
 
         pdfs = []
-        for pdf_file in course_pdf_dir.rglob('*.pdf'):
+        for pdf_file in course_pdf_dir.rglob("*.pdf"):
             pdfs.append(pdf_file.relative_to(self.base_path))
 
         return sorted(pdfs)

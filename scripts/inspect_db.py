@@ -2,7 +2,6 @@
 """Quick database inspection script."""
 
 import sqlite3
-import json
 from pathlib import Path
 
 db_path = Path(__file__).parent / "data" / "examina.db"
@@ -16,7 +15,9 @@ with sqlite3.connect(str(db_path)) as conn:
         print(f"{row['code']}: {row['name']}")
 
     print("\n=== EXERCISES COUNT BY COURSE ===")
-    cursor = conn.execute("SELECT course_code, COUNT(*) as count FROM exercises GROUP BY course_code")
+    cursor = conn.execute(
+        "SELECT course_code, COUNT(*) as count FROM exercises GROUP BY course_code"
+    )
     for row in cursor:
         print(f"{row['course_code']}: {row['count']} exercises")
 
@@ -40,7 +41,9 @@ with sqlite3.connect(str(db_path)) as conn:
         print(f"Topic ID: {row['topic_id']}")
         print(f"Core Loop ID: {row['knowledge_item_id']}")
         print(f"Tags: {row['tags']}")
-        print(f"Metadata: {row['analysis_metadata'][:200] if row['analysis_metadata'] else None}...")
+        print(
+            f"Metadata: {row['analysis_metadata'][:200] if row['analysis_metadata'] else None}..."
+        )
 
     print("\n=== TOPICS BY COURSE ===")
     cursor = conn.execute("""
@@ -53,8 +56,8 @@ with sqlite3.connect(str(db_path)) as conn:
     """)
     current_course = None
     for row in cursor:
-        if row['code'] != current_course:
+        if row["code"] != current_course:
             print(f"\n{row['code']} ({row['course_name']}):")
-            current_course = row['code']
-        if row['topic_name']:
+            current_course = row["code"]
+        if row["topic_name"]:
             print(f"  - {row['topic_name']}: {row['exercise_count']} exercises")

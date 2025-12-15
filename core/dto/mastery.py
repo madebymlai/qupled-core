@@ -13,6 +13,7 @@ from typing import Optional, List
 
 class MasteryLevel(Enum):
     """Exercise mastery level based on SM-2 algorithm state."""
+
     NOT_STARTED = "not_started"
     LEARNING = "learning"
     REVIEWING = "reviewing"
@@ -21,6 +22,7 @@ class MasteryLevel(Enum):
 
 class MasteryTrend(Enum):
     """Trend of mastery over time."""
+
     IMPROVING = "improving"
     STABLE = "stable"
     DECLINING = "declining"
@@ -29,9 +31,10 @@ class MasteryTrend(Enum):
 
 class GapSeverity(Enum):
     """Severity of a knowledge gap."""
-    CRITICAL = "critical"      # mastery < 0.3
+
+    CRITICAL = "critical"  # mastery < 0.3
     SIGNIFICANT = "significant"  # mastery < 0.5
-    MINOR = "minor"            # mastery < threshold but >= 0.5
+    MINOR = "minor"  # mastery < threshold but >= 0.5
 
 
 @dataclass(frozen=True)
@@ -49,6 +52,7 @@ class ExerciseReviewData:
         correct_reviews: Number of correct review attempts
         last_reviewed_at: When the exercise was last reviewed
     """
+
     exercise_id: str
     mastery_level: MasteryLevel
     interval_days: int
@@ -69,6 +73,7 @@ class TopicMasteryInput:
         exercise_reviews: All exercise reviews for this topic
         total_exercises: Total exercises in topic (including unreviewed)
     """
+
     topic_id: str
     topic_name: str
     exercise_reviews: List[ExerciseReviewData]
@@ -92,6 +97,7 @@ class TopicMasteryResult:
         accuracy_percentage: Overall accuracy (0-100)
         last_practiced_at: Most recent review timestamp
     """
+
     topic_id: str
     topic_name: str
     mastery_score: float

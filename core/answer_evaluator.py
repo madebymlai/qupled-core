@@ -21,8 +21,9 @@ from typing import Optional, Protocol
 
 class EvaluationMode(Enum):
     """Mode for answer evaluation."""
-    QUIZ = "quiz"      # Structured scoring with JSON output
-    LEARN = "learn"    # Pedagogical feedback, hints, encouragement
+
+    QUIZ = "quiz"  # Structured scoring with JSON output
+    LEARN = "learn"  # Pedagogical feedback, hints, encouragement
     RECALL = "recall"  # Compare student explanation to reference content
 
 
@@ -36,6 +37,7 @@ class EvaluationResult:
         feedback: Feedback text explaining the evaluation
         hint: Optional hint if answer was wrong and hints requested (LEARN mode)
     """
+
     is_correct: Optional[bool]
     score: Optional[float]
     feedback: str
@@ -54,6 +56,7 @@ class RecallEvaluationResult:
         feedback: Summary of recall quality (2-3 sentences)
         success: Whether evaluation succeeded (True) or used fallback (False)
     """
+
     recall_score: float
     correct_points: list[str]
     missed_points: list[str]
@@ -326,15 +329,15 @@ Keep your response **concise** (2-4 sentences)."""
         Falls back to keyword matching if JSON parsing fails.
         """
         # Try to extract JSON from response
-        json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+        json_match = re.search(r"\{[^{}]*\}", response, re.DOTALL)
 
         if json_match:
             try:
                 evaluation = json.loads(json_match.group())
                 return EvaluationResult(
-                    is_correct=evaluation.get('is_correct', False),
-                    score=float(evaluation.get('score', 0.0)),
-                    feedback=evaluation.get('feedback', 'Answer evaluated.'),
+                    is_correct=evaluation.get("is_correct", False),
+                    score=float(evaluation.get("score", 0.0)),
+                    feedback=evaluation.get("feedback", "Answer evaluated."),
                 )
             except (json.JSONDecodeError, ValueError, TypeError):
                 pass
@@ -412,17 +415,17 @@ Keep your response **concise** (2-4 sentences)."""
         Falls back to keyword matching if JSON parsing fails.
         """
         # Try to extract JSON from response
-        json_match = re.search(r'\{[^{}]*\}', response, re.DOTALL)
+        json_match = re.search(r"\{[^{}]*\}", response, re.DOTALL)
 
         if json_match:
             try:
                 evaluation = json.loads(json_match.group())
                 return RecallEvaluationResult(
-                    recall_score=float(evaluation.get('recall_score', 0.0)),
-                    correct_points=evaluation.get('correct_points', []),
-                    missed_points=evaluation.get('missed_points', []),
-                    misconceptions=evaluation.get('misconceptions', []),
-                    feedback=evaluation.get('feedback', 'Recall evaluated.'),
+                    recall_score=float(evaluation.get("recall_score", 0.0)),
+                    correct_points=evaluation.get("correct_points", []),
+                    missed_points=evaluation.get("missed_points", []),
+                    misconceptions=evaluation.get("misconceptions", []),
+                    feedback=evaluation.get("feedback", "Recall evaluated."),
                     success=True,
                 )
             except (json.JSONDecodeError, ValueError, TypeError):
@@ -466,7 +469,9 @@ Keep your response **concise** (2-4 sentences)."""
 
         # Determine feedback based on score
         if recall_score >= 0.7:
-            feedback = "Good recall of the key concepts. Keep practicing to maintain this knowledge."
+            feedback = (
+                "Good recall of the key concepts. Keep practicing to maintain this knowledge."
+            )
         elif recall_score >= 0.4:
             feedback = "Partial recall. Review the reference material to fill in the gaps."
         else:

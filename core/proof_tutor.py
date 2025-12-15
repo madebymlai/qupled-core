@@ -7,12 +7,12 @@ from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 
 from models.llm_manager import LLMManager
-from storage.database import Database
 
 
 @dataclass
 class ProofTechnique:
     """Information about a proof technique."""
+
     name: str  # direct, contradiction, induction, construction, contrapositive
     description: str
     when_to_use: str
@@ -22,6 +22,7 @@ class ProofTechnique:
 @dataclass
 class ProofAnalysis:
     """Analysis of a proof exercise."""
+
     is_proof: bool
     proof_type: str  # mathematical, logical, algorithmic
     technique_suggested: str
@@ -43,8 +44,8 @@ class ProofTutor:
             common_mistakes=[
                 "Assuming what you need to prove",
                 "Circular reasoning",
-                "Missing intermediate steps"
-            ]
+                "Missing intermediate steps",
+            ],
         ),
         "contradiction": ProofTechnique(
             name="contradiction",
@@ -53,8 +54,8 @@ class ProofTutor:
             common_mistakes=[
                 "Not clearly stating the contradiction assumption",
                 "Deriving a falsehood that doesn't contradict the assumption",
-                "Forgetting to conclude the original statement"
-            ]
+                "Forgetting to conclude the original statement",
+            ],
         ),
         "induction": ProofTechnique(
             name="induction",
@@ -63,8 +64,8 @@ class ProofTutor:
             common_mistakes=[
                 "Not proving the base case",
                 "Not clearly stating the inductive hypothesis",
-                "Circular reasoning in inductive step"
-            ]
+                "Circular reasoning in inductive step",
+            ],
         ),
         "construction": ProofTechnique(
             name="construction",
@@ -73,8 +74,8 @@ class ProofTutor:
             common_mistakes=[
                 "Not verifying the constructed object satisfies all requirements",
                 "Construction not being well-defined",
-                "Missing edge cases"
-            ]
+                "Missing edge cases",
+            ],
         ),
         "contrapositive": ProofTechnique(
             name="contrapositive",
@@ -82,9 +83,9 @@ class ProofTutor:
             when_to_use="Use when the contrapositive is easier to prove than the direct implication",
             common_mistakes=[
                 "Confusing contrapositive with converse",
-                "Not proving the full contrapositive statement"
-            ]
-        )
+                "Not proving the full contrapositive statement",
+            ],
+        ),
     }
 
     def __init__(self, llm_manager: Optional[LLMManager] = None, language: str = "en"):
@@ -122,20 +123,20 @@ class ProofTutor:
 
         # Italian proof keywords - more specific patterns
         italian_patterns = [
-            r'\bdimostraz',  # dimostrazione, dimostrazioni
-            r'\bdimostra[rt]',  # dimostrare, dimostrare
-            r'\bsi dimostri',  # formal proof request
-            r'\bprova che\b',  # prove that (not just "prova" = test)
-            r'\bprovare che\b',  # to prove that
+            r"\bdimostraz",  # dimostrazione, dimostrazioni
+            r"\bdimostra[rt]",  # dimostrare, dimostrare
+            r"\bsi dimostri",  # formal proof request
+            r"\bprova che\b",  # prove that (not just "prova" = test)
+            r"\bprovare che\b",  # to prove that
         ]
 
         # English proof keywords
         english_patterns = [
-            r'\bprove\b',  # prove (not proven, disprove, etc.)
-            r'\bproof\b',  # proof
-            r'\bshow that\b',  # show that
-            r'\bdemonstrate that\b',  # demonstrate that
-            r'\bverify that\b',  # verify that (in proof context)
+            r"\bprove\b",  # prove (not proven, disprove, etc.)
+            r"\bproof\b",  # proof
+            r"\bshow that\b",  # show that
+            r"\bdemonstrate that\b",  # demonstrate that
+            r"\bverify that\b",  # verify that (in proof context)
         ]
 
         # Check all patterns
@@ -193,10 +194,7 @@ Respond in JSON format:
 """
 
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.primary_model,
-            temperature=0.2,
-            max_tokens=1000
+            prompt=prompt, model=self.llm.primary_model, temperature=0.2, max_tokens=1000
         )
 
         if not response.success:
@@ -208,12 +206,13 @@ Respond in JSON format:
                 premise="Unknown",
                 goal="Unknown",
                 key_concepts=[],
-                difficulty="medium"
+                difficulty="medium",
             )
 
         # Parse JSON response
         try:
             import json
+
             # Extract JSON from response (may have markdown code blocks)
             text = response.text.strip()
             if "```json" in text:
@@ -230,7 +229,7 @@ Respond in JSON format:
                 premise=data.get("premise", "Unknown"),
                 goal=data.get("goal", "Unknown"),
                 key_concepts=data.get("key_concepts", []),
-                difficulty=data.get("difficulty", "medium")
+                difficulty=data.get("difficulty", "medium"),
             )
         except Exception as e:
             print(f"[WARNING] Failed to parse proof analysis: {e}")
@@ -241,7 +240,7 @@ Respond in JSON format:
                 premise="Unknown",
                 goal="Unknown",
                 key_concepts=[],
-                difficulty="medium"
+                difficulty="medium",
             )
 
     def learn_proof(self, course_code: str, exercise_id: str, exercise_text: str) -> str:
@@ -280,7 +279,7 @@ PROOF TECHNIQUE GUIDANCE:
 When to use: {technique.when_to_use if technique else "N/A"}
 
 Common Mistakes to Avoid:
-{chr(10).join('- ' + m for m in technique.common_mistakes) if technique else "N/A"}
+{chr(10).join("- " + m for m in technique.common_mistakes) if technique else "N/A"}
 
 Your task: Provide a comprehensive, step-by-step explanation of how to approach and solve this proof.
 
@@ -333,10 +332,7 @@ Make your explanation clear, pedagogical, and mathematically rigorous while rema
 """
 
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.primary_model,
-            temperature=0.3,
-            max_tokens=3500
+            prompt=prompt, model=self.llm.primary_model, temperature=0.3, max_tokens=3500
         )
 
         if not response.success:
@@ -344,8 +340,9 @@ Make your explanation clear, pedagogical, and mathematically rigorous while rema
 
         return response.text
 
-    def practice_proof(self, course_code: str, exercise_text: str,
-                      user_attempt: str, provide_hints: bool = True) -> Dict[str, Any]:
+    def practice_proof(
+        self, course_code: str, exercise_text: str, user_attempt: str, provide_hints: bool = True
+    ) -> Dict[str, Any]:
         """Evaluate a proof attempt and provide feedback.
 
         Args:
@@ -428,10 +425,7 @@ Be encouraging but rigorous. Focus on helping the student learn, not just gradin
 """
 
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.primary_model,
-            temperature=0.3,
-            max_tokens=2500
+            prompt=prompt, model=self.llm.primary_model, temperature=0.3, max_tokens=2500
         )
 
         if not response.success:
@@ -439,15 +433,15 @@ Be encouraging but rigorous. Focus on helping the student learn, not just gradin
                 "is_correct": False,
                 "score": 0.0,
                 "feedback": f"Error evaluating proof: {response.error}",
-                "technique": analysis.technique_suggested
+                "technique": analysis.technique_suggested,
             }
 
         # Simple heuristic to determine correctness from feedback
         feedback_lower = response.text.lower()
         is_correct = (
-            "correct" in feedback_lower and
-            "incorrect" not in feedback_lower and
-            ("100%" in feedback_lower or "fully correct" in feedback_lower)
+            "correct" in feedback_lower
+            and "incorrect" not in feedback_lower
+            and ("100%" in feedback_lower or "fully correct" in feedback_lower)
         )
 
         # Try to extract score
@@ -462,7 +456,7 @@ Be encouraging but rigorous. Focus on helping the student learn, not just gradin
             "score": score,
             "feedback": response.text,
             "technique": analysis.technique_suggested,
-            "analysis": analysis
+            "analysis": analysis,
         }
 
     def get_technique_explanation(self, technique_name: str) -> str:
@@ -506,15 +500,22 @@ Be encouraging but rigorous. Focus on helping the student learn, not just gradin
         text_lower = exercise_text.lower()
 
         # Induction keywords
-        if any(keyword in text_lower for keyword in ["for all n", "ogni n", "induzione", "induction"]):
+        if any(
+            keyword in text_lower for keyword in ["for all n", "ogni n", "induzione", "induction"]
+        ):
             return "induction"
 
         # Contradiction keywords
-        if any(keyword in text_lower for keyword in ["impossibil", "non esiste", "does not exist", "cannot"]):
+        if any(
+            keyword in text_lower
+            for keyword in ["impossibil", "non esiste", "does not exist", "cannot"]
+        ):
             return "contradiction"
 
         # Existence keywords
-        if any(keyword in text_lower for keyword in ["esiste", "exists", "trova", "find", "construct"]):
+        if any(
+            keyword in text_lower for keyword in ["esiste", "exists", "trova", "find", "construct"]
+        ):
             return "construction"
 
         # Default to direct
@@ -547,10 +548,7 @@ Each step should guide thinking, not provide complete answers.
 """
 
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.fast_model,
-            temperature=0.5,
-            max_tokens=1000
+            prompt=prompt, model=self.llm.fast_model, temperature=0.5, max_tokens=1000
         )
 
         if not response.success:
@@ -558,19 +556,15 @@ Each step should guide thinking, not provide complete answers.
 
         # Parse response into steps
         steps = []
-        for line in response.text.split('\n'):
+        for line in response.text.split("\n"):
             line = line.strip()
-            if line and (line[0].isdigit() or line.startswith('-') or line.startswith('•')):
+            if line and (line[0].isdigit() or line.startswith("-") or line.startswith("•")):
                 # Remove numbering
-                clean_line = line.lstrip('0123456789.-•) ').strip()
+                clean_line = line.lstrip("0123456789.-•) ").strip()
                 if clean_line:
                     steps.append(clean_line)
 
-        return {
-            "success": True,
-            "steps": steps,
-            "technique": technique
-        }
+        return {"success": True, "steps": steps, "technique": technique}
 
     def get_hint_for_step(self, exercise_text: str, technique: str, step_number: int) -> str:
         """Get a hint for a specific proof step.
@@ -599,10 +593,7 @@ Keep it brief (2-3 sentences).
 """
 
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.fast_model,
-            temperature=0.5,
-            max_tokens=200
+            prompt=prompt, model=self.llm.fast_model, temperature=0.5, max_tokens=200
         )
 
         if response.success:
@@ -636,10 +627,7 @@ Be rigorous and educational - explain WHY each step follows.
 """
 
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.primary_model,
-            temperature=0.3,
-            max_tokens=2000
+            prompt=prompt, model=self.llm.primary_model, temperature=0.3, max_tokens=2000
         )
 
         if response.success:

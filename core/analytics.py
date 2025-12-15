@@ -3,7 +3,7 @@ Progress analytics for Examina.
 Tracks student progress, mastery levels, and spaced repetition.
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Any
 from storage.database import Database
 from config import Config
@@ -36,47 +36,62 @@ class ProgressAnalytics:
         """
         with Database() as db:
             # Total exercises (excluding low confidence skipped)
-            total_exercises = db.conn.execute("""
+            total_exercises = db.conn.execute(
+                """
                 SELECT COUNT(DISTINCT id)
                 FROM exercises
                 WHERE course_code = ? AND analyzed = 1 AND low_confidence_skipped = 0
-            """, (course_code,)).fetchone()[0]
+            """,
+                (course_code,),
+            ).fetchone()[0]
 
             # Core loops and topics discovered
-            knowledge_items_count = db.conn.execute("""
+            knowledge_items_count = db.conn.execute(
+                """
                 SELECT COUNT(DISTINCT cl.id)
                 FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE t.course_code = ?
-            """, (course_code,)).fetchone()[0]
+            """,
+                (course_code,),
+            ).fetchone()[0]
 
-            topics_count = db.conn.execute("""
+            topics_count = db.conn.execute(
+                """
                 SELECT COUNT(*)
                 FROM topics
                 WHERE course_code = ?
-            """, (course_code,)).fetchone()[0]
+            """,
+                (course_code,),
+            ).fetchone()[0]
 
             # Student progress stats
-            progress_stats = db.conn.execute("""
+            progress_stats = db.conn.execute(
+                """
                 SELECT
                     COUNT(DISTINCT knowledge_item_id) as loops_attempted,
                     AVG(mastery_score) as avg_mastery
                 FROM student_progress
                 WHERE course_code = ? AND total_attempts > 0
-            """, (course_code,)).fetchone()
+            """,
+                (course_code,),
+            ).fetchone()
 
             loops_attempted = progress_stats[0] or 0
             avg_mastery = progress_stats[1] or 0.0
 
             # Quiz session stats
-            quiz_stats = db.conn.execute("""
+            quiz_stats = db.conn.execute(
+                """
                 SELECT
                     COUNT(*) as completed_sessions,
                     AVG(score) as avg_score,
                     SUM(time_spent) as total_time
                 FROM quiz_sessions
                 WHERE course_code = ? AND completed_at IS NOT NULL
-            """, (course_code,)).fetchone()
+            """,
+                (course_code,),
+            ).fetchone()
 
             completed_sessions = quiz_stats[0] or 0
             avg_score = quiz_stats[1] or 0.0
@@ -84,32 +99,38 @@ class ProgressAnalytics:
 
             # Calculate exercises attempted and mastered
             # An exercise is "attempted" if it appears in quiz_answers
-            exercises_attempted = db.conn.execute("""
+            exercises_attempted = db.conn.execute(
+                """
                 SELECT COUNT(DISTINCT qa.exercise_id)
                 FROM quiz_answers qa
                 JOIN quiz_sessions qs ON qa.session_id = qs.id
                 WHERE qs.course_code = ?
-            """, (course_code,)).fetchone()[0]
+            """,
+                (course_code,),
+            ).fetchone()[0]
 
             # An exercise is "mastered" if the core loop it belongs to has mastery >= threshold
-            exercises_mastered = db.conn.execute("""
+            exercises_mastered = db.conn.execute(
+                """
                 SELECT COUNT(DISTINCT e.id)
                 FROM exercises e
                 JOIN student_progress sp ON e.knowledge_item_id = sp.knowledge_item_id
                 WHERE e.course_code = ? AND sp.mastery_score >= ?
-            """, (course_code, Config.MASTERY_THRESHOLD)).fetchone()[0]
+            """,
+                (course_code, Config.MASTERY_THRESHOLD),
+            ).fetchone()[0]
 
             return {
-                'total_exercises': total_exercises,
-                'exercises_attempted': exercises_attempted,
-                'exercises_mastered': exercises_mastered,
-                'overall_mastery': avg_mastery,
-                'quiz_sessions_completed': completed_sessions,
-                'avg_score': avg_score,
-                'total_time_spent': total_time // 60 if total_time else 0,  # Convert to minutes
-                'knowledge_items_discovered': knowledge_items_count,
-                'knowledge_items_attempted': loops_attempted,
-                'topics_discovered': topics_count
+                "total_exercises": total_exercises,
+                "exercises_attempted": exercises_attempted,
+                "exercises_mastered": exercises_mastered,
+                "overall_mastery": avg_mastery,
+                "quiz_sessions_completed": completed_sessions,
+                "avg_score": avg_score,
+                "total_time_spent": total_time // 60 if total_time else 0,  # Convert to minutes
+                "knowledge_items_discovered": knowledge_items_count,
+                "knowledge_items_attempted": loops_attempted,
+                "topics_discovered": topics_count,
             }
 
     def get_topic_breakdown(self, course_code: str) -> List[Dict[str, Any]]:
@@ -134,72 +155,86 @@ class ProgressAnalytics:
             breakdown = []
 
             for topic in topics:
-                topic_id = topic['id']
+                topic_id = topic["id"]
 
                 # Core loops in this topic
                 knowledge_items = db.get_knowledge_items_by_topic(topic_id)
                 knowledge_items_count = len(knowledge_items)
 
                 # Exercises in this topic
-                exercises_count = db.conn.execute("""
+                exercises_count = db.conn.execute(
+                    """
                     SELECT COUNT(*)
                     FROM exercises
                     WHERE topic_id = ? AND analyzed = 1 AND low_confidence_skipped = 0
-                """, (topic_id,)).fetchone()[0]
+                """,
+                    (topic_id,),
+                ).fetchone()[0]
 
                 # Average mastery for this topic
-                mastery_data = db.conn.execute("""
+                mastery_data = db.conn.execute(
+                    """
                     SELECT
                         AVG(sp.mastery_score) as avg_mastery,
                         COUNT(DISTINCT sp.knowledge_item_id) as loops_attempted
                     FROM student_progress sp
                     JOIN knowledge_items cl ON sp.knowledge_item_id = cl.id
                     WHERE cl.topic_id = ? AND sp.total_attempts > 0
-                """, (topic_id,)).fetchone()
+                """,
+                    (topic_id,),
+                ).fetchone()
 
                 avg_mastery = mastery_data[0] or 0.0
                 loops_attempted = mastery_data[1] or 0
 
                 # Exercises attempted and mastered
-                exercises_attempted = db.conn.execute("""
+                exercises_attempted = db.conn.execute(
+                    """
                     SELECT COUNT(DISTINCT qa.exercise_id)
                     FROM quiz_answers qa
                     JOIN quiz_sessions qs ON qa.session_id = qs.id
                     JOIN exercises e ON qa.exercise_id = e.id
                     WHERE qs.course_code = ? AND e.topic_id = ?
-                """, (course_code, topic_id)).fetchone()[0]
+                """,
+                    (course_code, topic_id),
+                ).fetchone()[0]
 
-                exercises_mastered = db.conn.execute("""
+                exercises_mastered = db.conn.execute(
+                    """
                     SELECT COUNT(DISTINCT e.id)
                     FROM exercises e
                     JOIN student_progress sp ON e.knowledge_item_id = sp.knowledge_item_id
                     WHERE e.topic_id = ? AND sp.mastery_score >= ?
-                """, (topic_id, Config.MASTERY_THRESHOLD)).fetchone()[0]
+                """,
+                    (topic_id, Config.MASTERY_THRESHOLD),
+                ).fetchone()[0]
 
                 # Determine status
                 if loops_attempted == 0:
-                    status = 'not_started'
+                    status = "not_started"
                 elif avg_mastery >= Config.MASTERY_THRESHOLD:
-                    status = 'mastered'
+                    status = "mastered"
                 elif avg_mastery >= 0.5:
-                    status = 'in_progress'
+                    status = "in_progress"
                 else:
-                    status = 'weak'
+                    status = "weak"
 
-                breakdown.append({
-                    'topic_id': topic_id,
-                    'topic_name': topic['name'],
-                    'knowledge_items_count': knowledge_items_count,
-                    'exercises_count': exercises_count,
-                    'mastery_score': avg_mastery,
-                    'exercises_attempted': exercises_attempted,
-                    'exercises_mastered': exercises_mastered,
-                    'loops_attempted': loops_attempted,
-                    'status': status
-                })
+                breakdown.append(
+                    {
+                        "topic_id": topic_id,
+                        "topic_name": topic["name"],
+                        "knowledge_items_count": knowledge_items_count,
+                        "exercises_count": exercises_count,
+                        "mastery_score": avg_mastery,
+                        "exercises_attempted": exercises_attempted,
+                        "exercises_mastered": exercises_mastered,
+                        "loops_attempted": loops_attempted,
+                        "status": status,
+                    }
+                )
 
             # Sort by mastery score ascending (weak areas first)
-            breakdown.sort(key=lambda x: (x['status'] != 'weak', x['mastery_score']))
+            breakdown.sort(key=lambda x: (x["status"] != "weak", x["mastery_score"]))
 
             return breakdown
 
@@ -222,7 +257,8 @@ class ProgressAnalytics:
             weak_areas = []
 
             # Find weak core loops
-            weak_loops = db.conn.execute("""
+            weak_loops = db.conn.execute(
+                """
                 SELECT
                     cl.id,
                     cl.name,
@@ -237,18 +273,22 @@ class ProgressAnalytics:
                     AND sp.mastery_score < ?
                     AND sp.total_attempts > 0
                 ORDER BY sp.mastery_score ASC
-            """, (course_code, threshold)).fetchall()
+            """,
+                (course_code, threshold),
+            ).fetchall()
 
             for loop in weak_loops:
-                weak_areas.append({
-                    'type': 'knowledge_item',
-                    'id': loop[0],
-                    'name': loop[1],
-                    'topic_name': loop[2],
-                    'mastery_score': loop[3],
-                    'attempts': loop[4],
-                    'last_practiced': loop[5]
-                })
+                weak_areas.append(
+                    {
+                        "type": "knowledge_item",
+                        "id": loop[0],
+                        "name": loop[1],
+                        "topic_name": loop[2],
+                        "mastery_score": loop[3],
+                        "attempts": loop[4],
+                        "last_practiced": loop[5],
+                    }
+                )
 
             return weak_areas
 
@@ -272,7 +312,8 @@ class ProgressAnalytics:
             today = datetime.now().date()
 
             # Get core loops due for review
-            due_reviews = db.conn.execute("""
+            due_reviews = db.conn.execute(
+                """
                 SELECT
                     sp.knowledge_item_id,
                     cl.name as knowledge_item_name,
@@ -287,23 +328,27 @@ class ProgressAnalytics:
                     AND sp.next_review IS NOT NULL
                     AND DATE(sp.next_review) <= DATE('now')
                 ORDER BY sp.next_review ASC
-            """, (course_code,)).fetchall()
+            """,
+                (course_code,),
+            ).fetchall()
 
             reviews = []
             for review in due_reviews:
                 next_review_date = datetime.fromisoformat(review[4]).date()
                 days_overdue = (today - next_review_date).days
 
-                reviews.append({
-                    'knowledge_item_id': review[0],
-                    'knowledge_item_name': review[1],
-                    'topic_name': review[2],
-                    'mastery_score': review[3],
-                    'next_review': review[4],
-                    'last_practiced': review[5],
-                    'days_overdue': days_overdue,
-                    'priority': 'overdue' if days_overdue > 0 else 'due_today'
-                })
+                reviews.append(
+                    {
+                        "knowledge_item_id": review[0],
+                        "knowledge_item_name": review[1],
+                        "topic_name": review[2],
+                        "mastery_score": review[3],
+                        "next_review": review[4],
+                        "last_practiced": review[5],
+                        "days_overdue": days_overdue,
+                        "priority": "overdue" if days_overdue > 0 else "due_today",
+                    }
+                )
 
             return reviews
 
@@ -340,50 +385,65 @@ class ProgressAnalytics:
 
         # 1. Check for overdue reviews
         due_reviews = self.get_due_reviews(course_code)
-        overdue = [r for r in due_reviews if r['priority'] == 'overdue']
-        due_today = [r for r in due_reviews if r['priority'] == 'due_today']
+        overdue = [r for r in due_reviews if r["priority"] == "overdue"]
+        due_today = [r for r in due_reviews if r["priority"] == "due_today"]
 
         if overdue:
             count = len(overdue)
-            suggestions.append(f"🔴 {count} overdue review{'s' if count > 1 else ''}: {', '.join([r['knowledge_item_name'] for r in overdue[:3]])}")
+            suggestions.append(
+                f"🔴 {count} overdue review{'s' if count > 1 else ''}: {', '.join([r['knowledge_item_name'] for r in overdue[:3]])}"
+            )
 
         if due_today:
             count = len(due_today)
-            suggestions.append(f"🟡 {count} review{'s' if count > 1 else ''} due today: {', '.join([r['knowledge_item_name'] for r in due_today[:3]])}")
+            suggestions.append(
+                f"🟡 {count} review{'s' if count > 1 else ''} due today: {', '.join([r['knowledge_item_name'] for r in due_today[:3]])}"
+            )
 
         # 2. Check for weak areas
         weak_areas = self.get_weak_areas(course_code, threshold=0.5)
         if weak_areas:
             count = len(weak_areas)
-            suggestions.append(f"⚠️  {count} weak area{'s' if count > 1 else ''}: {', '.join([w['name'] for w in weak_areas[:3]])}")
+            suggestions.append(
+                f"⚠️  {count} weak area{'s' if count > 1 else ''}: {', '.join([w['name'] for w in weak_areas[:3]])}"
+            )
 
         # 3. Check for new content
         with Database() as db:
             # Core loops not yet attempted
-            new_loops = db.conn.execute("""
+            new_loops = db.conn.execute(
+                """
                 SELECT cl.id, cl.name, t.name as topic_name
                 FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 LEFT JOIN student_progress sp ON cl.id = sp.knowledge_item_id AND sp.course_code = ?
                 WHERE t.course_code = ? AND (sp.total_attempts IS NULL OR sp.total_attempts = 0)
                 LIMIT 5
-            """, (course_code, course_code)).fetchall()
+            """,
+                (course_code, course_code),
+            ).fetchall()
 
             if new_loops:
                 count = len(new_loops)
-                suggestions.append(f"✨ {count} new topic{'s' if count > 1 else ''} to explore: {', '.join([loop[1] for loop in new_loops[:3]])}")
+                suggestions.append(
+                    f"✨ {count} new topic{'s' if count > 1 else ''} to explore: {', '.join([loop[1] for loop in new_loops[:3]])}"
+                )
 
         # 4. Encouragement if doing well
         summary = self.get_course_summary(course_code)
-        if summary['overall_mastery'] >= Config.MASTERY_THRESHOLD:
-            suggestions.append(f"🎯 Great progress! Overall mastery: {summary['overall_mastery']:.1%}")
+        if summary["overall_mastery"] >= Config.MASTERY_THRESHOLD:
+            suggestions.append(
+                f"🎯 Great progress! Overall mastery: {summary['overall_mastery']:.1%}"
+            )
 
         if not suggestions:
             suggestions.append("🚀 Start a quiz to begin building your mastery!")
 
         return suggestions
 
-    def get_knowledge_item_progress(self, course_code: str, knowledge_item_id: str) -> Dict[str, Any]:
+    def get_knowledge_item_progress(
+        self, course_code: str, knowledge_item_id: str
+    ) -> Dict[str, Any]:
         """Get detailed progress for a specific core loop.
 
         Args:
@@ -394,31 +454,36 @@ class ProgressAnalytics:
             Dictionary with progress details
         """
         with Database() as db:
-            progress = db.conn.execute("""
+            progress = db.conn.execute(
+                """
                 SELECT *
                 FROM student_progress
                 WHERE course_code = ? AND knowledge_item_id = ?
-            """, (course_code, knowledge_item_id)).fetchone()
+            """,
+                (course_code, knowledge_item_id),
+            ).fetchone()
 
             if not progress:
                 return {
-                    'mastery_score': 0.0,
-                    'total_attempts': 0,
-                    'correct_attempts': 0,
-                    'accuracy': 0.0,
-                    'last_practiced': None,
-                    'next_review': None,
-                    'review_interval': 1
+                    "mastery_score": 0.0,
+                    "total_attempts": 0,
+                    "correct_attempts": 0,
+                    "accuracy": 0.0,
+                    "last_practiced": None,
+                    "next_review": None,
+                    "review_interval": 1,
                 }
 
             return {
-                'mastery_score': progress['mastery_score'],
-                'total_attempts': progress['total_attempts'],
-                'correct_attempts': progress['correct_attempts'],
-                'accuracy': progress['correct_attempts'] / progress['total_attempts'] if progress['total_attempts'] > 0 else 0.0,
-                'last_practiced': progress['last_practiced'],
-                'next_review': progress['next_review'],
-                'review_interval': progress['review_interval']
+                "mastery_score": progress["mastery_score"],
+                "total_attempts": progress["total_attempts"],
+                "correct_attempts": progress["correct_attempts"],
+                "accuracy": progress["correct_attempts"] / progress["total_attempts"]
+                if progress["total_attempts"] > 0
+                else 0.0,
+                "last_practiced": progress["last_practiced"],
+                "next_review": progress["next_review"],
+                "review_interval": progress["review_interval"],
             }
 
     def calculate_topic_mastery(self, topic_id: int, user_id: Optional[str] = None) -> float:
@@ -445,14 +510,17 @@ class ProgressAnalytics:
             loops_with_progress = 0
 
             for loop in knowledge_items:
-                loop_id = loop['id']
+                loop_id = loop["id"]
 
                 # Get student progress for this core loop
-                progress = db.conn.execute("""
+                progress = db.conn.execute(
+                    """
                     SELECT mastery_score, total_attempts
                     FROM student_progress
                     WHERE knowledge_item_id = ?
-                """, (loop_id,)).fetchone()
+                """,
+                    (loop_id,),
+                ).fetchone()
 
                 if progress and progress[1] > 0:  # Has attempts
                     total_mastery += progress[0]
@@ -463,8 +531,12 @@ class ProgressAnalytics:
 
             return total_mastery / loops_with_progress
 
-    def get_quiz_performance_data(self, course_code: str, knowledge_item_id: Optional[str] = None,
-                                  user_id: Optional[str] = None) -> Dict[str, Any]:
+    def get_quiz_performance_data(
+        self,
+        course_code: str,
+        knowledge_item_id: Optional[str] = None,
+        user_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """Get quiz performance data for adaptive decisions.
 
         Args:
@@ -509,17 +581,17 @@ class ProgressAnalytics:
 
             if not result or result[0] == 0:
                 return {
-                    'total_attempts': 0,
-                    'correct_count': 0,
-                    'accuracy': 0.0,
-                    'avg_time_seconds': 0,
-                    'last_attempt': None
+                    "total_attempts": 0,
+                    "correct_count": 0,
+                    "accuracy": 0.0,
+                    "avg_time_seconds": 0,
+                    "last_attempt": None,
                 }
 
             return {
-                'total_attempts': result[0],
-                'correct_count': result[1],
-                'accuracy': result[2] or 0.0,
-                'avg_time_seconds': result[3] or 0,
-                'last_attempt': result[4]
+                "total_attempts": result[0],
+                "correct_count": result[1],
+                "accuracy": result[2] or 0.0,
+                "avg_time_seconds": result[3] or 0,
+                "last_attempt": result[4],
             }

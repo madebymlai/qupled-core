@@ -62,7 +62,7 @@ class TaskType(Enum):
         descriptions = {
             TaskType.BULK_ANALYSIS: "High-volume analysis operations (PDF ingestion, batch processing)",
             TaskType.INTERACTIVE: "Real-time interactive learning (tutoring, quizzes, practice)",
-            TaskType.PREMIUM: "Premium deep explanations (adaptive teaching, proof guidance)"
+            TaskType.PREMIUM: "Premium deep explanations (adaptive teaching, proof guidance)",
         }
         return descriptions.get(self, "Unknown task type")
 
@@ -72,12 +72,12 @@ class TaskType(Enum):
         levels = {
             TaskType.BULK_ANALYSIS: "low",
             TaskType.INTERACTIVE: "medium",
-            TaskType.PREMIUM: "high"
+            TaskType.PREMIUM: "high",
         }
         return levels.get(self, "unknown")
 
     @classmethod
-    def from_string(cls, value: str) -> 'TaskType':
+    def from_string(cls, value: str) -> "TaskType":
         """Convert string to TaskType enum.
 
         Args:
@@ -93,7 +93,4 @@ class TaskType(Enum):
             return cls(value)
         except ValueError:
             valid_types = [t.value for t in cls]
-            raise ValueError(
-                f"Invalid task type '{value}'. "
-                f"Valid types: {', '.join(valid_types)}"
-            )
+            raise ValueError(f"Invalid task type '{value}'. Valid types: {', '.join(valid_types)}")

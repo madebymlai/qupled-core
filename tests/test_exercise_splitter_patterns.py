@@ -5,11 +5,10 @@ Tests:
 1. Real PDFs from each course
 2. Synthetic edge cases (Cyrillic, Greek, combined format, bullets)
 """
+
 import sys
 from pathlib import Path
 from dataclasses import dataclass
-from typing import Optional
-from unittest.mock import MagicMock
 
 # Add examina to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -25,6 +24,7 @@ from core.exercise_splitter import (
 @dataclass
 class TestCase:
     """Test case for exercise splitter."""
+
     name: str
     text: str
     pattern: MarkerPattern
@@ -63,7 +63,6 @@ Soluzione
         expected_subs=5,  # 3 + 2 (excluding solutions)
         expected_total=7,
     ),
-
     # Cyrillic lettered sub-markers
     TestCase(
         name="Russian exam with Cyrillic letters",
@@ -88,7 +87,6 @@ Soluzione
         expected_subs=5,
         expected_total=7,
     ),
-
     # Greek lettered sub-markers
     TestCase(
         name="Greek exam with Greek letters",
@@ -113,7 +111,6 @@ Soluzione
         expected_subs=5,
         expected_total=7,
     ),
-
     # Combined format (1a, 1b, 2a, 2b) - no keyword, just combined markers
     # For this format, exercise_pattern should match a dummy that won't match,
     # and sub_pattern captures both parent number and sub letter
@@ -140,7 +137,6 @@ Answer: See solutions below.
         expected_subs=5,  # All are combined sub-markers
         expected_total=5,
     ),
-
     # Bulleted format
     TestCase(
         name="Bulleted sub-questions",
@@ -165,7 +161,6 @@ More questions:
         expected_subs=5,
         expected_total=7,
     ),
-
     # Roman numerals
     TestCase(
         name="Roman numeral sub-questions",
@@ -190,7 +185,6 @@ ii) Second proof
         expected_subs=5,
         expected_total=7,
     ),
-
     # Dot delimiter
     TestCase(
         name="Dot delimiter sub-questions",
@@ -215,7 +209,6 @@ b. Item two
         expected_subs=5,
         expected_total=7,
     ),
-
     # Parenthesized markers
     TestCase(
         name="Parenthesized (a), (b) format",
@@ -240,7 +233,6 @@ Evaluate:
         expected_subs=5,
         expected_total=7,
     ),
-
     # No sub-markers
     TestCase(
         name="No sub-questions",
@@ -263,7 +255,6 @@ Terza domanda completa.
         expected_subs=0,
         expected_total=3,
     ),
-
     # Nested numbering (1.1, 1.2, 2.1, etc.) - NOT affected by decimal fix
     TestCase(
         name="Nested numbering 1.1, 1.2 format",
@@ -288,7 +279,6 @@ Another context.
         expected_subs=5,
         expected_total=7,
     ),
-
 ]
 
 # Special test case for restart detection - requires _build_hierarchy
@@ -520,13 +510,17 @@ Prove:
     expected_children = 7  # 5 + 2
 
     if len(hierarchy) == expected_parents and total_children == expected_children:
-        print(f"  ✓ PASS: {len(hierarchy)} parents, {total_children} children (all roman numerals preserved)")
+        print(
+            f"  ✓ PASS: {len(hierarchy)} parents, {total_children} children (all roman numerals preserved)"
+        )
         return True
     else:
         print(f"  ✗ FAIL:")
         print(f"    Parents: got {len(hierarchy)}, expected {expected_parents}")
         print(f"    Children: got {total_children}, expected {expected_children}")
-        print(f"    (Bug: multi-char roman numerals like 'ii', 'iii' may have triggered false restart)")
+        print(
+            f"    (Bug: multi-char roman numerals like 'ii', 'iii' may have triggered false restart)"
+        )
         return False
 
 

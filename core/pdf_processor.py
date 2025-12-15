@@ -8,22 +8,24 @@ import re
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
-from io import BytesIO
 
 try:
     import fitz  # PyMuPDF
+
     PYMUPDF_AVAILABLE = True
 except ImportError:
     PYMUPDF_AVAILABLE = False
 
 try:
     import pdfplumber
+
     PDFPLUMBER_AVAILABLE = True
 except ImportError:
     PDFPLUMBER_AVAILABLE = False
 
 try:
     from PIL import Image
+
     PIL_AVAILABLE = True
 except ImportError:
     PIL_AVAILABLE = False
@@ -31,12 +33,14 @@ except ImportError:
 try:
     import pytesseract
     from pdf2image import convert_from_path
+
     OCR_AVAILABLE = True
 except ImportError:
     OCR_AVAILABLE = False
 
 try:
     import pycountry
+
     PYCOUNTRY_AVAILABLE = True
 except ImportError:
     PYCOUNTRY_AVAILABLE = False
@@ -52,27 +56,33 @@ def get_tesseract_lang(lang_code: str) -> str:
         Tesseract three-letter language code, defaults to 'eng'
     """
     if not lang_code:
-        return 'eng'
+        return "eng"
 
     if PYCOUNTRY_AVAILABLE:
         try:
             lang = pycountry.languages.get(alpha_2=lang_code.lower())
-            if lang and hasattr(lang, 'alpha_3'):
+            if lang and hasattr(lang, "alpha_3"):
                 return lang.alpha_3
         except Exception:
             pass
 
     # Fallback for common languages if pycountry fails
     fallback_map = {
-        'en': 'eng', 'it': 'ita', 'fr': 'fra', 'de': 'deu',
-        'es': 'spa', 'pt': 'por', 'nl': 'nld',
+        "en": "eng",
+        "it": "ita",
+        "fr": "fra",
+        "de": "deu",
+        "es": "spa",
+        "pt": "por",
+        "nl": "nld",
     }
-    return fallback_map.get(lang_code.lower(), 'eng')
+    return fallback_map.get(lang_code.lower(), "eng")
 
 
 @dataclass
 class PDFPage:
     """Represents a single page from a PDF."""
+
     page_number: int
     text: str
     images: List[bytes]
@@ -83,6 +93,7 @@ class PDFPage:
 @dataclass
 class PDFContent:
     """Complete PDF content extraction."""
+
     file_path: Path
     total_pages: int
     pages: List[PDFPage]
@@ -154,13 +165,15 @@ class PDFProcessor:
             # Check for LaTeX (simple heuristic)
             has_latex, latex_content = self._detect_latex(text)
 
-            pages.append(PDFPage(
-                page_number=page_num + 1,
-                text=text,
-                images=images,
-                has_latex=has_latex,
-                latex_content=latex_content
-            ))
+            pages.append(
+                PDFPage(
+                    page_number=page_num + 1,
+                    text=text,
+                    images=images,
+                    has_latex=has_latex,
+                    latex_content=latex_content,
+                )
+            )
 
         # Extract metadata
         metadata = doc.metadata or {}
@@ -168,10 +181,7 @@ class PDFProcessor:
         doc.close()
 
         return PDFContent(
-            file_path=pdf_path,
-            total_pages=len(pages),
-            pages=pages,
-            metadata=metadata
+            file_path=pdf_path, total_pages=len(pages), pages=pages, metadata=metadata
         )
 
     def _process_with_pdfplumber(self, pdf_path: Path) -> PDFContent:
@@ -197,22 +207,21 @@ class PDFProcessor:
                 # Check for LaTeX
                 has_latex, latex_content = self._detect_latex(text)
 
-                pages.append(PDFPage(
-                    page_number=page_num + 1,
-                    text=text,
-                    images=images,
-                    has_latex=has_latex,
-                    latex_content=latex_content
-                ))
+                pages.append(
+                    PDFPage(
+                        page_number=page_num + 1,
+                        text=text,
+                        images=images,
+                        has_latex=has_latex,
+                        latex_content=latex_content,
+                    )
+                )
 
             # Metadata
             metadata = pdf.metadata or {}
 
         return PDFContent(
-            file_path=pdf_path,
-            total_pages=len(pages),
-            pages=pages,
-            metadata=metadata
+            file_path=pdf_path, total_pages=len(pages), pages=pages, metadata=metadata
         )
 
     def _detect_latex(self, text: str) -> Tuple[bool, Optional[str]]:
@@ -226,14 +235,18 @@ class PDFProcessor:
         """
         # Common LaTeX patterns
         latex_patterns = [
-            r'\$.*?\$',  # Inline math $...$
-            r'\$\$.*?\$\$',  # Display math $$...$$
-            r'\\begin\{equation\}.*?\\end\{equation\}',
-            r'\\begin\{align\}.*?\\end\{align\}',
-            r'\\begin\{math\}.*?\\end\{math\}',
-            r'\\frac\{.*?\}\{.*?\}',  # Fractions
-            r'\\sum', r'\\int', r'\\prod',  # Math operators
-            r'\\alpha', r'\\beta', r'\\gamma',  # Greek letters
+            r"\$.*?\$",  # Inline math $...$
+            r"\$\$.*?\$\$",  # Display math $$...$$
+            r"\\begin\{equation\}.*?\\end\{equation\}",
+            r"\\begin\{align\}.*?\\end\{align\}",
+            r"\\begin\{math\}.*?\\end\{math\}",
+            r"\\frac\{.*?\}\{.*?\}",  # Fractions
+            r"\\sum",
+            r"\\int",
+            r"\\prod",  # Math operators
+            r"\\alpha",
+            r"\\beta",
+            r"\\gamma",  # Greek letters
         ]
 
         latex_content = []
@@ -246,7 +259,7 @@ class PDFProcessor:
                 latex_content.extend(matches)
 
         if has_latex:
-            return True, '\n'.join(latex_content[:10])  # Limit to first 10 matches
+            return True, "\n".join(latex_content[:10])  # Limit to first 10 matches
         return False, None
 
     def extract_text_from_page(self, pdf_path: Path, page_number: int) -> str:
@@ -342,12 +355,7 @@ class PDFProcessor:
         avg_chars_per_page = text_chars / pages_to_check if pages_to_check > 0 else 0
         return avg_chars_per_page < 100  # Threshold: less than 100 chars/page = scanned
 
-    def process_pdf_with_ocr(
-        self,
-        pdf_path: Path,
-        lang: str = 'en',
-        dpi: int = 300
-    ) -> PDFContent:
+    def process_pdf_with_ocr(self, pdf_path: Path, lang: str = "en", dpi: int = 300) -> PDFContent:
         """Process PDF using OCR for better math notation extraction.
 
         This is the primary pipeline for math-heavy PDFs. Renders pages as
@@ -367,8 +375,7 @@ class PDFProcessor:
         """
         if not OCR_AVAILABLE:
             raise ImportError(
-                "OCR dependencies not available. "
-                "Install: pip install pytesseract pdf2image"
+                "OCR dependencies not available. Install: pip install pytesseract pdf2image"
             )
 
         if not pdf_path.exists():
@@ -393,13 +400,15 @@ class PDFProcessor:
             # Check for LaTeX patterns in OCR text
             has_latex, latex_content = self._detect_latex(text)
 
-            pages.append(PDFPage(
-                page_number=page_num,
-                text=text,
-                images=images,
-                has_latex=has_latex,
-                latex_content=latex_content
-            ))
+            pages.append(
+                PDFPage(
+                    page_number=page_num,
+                    text=text,
+                    images=images,
+                    has_latex=has_latex,
+                    latex_content=latex_content,
+                )
+            )
 
         # Get metadata using pymupdf or pdfplumber
         metadata = {}
@@ -412,8 +421,5 @@ class PDFProcessor:
                 metadata = pdf.metadata or {}
 
         return PDFContent(
-            file_path=pdf_path,
-            total_pages=len(pages),
-            pages=pages,
-            metadata=metadata
+            file_path=pdf_path, total_pages=len(pages), pages=pages, metadata=metadata
         )

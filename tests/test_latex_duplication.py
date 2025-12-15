@@ -8,11 +8,12 @@ from models.llm_manager import LLMManager
 
 # Common LaTeX duplication patterns to detect
 DUPLICATION_PATTERNS = [
-    r'([A-Z])\1(?![a-z])',  # VV, WW, KK (single letter doubled)
-    r'(\$[^$]+\$)\1',        # $x$x$ (whole expression doubled)
-    r'(mathbb\{[A-Z]\})\1',  # mathbb{R}mathbb{R}
-    r'(\\[a-z]+)\1',         # \alpha\alpha
+    r"([A-Z])\1(?![a-z])",  # VV, WW, KK (single letter doubled)
+    r"(\$[^$]+\$)\1",  # $x$x$ (whole expression doubled)
+    r"(mathbb\{[A-Z]\})\1",  # mathbb{R}mathbb{R}
+    r"(\\[a-z]+)\1",  # \alpha\alpha
 ]
+
 
 def check_for_duplication(text: str) -> list[str]:
     """Check text for LaTeX duplication patterns."""
@@ -26,9 +27,9 @@ def check_for_duplication(text: str) -> list[str]:
 
 def test_exercise_generation(engine: ReviewEngine, test_name: str, examples: list[ExerciseExample]):
     """Generate an exercise and check for duplication."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Test: {test_name}")
-    print('='*60)
+    print("=" * 60)
 
     exercise = engine.generate_exercise(
         knowledge_item_name=test_name,
@@ -66,9 +67,9 @@ def main():
                 ExerciseExample(
                     text="Dare la definizione di applicazione lineare tra due spazi vettoriali $V$ e $W$ sul campo $\\mathbb{R}$.",
                     solution="Un'applicazione $f: V \\to W$ è lineare se $f(u+v) = f(u) + f(v)$ e $f(\\alpha v) = \\alpha f(v)$.",
-                    source_type="exam"
+                    source_type="exam",
                 ),
-            ]
+            ],
         },
         {
             "name": "Autovalori e Autovettori",
@@ -76,9 +77,9 @@ def main():
                 ExerciseExample(
                     text="Sia $A$ una matrice $3 \\times 3$. Trovare gli autovalori di $A$ sapendo che $\\det(A - \\lambda I) = 0$.",
                     solution="Gli autovalori si trovano risolvendo $\\det(A - \\lambda I) = 0$.",
-                    source_type="exam"
+                    source_type="exam",
                 ),
-            ]
+            ],
         },
         {
             "name": "SR Latch",
@@ -86,9 +87,9 @@ def main():
                 ExerciseExample(
                     text="Si consideri un latch SR con ingressi $S$ e $R$. Spiegare perché $S=1, R=1$ non è ammissibile.",
                     solution="Con $S=1$ e $R=1$, entrambe le uscite $Q$ e $\\bar{Q}$ sono forzate a 0, violando la condizione $Q \\neq \\bar{Q}$.",
-                    source_type="exam"
+                    source_type="exam",
                 ),
-            ]
+            ],
         },
         {
             "name": "Limiti e Derivate",
@@ -96,9 +97,9 @@ def main():
                 ExerciseExample(
                     text="Calcolare $\\lim_{x \\to 0} \\frac{\\sin(x)}{x}$ usando la regola di L'Hôpital.",
                     solution="$\\lim_{x \\to 0} \\frac{\\sin(x)}{x} = \\lim_{x \\to 0} \\frac{\\cos(x)}{1} = 1$",
-                    source_type="exam"
+                    source_type="exam",
                 ),
-            ]
+            ],
         },
     ]
 
@@ -108,9 +109,9 @@ def main():
         results.append((tc["name"], passed))
 
     # Summary
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print("SUMMARY")
-    print('='*60)
+    print("=" * 60)
     passed = sum(1 for _, p in results if p)
     total = len(results)
     print(f"Passed: {passed}/{total}")

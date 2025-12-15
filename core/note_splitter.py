@@ -8,7 +8,7 @@ NoteSplitter detects document structure: headers, chapters, numbered sections.
 
 import re
 import hashlib
-from typing import List, Dict, Any, Optional, Tuple
+from typing import List, Optional, Tuple
 from dataclasses import dataclass
 
 from core.pdf_processor import PDFContent, PDFPage
@@ -17,6 +17,7 @@ from core.pdf_processor import PDFContent, PDFPage
 @dataclass
 class NoteSection:
     """Represents a single section extracted from lecture notes."""
+
     id: str
     title: Optional[str]
     content: str
@@ -32,7 +33,7 @@ class NoteSection:
         text = self.content.strip()
         if len(text) <= max_length:
             return text
-        return text[:max_length].rsplit(' ', 1)[0] + "..."
+        return text[:max_length].rsplit(" ", 1)[0] + "..."
 
 
 class NoteSplitter:
@@ -41,37 +42,29 @@ class NoteSplitter:
     # Header patterns (ordered by priority/level)
     HEADER_PATTERNS = [
         # Markdown-style headers
-        (r'^#{1}\s+(.+)$', 1),           # # Chapter
-        (r'^#{2}\s+(.+)$', 2),           # ## Section
-        (r'^#{3}\s+(.+)$', 3),           # ### Subsection
-
+        (r"^#{1}\s+(.+)$", 1),  # # Chapter
+        (r"^#{2}\s+(.+)$", 2),  # ## Section
+        (r"^#{3}\s+(.+)$", 3),  # ### Subsection
         # Numbered chapters/sections
-        (r'^(\d+)\.\s+([A-Z].+)$', 1),   # 1. Chapter Title
-        (r'^(\d+\.\d+)\s+(.+)$', 2),     # 1.1 Section
-        (r'^(\d+\.\d+\.\d+)\s+(.+)$', 3),# 1.1.1 Subsection
-
+        (r"^(\d+)\.\s+([A-Z].+)$", 1),  # 1. Chapter Title
+        (r"^(\d+\.\d+)\s+(.+)$", 2),  # 1.1 Section
+        (r"^(\d+\.\d+\.\d+)\s+(.+)$", 3),  # 1.1.1 Subsection
         # Parenthesized numbers
-        (r'^(\d+)\)\s+([A-Z].+)$', 1),   # 1) Chapter Title
-
+        (r"^(\d+)\)\s+([A-Z].+)$", 1),  # 1) Chapter Title
         # Roman numerals
-        (r'^([IVXLCDM]+)\.\s+(.+)$', 1), # I. Chapter
-        (r'^([ivxlcdm]+)\.\s+(.+)$', 2), # i. Section
-
+        (r"^([IVXLCDM]+)\.\s+(.+)$", 1),  # I. Chapter
+        (r"^([ivxlcdm]+)\.\s+(.+)$", 2),  # i. Section
         # ALL CAPS titles (likely chapters)
-        (r'^([A-Z][A-Z\s]{10,})$', 1),   # CHAPTER TITLE
-
+        (r"^([A-Z][A-Z\s]{10,})$", 1),  # CHAPTER TITLE
         # Bold markers (common in PDF extraction)
-        (r'^\*\*(.+)\*\*$', 2),          # **Section Title**
-
+        (r"^\*\*(.+)\*\*$", 2),  # **Section Title**
         # Capitolo/Chapter explicit markers
-        (r'^(?:Capitolo|Chapter|Chapitre|Kapitel)\s+(\d+)[\.:]\s*(.+)?$', 1),
-
+        (r"^(?:Capitolo|Chapter|Chapitre|Kapitel)\s+(\d+)[\.:]\s*(.+)?$", 1),
         # Italian-style headers (line ending with colon, 3-50 chars)
         # e.g., "Sistema operativo:", "Tipologie di calcolatori:"
-        (r'^([A-Z][a-zàèéìòùA-Z\s]{2,48}):[ \t]*$', 2),
-
+        (r"^([A-Z][a-zàèéìòùA-Z\s]{2,48}):[ \t]*$", 2),
         # Italian headers with articles (Il, La, etc.)
-        (r'^((?:Il|La|Lo|I|Le|Gli|Un|Una|Uno)\s+[a-zàèéìòùA-Z][a-zàèéìòùA-Z\s]{2,45}):[ \t]*$', 2),
+        (r"^((?:Il|La|Lo|I|Le|Gli|Un|Una|Uno)\s+[a-zàèéìòùA-Z][a-zàèéìòùA-Z\s]{2,45}):[ \t]*$", 2),
     ]
 
     # Minimum content length to consider a section valid
@@ -80,16 +73,12 @@ class NoteSplitter:
     def __init__(self):
         """Initialize note splitter."""
         self.compiled_patterns = [
-            (re.compile(pattern, re.MULTILINE), level)
-            for pattern, level in self.HEADER_PATTERNS
+            (re.compile(pattern, re.MULTILINE), level) for pattern, level in self.HEADER_PATTERNS
         ]
         self.section_counter = 0
 
     def split_notes(
-        self,
-        text: str,
-        pages: Optional[List[PDFPage]] = None,
-        source_pdf: str = "notes.pdf"
+        self, text: str, pages: Optional[List[PDFPage]] = None, source_pdf: str = "notes.pdf"
     ) -> List[NoteSection]:
         """
         Split note text into sections by detecting headers.
@@ -114,13 +103,15 @@ class NoteSplitter:
             if pages and len(pages) > 1:
                 return self._split_by_pages(pages, source_pdf)
             else:
-                return [self._create_section(
-                    title=None,
-                    content=text,
-                    page_number=1,
-                    source_pdf=source_pdf,
-                    section_level=1
-                )]
+                return [
+                    self._create_section(
+                        title=None,
+                        content=text,
+                        page_number=1,
+                        source_pdf=source_pdf,
+                        section_level=1,
+                    )
+                ]
 
         # Split text at headers
         for i, (pos, title, level) in enumerate(headers):
@@ -133,7 +124,7 @@ class NoteSplitter:
             content = text[pos:end_pos].strip()
 
             # Remove the header line from content
-            content_lines = content.split('\n', 1)
+            content_lines = content.split("\n", 1)
             if len(content_lines) > 1:
                 content = content_lines[1].strip()
             else:
@@ -146,13 +137,15 @@ class NoteSplitter:
             # Determine page number
             page_number = self._get_page_number(pos, text, pages)
 
-            sections.append(self._create_section(
-                title=title,
-                content=content,
-                page_number=page_number,
-                source_pdf=source_pdf,
-                section_level=level
-            ))
+            sections.append(
+                self._create_section(
+                    title=title,
+                    content=content,
+                    page_number=page_number,
+                    source_pdf=source_pdf,
+                    section_level=level,
+                )
+            )
 
         return sections
 
@@ -170,7 +163,7 @@ class NoteSplitter:
         return self.split_notes(
             text=full_text,
             pages=pdf_content.pages,
-            source_pdf=pdf_content.file_path.name if pdf_content.file_path else "notes.pdf"
+            source_pdf=pdf_content.file_path.name if pdf_content.file_path else "notes.pdf",
         )
 
     def _find_headers(self, text: str) -> List[Tuple[int, str, int]]:
@@ -216,22 +209,19 @@ class NoteSplitter:
     def _clean_title(self, title: str) -> str:
         """Clean up extracted title."""
         # Remove markdown formatting
-        title = re.sub(r'^#+\s*', '', title)
-        title = re.sub(r'\*+', '', title)
+        title = re.sub(r"^#+\s*", "", title)
+        title = re.sub(r"\*+", "", title)
 
         # Remove trailing colons
-        title = title.rstrip(':')
+        title = title.rstrip(":")
 
         # Normalize whitespace
-        title = ' '.join(title.split())
+        title = " ".join(title.split())
 
         return title.strip()
 
     def _get_page_number(
-        self,
-        text_position: int,
-        full_text: str,
-        pages: Optional[List[PDFPage]]
+        self, text_position: int, full_text: str, pages: Optional[List[PDFPage]]
     ) -> int:
         """Determine page number from text position."""
         if not pages:
@@ -247,11 +237,7 @@ class NoteSplitter:
 
         return pages[-1].page_number if pages else 1
 
-    def _split_by_pages(
-        self,
-        pages: List[PDFPage],
-        source_pdf: str
-    ) -> List[NoteSection]:
+    def _split_by_pages(self, pages: List[PDFPage], source_pdf: str) -> List[NoteSection]:
         """
         Fallback: split by pages when no headers found.
         Groups consecutive pages with similar content.
@@ -263,7 +249,7 @@ class NoteSplitter:
                 continue
 
             # Try to extract a title from the first line
-            lines = page.text.strip().split('\n')
+            lines = page.text.strip().split("\n")
             title = None
             content = page.text
 
@@ -272,15 +258,17 @@ class NoteSplitter:
                 # If first line looks like a title (short, possibly capitalized)
                 if len(first_line) < 100 and len(first_line) > 5:
                     title = first_line
-                    content = '\n'.join(lines[1:]).strip()
+                    content = "\n".join(lines[1:]).strip()
 
-            sections.append(self._create_section(
-                title=title,
-                content=content,
-                page_number=page.page_number,
-                source_pdf=source_pdf,
-                section_level=2
-            ))
+            sections.append(
+                self._create_section(
+                    title=title,
+                    content=content,
+                    page_number=page.page_number,
+                    source_pdf=source_pdf,
+                    section_level=2,
+                )
+            )
 
         return sections
 
@@ -293,7 +281,7 @@ class NoteSplitter:
         section_level: int,
         end_page: Optional[int] = None,
         has_images: bool = False,
-        image_paths: Optional[List[str]] = None
+        image_paths: Optional[List[str]] = None,
     ) -> NoteSection:
         """Create a NoteSection with generated ID."""
         self.section_counter += 1
@@ -311,5 +299,5 @@ class NoteSplitter:
             source_pdf=source_pdf,
             section_level=section_level,
             has_images=has_images,
-            image_paths=image_paths or []
+            image_paths=image_paths or [],
         )

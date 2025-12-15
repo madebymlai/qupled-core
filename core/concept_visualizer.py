@@ -4,8 +4,8 @@ Renders concept dependency graphs in multiple formats (ASCII, Mermaid, JSON).
 """
 
 import json
-from typing import Dict, List, Optional
-from core.concept_graph import ConceptGraph, Concept
+from typing import Dict, List
+from core.concept_graph import ConceptGraph
 
 
 class ConceptVisualizer:
@@ -50,7 +50,7 @@ class ConceptVisualizer:
             # Show level header if level changed
             if level > current_level:
                 lines.append("")
-                lines.append(f"--- Level {level} (requires Level {level-1}) ---")
+                lines.append(f"--- Level {level} (requires Level {level - 1}) ---")
                 lines.append("")
                 current_level = level
             elif level == 0 and i == 1:
@@ -67,7 +67,7 @@ class ConceptVisualizer:
 
             # Show prerequisites with arrows
             if prereqs:
-                prereq_names = [f"[{learning_order.index(p.id)+1}] {p.name}" for p in prereqs]
+                prereq_names = [f"[{learning_order.index(p.id) + 1}] {p.name}" for p in prereqs]
                 lines.append(f"    ↑ Requires: {', '.join(prereq_names)}")
 
             # Show dependents
@@ -173,7 +173,7 @@ class ConceptVisualizer:
                 "total_concepts": len(graph.concepts),
                 "total_dependencies": len(graph.edges),
                 "max_depth": max(levels.values()) if levels else 0,
-                "has_cycles": learning_order is None
+                "has_cycles": learning_order is None,
             },
             "concepts": [
                 {
@@ -183,14 +183,13 @@ class ConceptVisualizer:
                     "exercise_count": c.exercise_count,
                     "prerequisites": c.prerequisites,
                     "level": levels.get(c.id, 0),
-                    "learning_order": learning_order.index(c.id) + 1 if learning_order and c.id in learning_order else None
+                    "learning_order": learning_order.index(c.id) + 1
+                    if learning_order and c.id in learning_order
+                    else None,
                 }
                 for c in graph.concepts.values()
             ],
-            "edges": [
-                {"from": src, "to": dst}
-                for src, dst in graph.edges
-            ]
+            "edges": [{"from": src, "to": dst} for src, dst in graph.edges],
         }
 
         if learning_order:
@@ -240,7 +239,7 @@ class ConceptVisualizer:
         if len(path) == 1:
             lines.append("This is a foundation concept with no prerequisites!")
         else:
-            lines.append(f"You need to learn {len(path)-1} concept(s) first:")
+            lines.append(f"You need to learn {len(path) - 1} concept(s) first:")
             lines.append("")
 
             for i, concept_id in enumerate(path, 1):
@@ -250,11 +249,17 @@ class ConceptVisualizer:
                 prefix = "→" if is_target else f"{i}."
                 marker = " ← YOU ARE HERE" if is_target else ""
 
-                lines.append(f"{prefix} {concept.name} ({concept.exercise_count} exercises){marker}")
+                lines.append(
+                    f"{prefix} {concept.name} ({concept.exercise_count} exercises){marker}"
+                )
 
                 if not is_target:
                     # Show what this enables
-                    next_in_path = [graph.concepts[pid] for pid in path[i:] if pid in graph.get_dependents(concept_id)]
+                    next_in_path = [
+                        graph.concepts[pid]
+                        for pid in path[i:]
+                        if pid in graph.get_dependents(concept_id)
+                    ]
                     if next_in_path:
                         lines.append(f"   (enables: {', '.join([c.name for c in next_in_path])})")
 

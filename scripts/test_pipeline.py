@@ -62,6 +62,7 @@ COURSES = {
 
 GOLDEN_TESTS_FILE = Path(__file__).parent / "golden-tests.yaml"
 
+
 def load_golden_tests() -> tuple[list[dict], int]:
     """Load golden tests from YAML config file."""
     if not GOLDEN_TESTS_FILE.exists():
@@ -75,11 +76,13 @@ def load_golden_tests() -> tuple[list[dict], int]:
     tests = config.get("tests", [])
     return tests, tolerance
 
+
 VALID_APPROACHES = ["procedural", "conceptual", "factual", "analytical", "hybrid"]
 
 # =============================================================================
 # ANSI Colors
 # =============================================================================
+
 
 class Colors:
     GREEN = "\033[92m"
@@ -98,17 +101,22 @@ class Colors:
 def green(text: str) -> str:
     return f"{Colors.GREEN}{text}{Colors.RESET}"
 
+
 def red(text: str) -> str:
     return f"{Colors.RED}{text}{Colors.RESET}"
+
 
 def yellow(text: str) -> str:
     return f"{Colors.YELLOW}{text}{Colors.RESET}"
 
+
 def cyan(text: str) -> str:
     return f"{Colors.CYAN}{text}{Colors.RESET}"
 
+
 def dim(text: str) -> str:
     return f"{Colors.DIM}{text}{Colors.RESET}"
+
 
 def bold(text: str) -> str:
     return f"{Colors.BOLD}{text}{Colors.RESET}"
@@ -118,9 +126,11 @@ def bold(text: str) -> str:
 # Data Classes
 # =============================================================================
 
+
 @dataclass
 class TestResult:
     """Result of testing a single PDF."""
+
     pdf_path: str
     status: str = ""  # PASS, FAIL, ERROR
     error_stage: str = ""  # parse, split, analyze, full
@@ -141,6 +151,7 @@ class TestResult:
 @dataclass
 class TestSummary:
     """Summary of all test results."""
+
     total: int = 0
     passed: int = 0
     failed: int = 0
@@ -155,10 +166,13 @@ class TestSummary:
 # Pipeline Runners
 # =============================================================================
 
+
 class PipelineTester:
     """Runs pipeline tests on PDFs."""
 
-    def __init__(self, lang: str = "en", verbose: bool = False, quiet: bool = False, debug: bool = False):
+    def __init__(
+        self, lang: str = "en", verbose: bool = False, quiet: bool = False, debug: bool = False
+    ):
         self.lang = lang
         self.verbose = verbose
         self.quiet = quiet
@@ -240,23 +254,31 @@ class PipelineTester:
             result.status = "PASS"
 
             # Warnings
-            generic_count = sum(1 for e in exercises if e.exercise_number and
-                               (e.exercise_number.startswith("exercise_") or
-                                e.exercise_number.startswith("question_")))
+            generic_count = sum(
+                1
+                for e in exercises
+                if e.exercise_number
+                and (
+                    e.exercise_number.startswith("exercise_")
+                    or e.exercise_number.startswith("question_")
+                )
+            )
             if generic_count > 0:
                 result.warnings.append(f"{generic_count} exercises with generic numbers")
 
             # Exercise details for verbose output
             for ex in exercises:
-                result.exercise_details.append({
-                    "number": ex.exercise_number,
-                    "is_sub": ex.is_sub_question,
-                    "parent": ex.parent_exercise_number,
-                    "has_solution": bool(ex.solution),
-                    "text_preview": self._truncate(ex.text, 100),
-                    "text_full": ex.text,  # Full text for analyzer
-                    "context": getattr(ex, "parent_context", "") or "",
-                })
+                result.exercise_details.append(
+                    {
+                        "number": ex.exercise_number,
+                        "is_sub": ex.is_sub_question,
+                        "parent": ex.parent_exercise_number,
+                        "has_solution": bool(ex.solution),
+                        "text_preview": self._truncate(ex.text, 100),
+                        "text_full": ex.text,  # Full text for analyzer
+                        "context": getattr(ex, "parent_context", "") or "",
+                    }
+                )
 
         except AssertionError as e:
             result.status = "FAIL"
@@ -293,7 +315,7 @@ class PipelineTester:
                     exercise_text=text_for_analysis,
                     course_name=course_name,
                     exercise_context=None,
-                    is_sub_question=is_sub
+                    is_sub_question=is_sub,
                 )
 
                 ki_name = None
@@ -350,25 +372,29 @@ class PipelineTester:
                 else:
                     snippet = ex.get("context", "") or ex.get("text_preview", "")
 
-                ki_exercises[ki_name].append({
-                    "number": ex.get("number"),
-                    "is_sub": ex.get("is_sub"),
-                    "context": ex.get("context", ""),
-                    "text": ex.get("text_preview", ""),
-                    "snippet": snippet,
-                })
+                ki_exercises[ki_name].append(
+                    {
+                        "number": ex.get("number"),
+                        "is_sub": ex.get("is_sub"),
+                        "context": ex.get("context", ""),
+                        "text": ex.get("text_preview", ""),
+                        "snippet": snippet,
+                    }
+                )
 
             # Build items with descriptions
             items = []
             for name, exs in ki_exercises.items():
                 description = generate_item_description(exs, self.llm)
-                items.append({
-                    "id": len(items),  # Index as ID
-                    "name": name,
-                    "description": description,
-                    "exercises": exs,
-                    "pdf": pdf_path.name,
-                })
+                items.append(
+                    {
+                        "id": len(items),  # Index as ID
+                        "name": name,
+                        "description": description,
+                        "exercises": exs,
+                        "pdf": pdf_path.name,
+                    }
+                )
 
             # INTERNAL MERGE: Find duplicates within this PDF
             if len(items) >= 2:
@@ -383,17 +409,21 @@ class PipelineTester:
 
                     members = []
                     for item in group_items_list:
-                        members.append({
-                            "name": item["name"],
-                            "description": item["description"],
-                            "exercises": item["exercises"],
-                        })
+                        members.append(
+                            {
+                                "name": item["name"],
+                                "description": item["description"],
+                                "exercises": item["exercises"],
+                            }
+                        )
 
-                    result.skill_groups.append({
-                        "canonical": canonical,
-                        "members": members,
-                        "type": "internal",
-                    })
+                    result.skill_groups.append(
+                        {
+                            "canonical": canonical,
+                            "members": members,
+                            "type": "internal",
+                        }
+                    )
 
             # SEQUENTIAL MODE: Merge against existing items from previous PDFs
             if existing_items and len(items) >= 1:
@@ -414,17 +444,21 @@ class PipelineTester:
 
                         members = []
                         for item in group_items_list:
-                            members.append({
-                                "name": item["name"],
-                                "description": item["description"],
-                                "pdf": item.get("pdf", "?"),
-                            })
+                            members.append(
+                                {
+                                    "name": item["name"],
+                                    "description": item["description"],
+                                    "pdf": item.get("pdf", "?"),
+                                }
+                            )
 
-                        result.skill_groups.append({
-                            "canonical": canonical,
-                            "members": members,
-                            "type": "cross-batch-inline",
-                        })
+                        result.skill_groups.append(
+                            {
+                                "canonical": canonical,
+                                "members": members,
+                                "type": "cross-batch-inline",
+                            }
+                        )
 
             # Store items for cross-batch (parallel mode uses this after all PDFs)
             result.knowledge_items = items
@@ -461,6 +495,7 @@ class PipelineTester:
 # =============================================================================
 # Test Runner
 # =============================================================================
+
 
 class TestRunner:
     """Coordinates test execution and output."""
@@ -531,8 +566,8 @@ class TestRunner:
             # Accumulate and reset cache stats for per-PDF tracking
             if self.tester.llm:
                 stats = self.tester.llm.get_cache_stats()
-                self._total_llm_hits += stats['hits']
-                self._total_llm_misses += stats['misses']
+                self._total_llm_hits += stats["hits"]
+                self._total_llm_misses += stats["misses"]
                 self.tester.llm.reset_cache_stats()
 
             # Run appropriate test level
@@ -568,8 +603,8 @@ class TestRunner:
         # Capture final PDF's LLM stats
         if self.tester.llm:
             stats = self.tester.llm.get_cache_stats()
-            self._total_llm_hits += stats['hits']
-            self._total_llm_misses += stats['misses']
+            self._total_llm_hits += stats["hits"]
+            self._total_llm_misses += stats["misses"]
 
         # Print summary
         self.summary.duration = time.time() - self._start_time
@@ -620,17 +655,21 @@ class TestRunner:
 
                 members = []
                 for item in group_items_list:
-                    members.append({
-                        "name": item["name"],
-                        "description": item.get("description", ""),
-                        "pdf": item.get("pdf", "?"),
-                    })
+                    members.append(
+                        {
+                            "name": item["name"],
+                            "description": item.get("description", ""),
+                            "pdf": item.get("pdf", "?"),
+                        }
+                    )
 
-                self.summary.cross_batch_groups.append({
-                    "course": course_folder,
-                    "canonical": canonical,
-                    "members": members,
-                })
+                self.summary.cross_batch_groups.append(
+                    {
+                        "course": course_folder,
+                        "canonical": canonical,
+                        "members": members,
+                    }
+                )
 
                 if not self.args.quiet:
                     print(f"  {bold(canonical)}")
@@ -696,7 +735,11 @@ class TestRunner:
                 result.error = ", ".join(errors)
                 all_passed = False
             else:
-                print(green(f"  PASS: total={actual['total']}, parents={actual['parents']}, subs={actual['subs']}"))
+                print(
+                    green(
+                        f"  PASS: total={actual['total']}, parents={actual['parents']}, subs={actual['subs']}"
+                    )
+                )
 
             self._record_result(result)
 
@@ -797,12 +840,16 @@ class TestRunner:
             avg_time = sum(self._times) / len(self._times)
             remaining = (total - current) * avg_time
             if remaining > 60:
-                eta_str = f"(~{remaining/60:.0f} min remaining) "
+                eta_str = f"(~{remaining / 60:.0f} min remaining) "
             else:
                 eta_str = f"(~{remaining:.0f}s remaining) "
 
-        rel_path = pdf_path.relative_to(TEST_DATA_PATH) if TEST_DATA_PATH in pdf_path.parents else pdf_path.name
-        print(f"\n{bold(f'[{current+1}/{total}]')} {cyan(eta_str)}{rel_path}")
+        rel_path = (
+            pdf_path.relative_to(TEST_DATA_PATH)
+            if TEST_DATA_PATH in pdf_path.parents
+            else pdf_path.name
+        )
+        print(f"\n{bold(f'[{current + 1}/{total}]')} {cyan(eta_str)}{rel_path}")
 
     def _print_result(self, result: TestResult):
         """Print result for a single PDF."""
@@ -826,8 +873,10 @@ class TestRunner:
         # Show LLM cache stats summary (if not --debug which shows all messages)
         if self.tester.llm and not self.args.debug:
             stats = self.tester.llm.get_cache_stats()
-            if stats['total'] > 0:
-                print(f"  LLM calls: {stats['total']} ({stats['hits']} cached, {stats['misses']} new)")
+            if stats["total"] > 0:
+                print(
+                    f"  LLM calls: {stats['total']} ({stats['hits']} cached, {stats['misses']} new)"
+                )
 
         for warning in result.warnings:
             print(f"  {yellow('Warning')}: {warning}")
@@ -838,24 +887,28 @@ class TestRunner:
             for ex in result.exercise_details:
                 if ex["is_sub"]:
                     prefix = "    "
-                    num = f"{ex['parent']}.{ex['number']}" if ex['parent'] else ex['number']
+                    num = f"{ex['parent']}.{ex['number']}" if ex["parent"] else ex["number"]
                 else:
                     prefix = "  "
-                    num = ex['number']
+                    num = ex["number"]
                     if ex.get("context"):
-                        print(f"{prefix}Context: \"{ex['context'][:60]}...\"")
+                        print(f'{prefix}Context: "{ex["context"][:60]}..."')
 
                 sol_marker = " [+sol]" if ex["has_solution"] else ""
-                print(f"{prefix}{num}{sol_marker}: \"{ex['text_preview']}\"")
+                print(f'{prefix}{num}{sol_marker}: "{ex["text_preview"]}"')
 
         # Show skill groups (--full mode)
         if result.skill_groups:
             # Separate internal vs cross-batch-inline groups
             internal_groups = [g for g in result.skill_groups if g.get("type") == "internal"]
-            cross_inline_groups = [g for g in result.skill_groups if g.get("type") == "cross-batch-inline"]
+            cross_inline_groups = [
+                g for g in result.skill_groups if g.get("type") == "cross-batch-inline"
+            ]
 
             if internal_groups:
-                print(f"\n  {cyan('Internal Merge')} ({len(internal_groups)} groups within this PDF):")
+                print(
+                    f"\n  {cyan('Internal Merge')} ({len(internal_groups)} groups within this PDF):"
+                )
                 for group in internal_groups:
                     canonical = group["canonical"]
                     print(f"    {bold(canonical)}")
@@ -869,15 +922,17 @@ class TestRunner:
                                 txt = ex.get("text", "")
                                 if ctx:
                                     print(f"        [{num}] {dim(self._truncate_output(ctx, 50))}")
-                                    print(f"             \"{self._truncate_output(txt, 50)}\"")
+                                    print(f'             "{self._truncate_output(txt, 50)}"')
                                 else:
-                                    print(f"        [{num}] \"{self._truncate_output(txt, 50)}\"")
+                                    print(f'        [{num}] "{self._truncate_output(txt, 50)}"')
                             else:
                                 txt = ex.get("text", "")
-                                print(f"        [{num}] \"{self._truncate_output(txt, 60)}\"")
+                                print(f'        [{num}] "{self._truncate_output(txt, 60)}"')
 
             if cross_inline_groups:
-                print(f"\n  {yellow('Cross-batch Inline')} ({len(cross_inline_groups)} groups vs previous PDFs):")
+                print(
+                    f"\n  {yellow('Cross-batch Inline')} ({len(cross_inline_groups)} groups vs previous PDFs):"
+                )
                 for group in cross_inline_groups:
                     canonical = group["canonical"]
                     print(f"    {bold(canonical)}")
@@ -895,7 +950,7 @@ class TestRunner:
         text = text.replace("\n", " ").strip()
         if len(text) <= max_len:
             return text
-        return f"{text[:max_len-3]}..."
+        return f"{text[: max_len - 3]}..."
 
     def _record_result(self, result: TestResult):
         """Record result in summary."""
@@ -938,20 +993,26 @@ class TestRunner:
         passed_count = len([r for r in self.summary.results if r.status == "PASS"])
         if passed_count > 0:
             avg_exercises = total_exercises / passed_count
-            print(f"\nExercises: {total_exercises} total ({total_subs} subs), avg {avg_exercises:.1f}/PDF")
+            print(
+                f"\nExercises: {total_exercises} total ({total_subs} subs), avg {avg_exercises:.1f}/PDF"
+            )
 
         # LLM stats (accumulated across all PDFs)
         total_llm = self._total_llm_hits + self._total_llm_misses
         if total_llm > 0:
             hit_rate = (self._total_llm_hits / total_llm) * 100
-            print(f"LLM calls: {total_llm} ({self._total_llm_hits} cached, {self._total_llm_misses} new, {hit_rate:.0f}% hit rate)")
+            print(
+                f"LLM calls: {total_llm} ({self._total_llm_hits} cached, {self._total_llm_misses} new, {hit_rate:.0f}% hit rate)"
+            )
 
         # Cross-batch merge summary (parallel mode)
         if self.summary.cross_batch_groups:
-            print(f"\n{cyan('Cross-batch merges')}: {len(self.summary.cross_batch_groups)} groups found")
+            print(
+                f"\n{cyan('Cross-batch merges')}: {len(self.summary.cross_batch_groups)} groups found"
+            )
             for group in self.summary.cross_batch_groups:
                 print(f"  [{group['course']}] {group['canonical']}")
-                for m in group['members']:
+                for m in group["members"]:
                     print(f"    ← {m['name']} ({m['pdf']})")
 
         # Knowledge items per course summary
@@ -1064,7 +1125,9 @@ class TestRunner:
             # Mode: split (default) - exercises breakdown, no KI names
             elif not self.args.analyze and not self.args.full:
                 lines.append(f"═══ {pdf_name} ═══")
-                lines.append(f"{status} | {r.pages} pages | {r.exercises} exercises ({r.sub_questions} subs)")
+                lines.append(
+                    f"{status} | {r.pages} pages | {r.exercises} exercises ({r.sub_questions} subs)"
+                )
 
                 if r.exercise_details:
                     lines.append("")
@@ -1080,7 +1143,7 @@ class TestRunner:
                                 exercises_by_parent[parent] = []
                             exercises_by_parent[parent].append(ex)
                         else:
-                            parent_info[ex['number']] = ex
+                            parent_info[ex["number"]] = ex
                             # Only add to standalone if no subs will claim this parent
                             standalone.append(ex)
 
@@ -1094,50 +1157,66 @@ class TestRunner:
                         lines.append(f"  EXERCISE {parent_num}:{sol}")
                         # Show parent context if available
                         if parent_ex.get("context"):
-                            ctx = parent_ex["context"][:60] + "..." if len(parent_ex.get("context", "")) > 60 else parent_ex.get("context", "")
+                            ctx = (
+                                parent_ex["context"][:60] + "..."
+                                if len(parent_ex.get("context", "")) > 60
+                                else parent_ex.get("context", "")
+                            )
                             lines.append(f"    {ctx}")
                         # Show sub-questions
                         for sub in subs:
                             sub_sol = " [+sol]" if sub["has_solution"] else ""
                             prefix = f"    - {sub['number']}:{sub_sol} "
-                            wrapped = textwrap.fill(sub['text_preview'], width=78,
-                                                    initial_indent=prefix,
-                                                    subsequent_indent=" " * len(prefix))
+                            wrapped = textwrap.fill(
+                                sub["text_preview"],
+                                width=78,
+                                initial_indent=prefix,
+                                subsequent_indent=" " * len(prefix),
+                            )
                             # Add continuation marker at end of lines that wrap
-                            wrap_lines = wrapped.split('\n')
+                            wrap_lines = wrapped.split("\n")
                             if len(wrap_lines) > 1:
-                                wrap_lines = [line + "-" if i < len(wrap_lines) - 1 else line
-                                              for i, line in enumerate(wrap_lines)]
-                            lines.append('\n'.join(wrap_lines))
+                                wrap_lines = [
+                                    line + "-" if i < len(wrap_lines) - 1 else line
+                                    for i, line in enumerate(wrap_lines)
+                                ]
+                            lines.append("\n".join(wrap_lines))
 
                     # Print standalone exercises (no subs)
                     for parent_ex in standalone:
-                        parent_num = parent_ex['number']
+                        parent_num = parent_ex["number"]
                         if parent_num in printed_parents:
                             continue  # Already printed as grouped
                         sol = " [+sol]" if parent_ex["has_solution"] else ""
                         prefix = f"  - Ex {parent_num}:{sol} "
-                        wrapped = textwrap.fill(parent_ex['text_preview'], width=78,
-                                                initial_indent=prefix,
-                                                subsequent_indent=" " * len(prefix))
+                        wrapped = textwrap.fill(
+                            parent_ex["text_preview"],
+                            width=78,
+                            initial_indent=prefix,
+                            subsequent_indent=" " * len(prefix),
+                        )
                         # Add continuation marker at end of lines that wrap
-                        wrap_lines = wrapped.split('\n')
+                        wrap_lines = wrapped.split("\n")
                         if len(wrap_lines) > 1:
-                            wrap_lines = [line + "-" if i < len(wrap_lines) - 1 else line
-                                          for i, line in enumerate(wrap_lines)]
-                        lines.append('\n'.join(wrap_lines))
+                            wrap_lines = [
+                                line + "-" if i < len(wrap_lines) - 1 else line
+                                for i, line in enumerate(wrap_lines)
+                            ]
+                        lines.append("\n".join(wrap_lines))
                 lines.append("")
 
             # Mode: analyze - exercises with KI names, no skill groups
             elif self.args.analyze:
                 lines.append(f"═══ {pdf_name} ═══")
-                lines.append(f"{status} | {r.pages} pages | {r.exercises} exercises ({r.sub_questions} subs)")
+                lines.append(
+                    f"{status} | {r.pages} pages | {r.exercises} exercises ({r.sub_questions} subs)"
+                )
 
                 if r.exercise_details:
                     lines.append("")
                     for ex in r.exercise_details:
                         if ex["is_sub"]:
-                            num = ex['number']
+                            num = ex["number"]
                             indent = "      "
                         else:
                             num = f"Ex {ex['number']}"
@@ -1146,9 +1225,12 @@ class TestRunner:
                         ki_name = ex.get("ki_name", "")
                         ki_label = f" → {ki_name}" if ki_name else ""
                         lines.append(f"  - {num}{sol}{ki_label}:")
-                        wrapped = textwrap.fill(ex['text_preview'], width=80,
-                                                initial_indent=indent,
-                                                subsequent_indent=indent)
+                        wrapped = textwrap.fill(
+                            ex["text_preview"],
+                            width=80,
+                            initial_indent=indent,
+                            subsequent_indent=indent,
+                        )
                         lines.append(wrapped)
                 lines.append("")
 
@@ -1156,14 +1238,16 @@ class TestRunner:
             else:
                 n_groups = len(r.skill_groups) if r.skill_groups else 0
                 lines.append(f"═══ {pdf_name} ═══")
-                lines.append(f"{status} | {r.pages} pages | {r.exercises} exercises → {n_groups} skill groups")
+                lines.append(
+                    f"{status} | {r.pages} pages | {r.exercises} exercises → {n_groups} skill groups"
+                )
 
                 if r.exercise_details:
                     lines.append("")
                     lines.append("Exercises:")
                     for ex in r.exercise_details:
                         if ex["is_sub"]:
-                            num = ex['number']
+                            num = ex["number"]
                             indent = "        "
                         else:
                             num = f"Ex {ex['number']}"
@@ -1172,9 +1256,12 @@ class TestRunner:
                         ki_name = ex.get("ki_name", "")
                         ki_label = f" → {ki_name}" if ki_name else ""
                         lines.append(f"    - {num}{sol}{ki_label}:")
-                        wrapped = textwrap.fill(ex['text_preview'], width=80,
-                                                initial_indent=indent,
-                                                subsequent_indent=indent)
+                        wrapped = textwrap.fill(
+                            ex["text_preview"],
+                            width=80,
+                            initial_indent=indent,
+                            subsequent_indent=indent,
+                        )
                         lines.append(wrapped)
 
                 if r.skill_groups:
@@ -1225,6 +1312,7 @@ class TestRunner:
 # CLI
 # =============================================================================
 
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(
@@ -1256,23 +1344,40 @@ Processing Modes (--full with multiple PDFs):
     mode_group.add_argument("--all", action="store_true", help="Test all PDFs (default)")
     mode_group.add_argument("--pdf", metavar="PATH", help="Test single PDF file")
     mode_group.add_argument("--golden", action="store_true", help="Run golden regression tests")
-    mode_group.add_argument("--rerun-failed", action="store_true", help="Rerun failed tests from last run")
+    mode_group.add_argument(
+        "--rerun-failed", action="store_true", help="Rerun failed tests from last run"
+    )
 
     # Pipeline depth
     depth_group = parser.add_mutually_exclusive_group()
     depth_group.add_argument("--parse", action="store_true", help="Test parse only (stage 1)")
-    depth_group.add_argument("--split", action="store_true", help="Test parse + split (stages 1-2, default)")
-    depth_group.add_argument("--analyze", action="store_true", help="Test parse + split + analyze (stages 1-3)")
-    depth_group.add_argument("--full", action="store_true", help="Full pipeline + skill grouping (shows merges)")
+    depth_group.add_argument(
+        "--split", action="store_true", help="Test parse + split (stages 1-2, default)"
+    )
+    depth_group.add_argument(
+        "--analyze", action="store_true", help="Test parse + split + analyze (stages 1-3)"
+    )
+    depth_group.add_argument(
+        "--full", action="store_true", help="Full pipeline + skill grouping (shows merges)"
+    )
 
     # Processing mode (for --full with multiple PDFs)
     proc_group = parser.add_mutually_exclusive_group()
-    proc_group.add_argument("--parallel", action="store_true",
-                           help="Pro mode: Independent PDFs + cross-batch merge at end (default)")
-    proc_group.add_argument("--sequential", action="store_true",
-                           help="Free mode: Sequential, each PDF sees previous items inline")
-    proc_group.add_argument("--independent", action="store_true",
-                           help="Independent PDFs, no cross-batch merge (internal merge only)")
+    proc_group.add_argument(
+        "--parallel",
+        action="store_true",
+        help="Pro mode: Independent PDFs + cross-batch merge at end (default)",
+    )
+    proc_group.add_argument(
+        "--sequential",
+        action="store_true",
+        help="Free mode: Sequential, each PDF sees previous items inline",
+    )
+    proc_group.add_argument(
+        "--independent",
+        action="store_true",
+        help="Independent PDFs, no cross-batch merge (internal merge only)",
+    )
 
     # Output options
     parser.add_argument("--save", action="store_true", help="Save results to test-results/")
@@ -1280,7 +1385,9 @@ Processing Modes (--full with multiple PDFs):
     parser.add_argument("--failures-only", action="store_true", help="Show only failed tests")
     parser.add_argument("--timing", action="store_true", help="Show timing per PDF")
     parser.add_argument("--lang", default="en", help="Language for analysis (default: en)")
-    parser.add_argument("--dry-run", action="store_true", help="Show what would run without running")
+    parser.add_argument(
+        "--dry-run", action="store_true", help="Show what would run without running"
+    )
     parser.add_argument("--skip", action="append", metavar="PDF", help="Skip specific PDF(s)")
     parser.add_argument("-q", "--quiet", action="store_true", help="Summary only")
     parser.add_argument("-v", "--verbose", action="store_true", help="Show full exercise details")

@@ -9,12 +9,12 @@ import hashlib
 import time
 import logging
 import asyncio
-from pathlib import Path
 from typing import Optional, Dict, Any, List
 from dataclasses import dataclass
 
 try:
     import aiohttp
+
     AIOHTTP_AVAILABLE = True
 except ImportError:
     AIOHTTP_AVAILABLE = False
@@ -29,6 +29,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class LLMResponse:
     """Response from LLM."""
+
     text: str
     model: str
     success: bool
@@ -39,7 +40,9 @@ class LLMResponse:
 class LLMManager:
     """Manages LLM interactions for Examina."""
 
-    def __init__(self, provider: str = "deepseek", base_url: Optional[str] = None, quiet: bool = False):
+    def __init__(
+        self, provider: str = "deepseek", base_url: Optional[str] = None, quiet: bool = False
+    ):
         """Initialize LLM manager.
 
         Args:
@@ -81,16 +84,19 @@ class LLMManager:
 
         # Initialize rate limiter (lazy import to avoid circular dependency)
         from core.rate_limiter import RateLimitTracker
+
         self.rate_limiter = RateLimitTracker(Config.PROVIDER_RATE_LIMITS)
         logger.debug(f"Initialized LLMManager with provider '{provider}' and rate limiting")
 
         # Async HTTP session (initialized in __aenter__)
-        self._session: Optional['aiohttp.ClientSession'] = None
+        self._session: Optional["aiohttp.ClientSession"] = None
 
     async def __aenter__(self):
         """Async context manager entry - initializes aiohttp session."""
         if not AIOHTTP_AVAILABLE:
-            raise ImportError("aiohttp is required for async operations. Install with: pip install aiohttp")
+            raise ImportError(
+                "aiohttp is required for async operations. Install with: pip install aiohttp"
+            )
 
         if self._session is None:
             self._session = aiohttp.ClientSession()
@@ -102,9 +108,15 @@ class LLMManager:
             await self._session.close()
             self._session = None
 
-    def _generate_cache_key(self, provider: str, model: str, prompt: str,
-                           system: Optional[str], temperature: float,
-                           json_mode: bool) -> str:
+    def _generate_cache_key(
+        self,
+        provider: str,
+        model: str,
+        prompt: str,
+        system: Optional[str],
+        temperature: float,
+        json_mode: bool,
+    ) -> str:
         """Generate cache key from request parameters.
 
         Args:
@@ -119,14 +131,17 @@ class LLMManager:
             SHA256 hash as cache key
         """
         # Create deterministic string from all parameters that affect output
-        cache_string = json.dumps({
-            "provider": provider,
-            "model": model,
-            "prompt": prompt,
-            "system": system or "",
-            "temperature": temperature,
-            "json_mode": json_mode
-        }, sort_keys=True)
+        cache_string = json.dumps(
+            {
+                "provider": provider,
+                "model": model,
+                "prompt": prompt,
+                "system": system or "",
+                "temperature": temperature,
+                "json_mode": json_mode,
+            },
+            sort_keys=True,
+        )
 
         # Generate hash
         return hashlib.sha256(cache_string.encode()).hexdigest()
@@ -149,7 +164,7 @@ class LLMManager:
             return None
 
         try:
-            with open(cache_file, 'r') as f:
+            with open(cache_file, "r") as f:
                 cache_data = json.load(f)
 
             # Check TTL
@@ -169,7 +184,7 @@ class LLMManager:
                 model=cache_data.get("model", ""),
                 success=cache_data.get("success", False),
                 error=cache_data.get("error"),
-                metadata=cache_data.get("metadata")
+                metadata=cache_data.get("metadata"),
             )
 
         except Exception as e:
@@ -195,10 +210,10 @@ class LLMManager:
                 "model": response.model,
                 "success": response.success,
                 "error": response.error,
-                "metadata": response.metadata
+                "metadata": response.metadata,
             }
 
-            with open(cache_file, 'w') as f:
+            with open(cache_file, "w") as f:
                 json.dump(cache_data, f, indent=2)
 
             if not self.quiet:
@@ -221,7 +236,7 @@ class LLMManager:
             "hits": self.cache_hits,
             "misses": self.cache_misses,
             "total": total,
-            "hit_rate": round(hit_rate, 2)
+            "hit_rate": round(hit_rate, 2),
         }
 
     def reset_cache_stats(self):
@@ -249,11 +264,15 @@ class LLMManager:
         """
         return self.rate_limiter.get_all_stats()
 
-    def generate(self, prompt: str, model: Optional[str] = None,
-                 system: Optional[str] = None,
-                 temperature: float = 0.7,
-                 max_tokens: Optional[int] = None,
-                 json_mode: bool = False) -> LLMResponse:
+    def generate(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        system: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        json_mode: bool = False,
+    ) -> LLMResponse:
         """Generate text from LLM.
 
         Args:
@@ -272,7 +291,9 @@ class LLMManager:
         # Apply rate limiting before making request
         wait_time = self.rate_limiter.wait_if_needed(self.provider)
         if wait_time > 0:
-            print(f"  [RATE LIMIT] Waiting {wait_time:.1f}s for '{self.provider}' (rate limit protection)")
+            print(
+                f"  [RATE LIMIT] Waiting {wait_time:.1f}s for '{self.provider}' (rate limit protection)"
+            )
 
         # Make the API call
         if self.provider == "ollama":
@@ -296,7 +317,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error=f"Provider {self.provider} not implemented yet"
+                error=f"Provider {self.provider} not implemented yet",
             )
 
         # Record usage if request was successful
@@ -316,11 +337,15 @@ class LLMManager:
 
         return response
 
-    async def generate_async(self, prompt: str, model: Optional[str] = None,
-                            system: Optional[str] = None,
-                            temperature: float = 0.7,
-                            max_tokens: Optional[int] = None,
-                            json_mode: bool = False) -> LLMResponse:
+    async def generate_async(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        system: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+        json_mode: bool = False,
+    ) -> LLMResponse:
         """Generate text from LLM asynchronously.
 
         Args:
@@ -339,7 +364,9 @@ class LLMManager:
         # Apply rate limiting before making request
         wait_time = self.rate_limiter.wait_if_needed(self.provider)
         if wait_time > 0:
-            print(f"  [RATE LIMIT] Waiting {wait_time:.1f}s for '{self.provider}' (rate limit protection)")
+            print(
+                f"  [RATE LIMIT] Waiting {wait_time:.1f}s for '{self.provider}' (rate limit protection)"
+            )
             await asyncio.sleep(wait_time)
 
         # Make the API call
@@ -365,7 +392,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error=f"Provider {self.provider} not implemented yet"
+                error=f"Provider {self.provider} not implemented yet",
             )
 
         # Record usage if request was successful
@@ -385,9 +412,15 @@ class LLMManager:
 
         return response
 
-    def _ollama_generate(self, prompt: str, model: str,
-                        system: Optional[str], temperature: float,
-                        max_tokens: Optional[int], json_mode: bool) -> LLMResponse:
+    def _ollama_generate(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int],
+        json_mode: bool,
+    ) -> LLMResponse:
         """Generate using Ollama API.
 
         Args:
@@ -410,7 +443,7 @@ class LLMManager:
                 "stream": False,
                 "options": {
                     "temperature": temperature,
-                }
+                },
             }
 
             if system:
@@ -435,7 +468,7 @@ class LLMManager:
                     "total_duration": result.get("total_duration"),
                     "load_duration": result.get("load_duration"),
                     "eval_count": result.get("eval_count"),
-                }
+                },
             )
 
         except requests.exceptions.ConnectionError:
@@ -443,26 +476,27 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="Cannot connect to Ollama. Is it running? (ollama serve)"
+                error="Cannot connect to Ollama. Is it running? (ollama serve)",
             )
         except requests.exceptions.Timeout:
             return LLMResponse(
                 text="",
                 model=model,
                 success=False,
-                error="Request timed out. Model might be too slow."
+                error="Request timed out. Model might be too slow.",
             )
         except Exception as e:
-            return LLMResponse(
-                text="",
-                model=model,
-                success=False,
-                error=f"Ollama error: {str(e)}"
-            )
+            return LLMResponse(text="", model=model, success=False, error=f"Ollama error: {str(e)}")
 
-    def _groq_generate(self, prompt: str, model: str,
-                      system: Optional[str], temperature: float,
-                      max_tokens: Optional[int], json_mode: bool) -> LLMResponse:
+    def _groq_generate(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int],
+        json_mode: bool,
+    ) -> LLMResponse:
         """Generate using Groq API with automatic retry on rate limits.
 
         Args:
@@ -484,7 +518,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="GROQ_API_KEY not set. Get one at https://console.groq.com"
+                error="GROQ_API_KEY not set. Get one at https://console.groq.com",
             )
 
         # Check cache first
@@ -494,7 +528,7 @@ class LLMManager:
             prompt=prompt,
             system=system,
             temperature=temperature,
-            json_mode=json_mode
+            json_mode=json_mode,
         )
 
         cached_response = self._get_cached_response(cache_key)
@@ -527,7 +561,7 @@ class LLMManager:
 
                 headers = {
                     "Authorization": f"Bearer {Config.GROQ_API_KEY}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
                 }
 
                 response = requests.post(url, json=payload, headers=headers, timeout=60)
@@ -543,7 +577,7 @@ class LLMManager:
                     metadata={
                         "usage": result.get("usage"),
                         "finish_reason": result["choices"][0].get("finish_reason"),
-                    }
+                    },
                 )
 
                 # Cache successful response
@@ -560,8 +594,10 @@ class LLMManager:
                 elif e.response.status_code == 429:
                     # Rate limit - retry with backoff
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)  # Exponential backoff
-                        print(f"  Rate limit hit, retrying in {delay}s... (attempt {attempt+1}/{max_retries})")
+                        delay = base_delay * (2**attempt)  # Exponential backoff
+                        print(
+                            f"  Rate limit hit, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                        )
                         time.sleep(delay)
                         continue
                     else:
@@ -574,31 +610,24 @@ class LLMManager:
                         error_msg = f"Groq API error: {e} - {e.response.text}"
 
                 # Return error if not retrying
-                return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=error_msg
-                )
+                return LLMResponse(text="", model=model, success=False, error=error_msg)
             except Exception as e:
                 return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=f"Groq error: {str(e)}"
+                    text="", model=model, success=False, error=f"Groq error: {str(e)}"
                 )
 
         # Should never reach here, but just in case
-        return LLMResponse(
-            text="",
-            model=model,
-            success=False,
-            error="Max retries exceeded"
-        )
+        return LLMResponse(text="", model=model, success=False, error="Max retries exceeded")
 
-    async def _groq_generate_async(self, prompt: str, model: str,
-                                   system: Optional[str], temperature: float,
-                                   max_tokens: Optional[int], json_mode: bool) -> LLMResponse:
+    async def _groq_generate_async(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int],
+        json_mode: bool,
+    ) -> LLMResponse:
         """Generate using Groq API asynchronously with automatic retry on rate limits.
 
         Args:
@@ -618,7 +647,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="GROQ_API_KEY not set. Get one at https://console.groq.com"
+                error="GROQ_API_KEY not set. Get one at https://console.groq.com",
             )
 
         # Check cache first
@@ -628,7 +657,7 @@ class LLMManager:
             prompt=prompt,
             system=system,
             temperature=temperature,
-            json_mode=json_mode
+            json_mode=json_mode,
         )
 
         cached_response = self._get_cached_response(cache_key)
@@ -640,7 +669,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="Async session not initialized. Use 'async with LLMManager()' context manager."
+                error="Async session not initialized. Use 'async with LLMManager()' context manager.",
             )
 
         max_retries = 3
@@ -669,19 +698,23 @@ class LLMManager:
 
                 headers = {
                     "Authorization": f"Bearer {Config.GROQ_API_KEY}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
                 }
 
                 timeout = aiohttp.ClientTimeout(total=120)
-                async with self._session.post(url, json=payload, headers=headers, timeout=timeout) as response:
+                async with self._session.post(
+                    url, json=payload, headers=headers, timeout=timeout
+                ) as response:
                     if response.status == 401:
                         error_msg = "Invalid GROQ_API_KEY. Check your API key."
                         return LLMResponse(text="", model=model, success=False, error=error_msg)
                     elif response.status == 429:
                         # Rate limit - retry with backoff
                         if attempt < max_retries - 1:
-                            delay = base_delay * (2 ** attempt)  # Exponential backoff
-                            print(f"  Rate limit hit, retrying in {delay}s... (attempt {attempt+1}/{max_retries})")
+                            delay = base_delay * (2**attempt)  # Exponential backoff
+                            print(
+                                f"  Rate limit hit, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                            )
                             await asyncio.sleep(delay)
                             continue
                         else:
@@ -707,7 +740,7 @@ class LLMManager:
                         metadata={
                             "usage": result.get("usage"),
                             "finish_reason": result["choices"][0].get("finish_reason"),
-                        }
+                        },
                     )
 
                     # Cache successful response
@@ -716,38 +749,28 @@ class LLMManager:
                     return llm_response
 
             except asyncio.TimeoutError:
-                return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error="Request timed out"
-                )
+                return LLMResponse(text="", model=model, success=False, error="Request timed out")
             except aiohttp.ClientError as e:
                 return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=f"Groq API error: {str(e)}"
+                    text="", model=model, success=False, error=f"Groq API error: {str(e)}"
                 )
             except Exception as e:
                 return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=f"Groq error: {str(e)}"
+                    text="", model=model, success=False, error=f"Groq error: {str(e)}"
                 )
 
         # Should never reach here, but just in case
-        return LLMResponse(
-            text="",
-            model=model,
-            success=False,
-            error="Max retries exceeded"
-        )
+        return LLMResponse(text="", model=model, success=False, error="Max retries exceeded")
 
-    def _anthropic_generate(self, prompt: str, model: str,
-                           system: Optional[str], temperature: float,
-                           max_tokens: Optional[int], json_mode: bool) -> LLMResponse:
+    def _anthropic_generate(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int],
+        json_mode: bool,
+    ) -> LLMResponse:
         """Generate using Anthropic API with automatic retry on rate limits.
 
         Args:
@@ -769,7 +792,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="ANTHROPIC_API_KEY not set. Get one at https://console.anthropic.com"
+                error="ANTHROPIC_API_KEY not set. Get one at https://console.anthropic.com",
             )
 
         # Check cache first
@@ -779,7 +802,7 @@ class LLMManager:
             prompt=prompt,
             system=system,
             temperature=temperature,
-            json_mode=json_mode
+            json_mode=json_mode,
         )
 
         cached_response = self._get_cached_response(cache_key)
@@ -796,7 +819,7 @@ class LLMManager:
                 headers = {
                     "x-api-key": Config.ANTHROPIC_API_KEY,
                     "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
+                    "content-type": "application/json",
                 }
 
                 # Build messages
@@ -826,7 +849,7 @@ class LLMManager:
                     metadata={
                         "usage": result.get("usage"),
                         "stop_reason": result.get("stop_reason"),
-                    }
+                    },
                 )
 
                 # Cache successful response
@@ -843,8 +866,10 @@ class LLMManager:
                 elif e.response.status_code == 429:
                     # Rate limit - retry with backoff
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)  # Exponential backoff
-                        print(f"  Rate limit hit, retrying in {delay}s... (attempt {attempt+1}/{max_retries})")
+                        delay = base_delay * (2**attempt)  # Exponential backoff
+                        print(
+                            f"  Rate limit hit, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                        )
                         time.sleep(delay)
                         continue
                     else:
@@ -857,31 +882,24 @@ class LLMManager:
                         error_msg = f"Anthropic API error: {e} - {e.response.text}"
 
                 # Return error if not retrying
-                return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=error_msg
-                )
+                return LLMResponse(text="", model=model, success=False, error=error_msg)
             except Exception as e:
                 return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=f"Anthropic error: {str(e)}"
+                    text="", model=model, success=False, error=f"Anthropic error: {str(e)}"
                 )
 
         # Should never reach here, but just in case
-        return LLMResponse(
-            text="",
-            model=model,
-            success=False,
-            error="Max retries exceeded"
-        )
+        return LLMResponse(text="", model=model, success=False, error="Max retries exceeded")
 
-    async def _anthropic_generate_async(self, prompt: str, model: str,
-                                       system: Optional[str], temperature: float,
-                                       max_tokens: Optional[int], json_mode: bool) -> LLMResponse:
+    async def _anthropic_generate_async(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int],
+        json_mode: bool,
+    ) -> LLMResponse:
         """Generate using Anthropic API asynchronously with automatic retry on rate limits.
 
         Args:
@@ -901,7 +919,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="ANTHROPIC_API_KEY not set. Get one at https://console.anthropic.com"
+                error="ANTHROPIC_API_KEY not set. Get one at https://console.anthropic.com",
             )
 
         # Check cache first
@@ -911,7 +929,7 @@ class LLMManager:
             prompt=prompt,
             system=system,
             temperature=temperature,
-            json_mode=json_mode
+            json_mode=json_mode,
         )
 
         cached_response = self._get_cached_response(cache_key)
@@ -923,7 +941,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="Async session not initialized. Use 'async with LLMManager()' context manager."
+                error="Async session not initialized. Use 'async with LLMManager()' context manager.",
             )
 
         max_retries = 3
@@ -936,7 +954,7 @@ class LLMManager:
                 headers = {
                     "x-api-key": Config.ANTHROPIC_API_KEY,
                     "anthropic-version": "2023-06-01",
-                    "content-type": "application/json"
+                    "content-type": "application/json",
                 }
 
                 # Build messages
@@ -954,15 +972,19 @@ class LLMManager:
                     payload["system"] = system
 
                 timeout = aiohttp.ClientTimeout(total=120)
-                async with self._session.post(url, json=payload, headers=headers, timeout=timeout) as response:
+                async with self._session.post(
+                    url, json=payload, headers=headers, timeout=timeout
+                ) as response:
                     if response.status == 401:
                         error_msg = "Invalid ANTHROPIC_API_KEY. Check your API key."
                         return LLMResponse(text="", model=model, success=False, error=error_msg)
                     elif response.status == 429:
                         # Rate limit - retry with backoff
                         if attempt < max_retries - 1:
-                            delay = base_delay * (2 ** attempt)  # Exponential backoff
-                            print(f"  Rate limit hit, retrying in {delay}s... (attempt {attempt+1}/{max_retries})")
+                            delay = base_delay * (2**attempt)  # Exponential backoff
+                            print(
+                                f"  Rate limit hit, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                            )
                             await asyncio.sleep(delay)
                             continue
                         else:
@@ -988,7 +1010,7 @@ class LLMManager:
                         metadata={
                             "usage": result.get("usage"),
                             "stop_reason": result.get("stop_reason"),
-                        }
+                        },
                     )
 
                     # Cache successful response
@@ -997,38 +1019,28 @@ class LLMManager:
                     return llm_response
 
             except asyncio.TimeoutError:
-                return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error="Request timed out"
-                )
+                return LLMResponse(text="", model=model, success=False, error="Request timed out")
             except aiohttp.ClientError as e:
                 return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=f"Anthropic API error: {str(e)}"
+                    text="", model=model, success=False, error=f"Anthropic API error: {str(e)}"
                 )
             except Exception as e:
                 return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=f"Anthropic error: {str(e)}"
+                    text="", model=model, success=False, error=f"Anthropic error: {str(e)}"
                 )
 
         # Should never reach here, but just in case
-        return LLMResponse(
-            text="",
-            model=model,
-            success=False,
-            error="Max retries exceeded"
-        )
+        return LLMResponse(text="", model=model, success=False, error="Max retries exceeded")
 
-    def _deepseek_generate(self, prompt: str, model: str,
-                          system: Optional[str], temperature: float,
-                          max_tokens: Optional[int], json_mode: bool) -> LLMResponse:
+    def _deepseek_generate(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int],
+        json_mode: bool,
+    ) -> LLMResponse:
         """Generate using DeepSeek API (OpenAI-compatible) with automatic retry on rate limits.
 
         Args:
@@ -1050,7 +1062,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="DEEPSEEK_API_KEY not set. Get one at https://platform.deepseek.com"
+                error="DEEPSEEK_API_KEY not set. Get one at https://platform.deepseek.com",
             )
 
         # Check cache first
@@ -1060,7 +1072,7 @@ class LLMManager:
             prompt=prompt,
             system=system,
             temperature=temperature,
-            json_mode=json_mode
+            json_mode=json_mode,
         )
 
         cached_response = self._get_cached_response(cache_key)
@@ -1097,10 +1109,12 @@ class LLMManager:
 
                 headers = {
                     "Authorization": f"Bearer {Config.DEEPSEEK_API_KEY}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
                 }
 
-                response = requests.post(url, json=payload, headers=headers, timeout=60 if not is_reasoner else 300)
+                response = requests.post(
+                    url, json=payload, headers=headers, timeout=60 if not is_reasoner else 300
+                )
                 response.raise_for_status()
 
                 result = response.json()
@@ -1115,12 +1129,7 @@ class LLMManager:
                 if is_reasoner and "reasoning_content" in message:
                     metadata["reasoning"] = message["reasoning_content"]
 
-                llm_response = LLMResponse(
-                    text=text,
-                    model=model,
-                    success=True,
-                    metadata=metadata
-                )
+                llm_response = LLMResponse(text=text, model=model, success=True, metadata=metadata)
 
                 # Cache successful response
                 self._save_to_cache(cache_key, llm_response)
@@ -1136,8 +1145,10 @@ class LLMManager:
                 elif e.response.status_code == 429:
                     # Rate limit - retry with backoff
                     if attempt < max_retries - 1:
-                        delay = base_delay * (2 ** attempt)  # Exponential backoff
-                        print(f"  Rate limit hit, retrying in {delay}s... (attempt {attempt+1}/{max_retries})")
+                        delay = base_delay * (2**attempt)  # Exponential backoff
+                        print(
+                            f"  Rate limit hit, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                        )
                         time.sleep(delay)
                         continue
                     else:
@@ -1150,31 +1161,24 @@ class LLMManager:
                         error_msg = f"DeepSeek API error: {e} - {e.response.text}"
 
                 # Return error if not retrying
-                return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=error_msg
-                )
+                return LLMResponse(text="", model=model, success=False, error=error_msg)
             except Exception as e:
                 return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=f"DeepSeek error: {str(e)}"
+                    text="", model=model, success=False, error=f"DeepSeek error: {str(e)}"
                 )
 
         # Should never reach here, but just in case
-        return LLMResponse(
-            text="",
-            model=model,
-            success=False,
-            error="Max retries exceeded"
-        )
+        return LLMResponse(text="", model=model, success=False, error="Max retries exceeded")
 
-    async def _deepseek_generate_async(self, prompt: str, model: str,
-                                      system: Optional[str], temperature: float,
-                                      max_tokens: Optional[int], json_mode: bool) -> LLMResponse:
+    async def _deepseek_generate_async(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int],
+        json_mode: bool,
+    ) -> LLMResponse:
         """Generate using DeepSeek API asynchronously with automatic retry on rate limits.
 
         Args:
@@ -1194,7 +1198,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="DEEPSEEK_API_KEY not set. Get one at https://platform.deepseek.com"
+                error="DEEPSEEK_API_KEY not set. Get one at https://platform.deepseek.com",
             )
 
         # Check cache first
@@ -1204,7 +1208,7 @@ class LLMManager:
             prompt=prompt,
             system=system,
             temperature=temperature,
-            json_mode=json_mode
+            json_mode=json_mode,
         )
 
         cached_response = self._get_cached_response(cache_key)
@@ -1216,7 +1220,7 @@ class LLMManager:
                 text="",
                 model=model,
                 success=False,
-                error="Async session not initialized. Use 'async with LLMManager()' context manager."
+                error="Async session not initialized. Use 'async with LLMManager()' context manager.",
             )
 
         max_retries = 3
@@ -1245,19 +1249,23 @@ class LLMManager:
 
                 headers = {
                     "Authorization": f"Bearer {Config.DEEPSEEK_API_KEY}",
-                    "Content-Type": "application/json"
+                    "Content-Type": "application/json",
                 }
 
                 timeout = aiohttp.ClientTimeout(total=120)
-                async with self._session.post(url, json=payload, headers=headers, timeout=timeout) as response:
+                async with self._session.post(
+                    url, json=payload, headers=headers, timeout=timeout
+                ) as response:
                     if response.status == 401:
                         error_msg = "Invalid DEEPSEEK_API_KEY. Check your API key."
                         return LLMResponse(text="", model=model, success=False, error=error_msg)
                     elif response.status == 429:
                         # Rate limit - retry with backoff
                         if attempt < max_retries - 1:
-                            delay = base_delay * (2 ** attempt)  # Exponential backoff
-                            print(f"  Rate limit hit, retrying in {delay}s... (attempt {attempt+1}/{max_retries})")
+                            delay = base_delay * (2**attempt)  # Exponential backoff
+                            print(
+                                f"  Rate limit hit, retrying in {delay}s... (attempt {attempt + 1}/{max_retries})"
+                            )
                             await asyncio.sleep(delay)
                             continue
                         else:
@@ -1283,7 +1291,7 @@ class LLMManager:
                         metadata={
                             "usage": result.get("usage"),
                             "finish_reason": result["choices"][0].get("finish_reason"),
-                        }
+                        },
                     )
 
                     # Cache successful response
@@ -1292,34 +1300,18 @@ class LLMManager:
                     return llm_response
 
             except asyncio.TimeoutError:
-                return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error="Request timed out"
-                )
+                return LLMResponse(text="", model=model, success=False, error="Request timed out")
             except aiohttp.ClientError as e:
                 return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=f"DeepSeek API error: {str(e)}"
+                    text="", model=model, success=False, error=f"DeepSeek API error: {str(e)}"
                 )
             except Exception as e:
                 return LLMResponse(
-                    text="",
-                    model=model,
-                    success=False,
-                    error=f"DeepSeek error: {str(e)}"
+                    text="", model=model, success=False, error=f"DeepSeek error: {str(e)}"
                 )
 
         # Should never reach here, but just in case
-        return LLMResponse(
-            text="",
-            model=model,
-            success=False,
-            error="Max retries exceeded"
-        )
+        return LLMResponse(text="", model=model, success=False, error="Max retries exceeded")
 
     def embed(self, text: str, model: Optional[str] = None) -> Optional[List[float]]:
         """Generate embeddings for text.
@@ -1351,10 +1343,7 @@ class LLMManager:
         try:
             url = f"{self.base_url}/api/embeddings"
 
-            payload = {
-                "model": model,
-                "prompt": text
-            }
+            payload = {"model": model, "prompt": text}
 
             response = requests.post(url, json=payload, timeout=60)
             response.raise_for_status()
@@ -1438,7 +1427,8 @@ class LLMManager:
 
             # Try to find JSON object in text
             import re
-            json_match = re.search(r'\{.*\}', text, re.DOTALL)
+
+            json_match = re.search(r"\{.*\}", text, re.DOTALL)
             if json_match:
                 try:
                     return json.loads(json_match.group())

@@ -9,8 +9,6 @@ import click
 import json
 from rich.console import Console
 from rich.table import Table
-from rich import print as rprint
-from pathlib import Path
 
 from config import Config
 from storage.database import Database
@@ -43,6 +41,7 @@ def get_effective_provider(provider, profile, task_type_value):
         # Profile specified, use routing
         from core.provider_router import ProviderRouter
         from core.task_types import TaskType
+
         try:
             router = ProviderRouter()
             task_type = TaskType.from_string(task_type_value)
@@ -97,7 +96,7 @@ def init():
                         original_name=course.get("original_name"),
                         acronym=course["acronym"],
                         degree_level=level,
-                        degree_program=program
+                        degree_program=program,
                     )
                     courses_added += 1
 
@@ -119,8 +118,12 @@ def init():
 
 
 @cli.command()
-@click.option('--degree', type=click.Choice(['bachelor', 'master', 'all']), default='all',
-              help='Filter by degree level')
+@click.option(
+    "--degree",
+    type=click.Choice(["bachelor", "master", "all"]),
+    default="all",
+    help="Filter by degree level",
+)
 def courses(degree):
     """List all available courses."""
     try:
@@ -132,11 +135,15 @@ def courses(degree):
             return
 
         # Filter by degree if specified
-        if degree != 'all':
-            all_courses = [c for c in all_courses if c['degree_level'] == degree]
+        if degree != "all":
+            all_courses = [c for c in all_courses if c["degree_level"] == degree]
 
         # Create table
-        table = Table(title=f"\n📚 Available Courses ({degree.title()})" if degree != 'all' else "\n📚 Available Courses")
+        table = Table(
+            title=f"\n📚 Available Courses ({degree.title()})"
+            if degree != "all"
+            else "\n📚 Available Courses"
+        )
         table.add_column("Code", style="cyan", no_wrap=True)
         table.add_column("Acronym", style="magenta")
         table.add_column("Name", style="white")
@@ -144,10 +151,10 @@ def courses(degree):
 
         for course in all_courses:
             table.add_row(
-                course['code'],
-                course['acronym'] or '',
-                course['name'],
-                course['degree_level'].title()
+                course["code"],
+                course["acronym"] or "",
+                course["name"],
+                course["degree_level"].title(),
             )
 
         console.print(table)
@@ -159,7 +166,7 @@ def courses(degree):
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
+@click.option("--course", "-c", required=True, help="Course code (e.g., B006802 or ADE)")
 def info(course):
     """Show detailed information about a course."""
     try:
@@ -169,7 +176,7 @@ def info(course):
             found_course = None
 
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -179,17 +186,19 @@ def info(course):
                 return
 
             # Get topics and stats
-            topics = db.get_topics_by_course(found_course['code'])
-            exercises = db.get_exercises_by_course(found_course['code'])
+            topics = db.get_topics_by_course(found_course["code"])
+            exercises = db.get_exercises_by_course(found_course["code"])
 
             # Display info
             console.print(f"\n[bold cyan]{found_course['name']}[/bold cyan]")
-            if found_course['original_name']:
+            if found_course["original_name"]:
                 console.print(f"[dim]{found_course['original_name']}[/dim]")
 
             console.print(f"\nCode: {found_course['code']}")
             console.print(f"Acronym: {found_course['acronym']}")
-            console.print(f"Level: {found_course['degree_level'].title()} ({found_course['degree_program']})")
+            console.print(
+                f"Level: {found_course['degree_level'].title()} ({found_course['degree_program']})"
+            )
 
             console.print(f"\n[bold]Status:[/bold]")
             console.print(f"  Topics discovered: {len(topics)}")
@@ -198,11 +207,12 @@ def info(course):
             if topics:
                 console.print(f"\n[bold]Topics:[/bold]")
                 for topic in topics:
-                    knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
+                    knowledge_items = db.get_knowledge_items_by_topic(topic["id"])
                     console.print(f"  • {topic['name']} ({len(knowledge_items)} core loops)")
 
             # Show exercise type breakdown
             from core.proof_tutor import ProofTutor
+
             proof_tutor = ProofTutor()
 
             proof_count = 0
@@ -210,43 +220,55 @@ def info(course):
             theory_count = 0
 
             for ex in exercises:
-                text = ex.get('text', '')
+                text = ex.get("text", "")
                 is_proof = proof_tutor.is_proof_exercise(text)
-                ex_tags = ex.get('tags')
-                ex_tags_str = str(ex_tags) if ex_tags else '[]'
+                ex_tags = ex.get("tags")
+                ex_tags_str = str(ex_tags) if ex_tags else "[]"
 
                 if is_proof:
                     proof_count += 1
-                elif any(tag in ex_tags_str for tag in ['design', 'transformation', 'implementation']):
+                elif any(
+                    tag in ex_tags_str for tag in ["design", "transformation", "implementation"]
+                ):
                     procedural_count += 1
-                elif any(tag in ex_tags_str for tag in ['analysis', 'verification']):
+                elif any(tag in ex_tags_str for tag in ["analysis", "verification"]):
                     theory_count += 1
 
             if proof_count > 0 or procedural_count > 0 or theory_count > 0:
                 console.print(f"\n[bold]Exercise Type Breakdown:[/bold]")
                 if procedural_count > 0:
-                    console.print(f"  Procedural: {procedural_count} ({procedural_count*100//len(exercises) if exercises else 0}%)")
+                    console.print(
+                        f"  Procedural: {procedural_count} ({procedural_count * 100 // len(exercises) if exercises else 0}%)"
+                    )
                 if theory_count > 0:
-                    console.print(f"  Theory: {theory_count} ({theory_count*100//len(exercises) if exercises else 0}%)")
+                    console.print(
+                        f"  Theory: {theory_count} ({theory_count * 100 // len(exercises) if exercises else 0}%)"
+                    )
                 if proof_count > 0:
-                    console.print(f"  Proof: {proof_count} ({proof_count*100//len(exercises) if exercises else 0}%)")
+                    console.print(
+                        f"  Proof: {proof_count} ({proof_count * 100 // len(exercises) if exercises else 0}%)"
+                    )
 
             # Show multi-procedure statistics
-            multi_proc_exercises = db.get_exercises_with_multiple_procedures(found_course['code'])
+            multi_proc_exercises = db.get_exercises_with_multiple_procedures(found_course["code"])
             if multi_proc_exercises:
                 console.print(f"\n[bold]Multi-Procedure Exercises:[/bold]")
-                console.print(f"  {len(multi_proc_exercises)}/{len(exercises)} exercises cover multiple procedures")
+                console.print(
+                    f"  {len(multi_proc_exercises)}/{len(exercises)} exercises cover multiple procedures"
+                )
 
                 # Show top 3 examples
                 console.print(f"\n[bold]Top Examples:[/bold]")
                 for ex in multi_proc_exercises[:3]:
                     # Get all core loops for this exercise
-                    knowledge_items = db.get_exercise_knowledge_items(ex['id'])
-                    console.print(f"  • Exercise {ex['exercise_number'] or ex['id'][:8]}: {ex['knowledge_item_count']} procedures")
+                    knowledge_items = db.get_exercise_knowledge_items(ex["id"])
+                    console.print(
+                        f"  • Exercise {ex['exercise_number'] or ex['id'][:8]}: {ex['knowledge_item_count']} procedures"
+                    )
                     for cl in knowledge_items[:3]:  # Show first 3 procedures
-                        step_info = f" (point {cl['step_number']})" if cl['step_number'] else ""
+                        step_info = f" (point {cl['step_number']})" if cl["step_number"] else ""
                         console.print(f"    - {cl['name']}{step_info}")
-                    if ex['knowledge_item_count'] > 3:
+                    if ex["knowledge_item_count"] > 3:
                         console.print(f"    ... and {ex['knowledge_item_count'] - 3} more")
 
             console.print()
@@ -257,13 +279,12 @@ def info(course):
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
-@click.option('--mermaid', is_flag=True, help='Output Mermaid diagram format (for rendering)')
-@click.option('--show-mastery', is_flag=True, help='Show mastery levels for each concept')
+@click.option("--course", "-c", required=True, help="Course code (e.g., B006802 or ADE)")
+@click.option("--mermaid", is_flag=True, help="Output Mermaid diagram format (for rendering)")
+@click.option("--show-mastery", is_flag=True, help="Show mastery levels for each concept")
 def concept_map(course, mermaid, show_mastery):
     """Visualize topic and core loop concept dependencies."""
     from rich.tree import Tree
-    from rich.panel import Panel
 
     try:
         with Database() as db:
@@ -271,7 +292,7 @@ def concept_map(course, mermaid, show_mastery):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -279,7 +300,7 @@ def concept_map(course, mermaid, show_mastery):
                 console.print(f"\n[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
             topics = db.get_topics_by_course(course_code)
 
             if not topics:
@@ -290,10 +311,13 @@ def concept_map(course, mermaid, show_mastery):
             mastery_data = {}
             if show_mastery:
                 from core.mastery_aggregator import MasteryAggregator
+
                 aggregator = MasteryAggregator(db)
-                weak_loops = aggregator.get_weak_knowledge_items(course_code, threshold=1.0)  # Get all
+                weak_loops = aggregator.get_weak_knowledge_items(
+                    course_code, threshold=1.0
+                )  # Get all
                 for wl in weak_loops:
-                    mastery_data[wl['knowledge_item_id']] = wl['mastery_score']
+                    mastery_data[wl["knowledge_item_id"]] = wl["mastery_score"]
 
             if mermaid:
                 # Output Mermaid diagram format
@@ -303,13 +327,13 @@ def concept_map(course, mermaid, show_mastery):
 
                 for topic in topics:
                     topic_id = f"T{topic['id']}"
-                    topic_name = topic['name'].replace(' ', '_')[:30]
+                    topic_name = topic["name"].replace(" ", "_")[:30]
                     console.print(f"    COURSE --> {topic_id}[{topic_name}]")
 
-                    knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
+                    knowledge_items = db.get_knowledge_items_by_topic(topic["id"])
                     for cl in knowledge_items:
                         cl_id = f"CL{cl['id']}"
-                        cl_name = cl['name'].replace(' ', '_')[:25]
+                        cl_name = cl["name"].replace(" ", "_")[:25]
                         console.print(f"    {topic_id} --> {cl_id}[{cl_name}]")
 
                 console.print("```")
@@ -318,7 +342,7 @@ def concept_map(course, mermaid, show_mastery):
                 # Rich tree view
                 tree = Tree(
                     f"[bold cyan]{found_course['name']}[/bold cyan] ({found_course['acronym'] or course_code})",
-                    guide_style="dim"
+                    guide_style="dim",
                 )
 
                 # Count stats
@@ -327,32 +351,37 @@ def concept_map(course, mermaid, show_mastery):
                 procedural_count = 0
 
                 for topic in topics:
-                    knowledge_items = db.get_knowledge_items_by_topic(topic['id'])
+                    knowledge_items = db.get_knowledge_items_by_topic(topic["id"])
                     total_loops += len(knowledge_items)
 
                     # Get exercise type distribution for this topic
-                    topic_exercises = db.conn.execute("""
+                    topic_exercises = db.conn.execute(
+                        """
                         SELECT exercise_type, COUNT(*) as count
                         FROM exercises
                         WHERE topic_id = ?
                         GROUP BY exercise_type
-                    """, (topic['id'],)).fetchall()
+                    """,
+                        (topic["id"],),
+                    ).fetchall()
 
                     type_info = ""
                     for te in topic_exercises:
-                        if te['exercise_type'] == 'theory':
-                            theory_count += te['count']
+                        if te["exercise_type"] == "theory":
+                            theory_count += te["count"]
                             type_info += f" [dim](T:{te['count']})[/dim]"
-                        elif te['exercise_type'] == 'procedural':
-                            procedural_count += te['count']
+                        elif te["exercise_type"] == "procedural":
+                            procedural_count += te["count"]
 
-                    topic_branch = tree.add(f"[bold yellow]{topic['name']}[/bold yellow] ({len(knowledge_items)} loops){type_info}")
+                    topic_branch = tree.add(
+                        f"[bold yellow]{topic['name']}[/bold yellow] ({len(knowledge_items)} loops){type_info}"
+                    )
 
                     for cl in knowledge_items:
                         # Build core loop label with mastery if available
-                        cl_label = cl['name']
-                        if show_mastery and cl['id'] in mastery_data:
-                            mastery = mastery_data[cl['id']]
+                        cl_label = cl["name"]
+                        if show_mastery and cl["id"] in mastery_data:
+                            mastery = mastery_data[cl["id"]]
                             if mastery >= 0.7:
                                 cl_label = f"[green]{cl['name']}[/green] ✓ {mastery:.0%}"
                             elif mastery >= 0.4:
@@ -371,22 +400,25 @@ def concept_map(course, mermaid, show_mastery):
                 console.print()
                 console.print(f"[dim]Summary: {len(topics)} topics, {total_loops} core loops[/dim]")
                 if theory_count > 0 or procedural_count > 0:
-                    console.print(f"[dim]Exercise types: {procedural_count} procedural, {theory_count} theory[/dim]")
+                    console.print(
+                        f"[dim]Exercise types: {procedural_count} procedural, {theory_count} theory[/dim]"
+                    )
                 console.print()
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
-@click.option('--tag', '-t', help='Search by procedure tag (design, transformation, etc.)')
-@click.option('--text', help='Search by text in exercise content')
-@click.option('--multi-only', is_flag=True, help='Only show multi-procedure exercises')
-@click.option('--limit', '-l', type=int, default=20, help='Maximum number of results (default: 20)')
+@click.option("--course", "-c", required=True, help="Course code (e.g., B006802 or ADE)")
+@click.option("--tag", "-t", help="Search by procedure tag (design, transformation, etc.)")
+@click.option("--text", help="Search by text in exercise content")
+@click.option("--multi-only", is_flag=True, help="Only show multi-procedure exercises")
+@click.option("--limit", "-l", type=int, default=20, help="Maximum number of results (default: 20)")
 def search(course, tag, text, multi_only, limit):
     """Search exercises by tags or content."""
     try:
@@ -395,7 +427,7 @@ def search(course, tag, text, multi_only, limit):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -404,7 +436,7 @@ def search(course, tag, text, multi_only, limit):
                 console.print("Use 'examina courses' to see available courses.\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
             # Perform search
             exercises = []
@@ -425,8 +457,8 @@ def search(course, tag, text, multi_only, limit):
             if multi_only:
                 # Get multi-procedure exercises
                 multi_proc_exercises = db.get_exercises_with_multiple_procedures(course_code)
-                multi_proc_ids = {ex['id'] for ex in multi_proc_exercises}
-                exercises = [ex for ex in exercises if ex['id'] in multi_proc_ids]
+                multi_proc_ids = {ex["id"] for ex in multi_proc_exercises}
+                exercises = [ex for ex in exercises if ex["id"] in multi_proc_ids]
                 search_type.append("multi-procedure only")
 
             # Limit results
@@ -445,17 +477,17 @@ def search(course, tag, text, multi_only, limit):
 
             for ex in exercises:
                 # Get all core loops for this exercise
-                knowledge_items = db.get_exercise_knowledge_items(ex['id'])
+                knowledge_items = db.get_exercise_knowledge_items(ex["id"])
 
                 # Display exercise header
-                exercise_id = ex.get('exercise_number') or ex.get('source_pdf', 'Unknown')
+                exercise_id = ex.get("exercise_number") or ex.get("source_pdf", "Unknown")
                 console.print(f"[cyan]Exercise: {exercise_id}[/cyan]")
 
                 # Display procedures
                 if len(knowledge_items) > 1:
                     console.print(f"  [yellow]Procedures ({len(knowledge_items)}):[/yellow]")
                     for i, cl in enumerate(knowledge_items, 1):
-                        step_info = f" (point {cl['step_number']})" if cl['step_number'] else ""
+                        step_info = f" (point {cl['step_number']})" if cl["step_number"] else ""
                         console.print(f"    {i}. {cl['name']}{step_info}")
                 elif len(knowledge_items) == 1:
                     console.print(f"  Core Loop: {knowledge_items[0]['name']}")
@@ -463,46 +495,70 @@ def search(course, tag, text, multi_only, limit):
                     console.print(f"  [dim]No core loops assigned[/dim]")
 
                 # Display tags if present
-                if ex.get('tags'):
-                    tags = json.loads(ex['tags']) if isinstance(ex['tags'], str) else ex['tags']
+                if ex.get("tags"):
+                    tags = json.loads(ex["tags"]) if isinstance(ex["tags"], str) else ex["tags"]
                     console.print(f"  Tags: {', '.join(tags)}")
 
                 # Display difficulty
-                if ex.get('difficulty'):
+                if ex.get("difficulty"):
                     console.print(f"  Difficulty: {ex['difficulty']}")
 
                 # Display source
-                if ex.get('source_pdf'):
-                    page_info = f" (page {ex['page_number']})" if ex.get('page_number') else ""
+                if ex.get("source_pdf"):
+                    page_info = f" (page {ex['page_number']})" if ex.get("page_number") else ""
                     console.print(f"  [dim]Source: {ex['source_pdf']}{page_info}[/dim]")
 
                 console.print()
 
             if len(exercises) == limit:
-                console.print(f"[dim]Showing first {limit} results. Use --limit to see more.[/dim]\n")
+                console.print(
+                    f"[dim]Showing first {limit} results. Use --limit to see more.[/dim]\n"
+                )
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
-@click.option('--zip', '-z', 'zip_file', required=True, type=click.Path(exists=True),
-              help='Path to ZIP file containing exam PDFs')
-@click.option('--material-type', type=click.Choice(['exams', 'notes']),
-              default='exams', help='Type of material: exams (problem sets) or notes (lecture slides)')
-@click.option('--smart-split', is_flag=True, default=False,
-              help='Use LLM-based splitting for unstructured materials (lecture notes, embedded examples). Costs API tokens.')
-@click.option('--provider', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
-              default=None, help='LLM provider for smart splitting (overrides profile routing)')
-@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
-              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+@click.option("--course", "-c", required=True, help="Course code (e.g., B006802 or ADE)")
+@click.option(
+    "--zip",
+    "-z",
+    "zip_file",
+    required=True,
+    type=click.Path(exists=True),
+    help="Path to ZIP file containing exam PDFs",
+)
+@click.option(
+    "--material-type",
+    type=click.Choice(["exams", "notes"]),
+    default="exams",
+    help="Type of material: exams (problem sets) or notes (lecture slides)",
+)
+@click.option(
+    "--smart-split",
+    is_flag=True,
+    default=False,
+    help="Use LLM-based splitting for unstructured materials (lecture notes, embedded examples). Costs API tokens.",
+)
+@click.option(
+    "--provider",
+    type=click.Choice(["anthropic", "groq", "ollama", "openai", "deepseek"]),
+    default=None,
+    help="LLM provider for smart splitting (overrides profile routing)",
+)
+@click.option(
+    "--profile",
+    type=click.Choice(["free", "pro", "local"]),
+    default=None,
+    help="Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.",
+)
 def ingest(course, zip_file, material_type, smart_split, provider, profile):
     """Ingest course materials (exams, homework, problem sets, lecture notes) for a course."""
-    from tqdm import tqdm
 
     console.print(f"\n[bold cyan]Ingesting exams for {course}...[/bold cyan]\n")
 
@@ -512,7 +568,7 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -521,7 +577,7 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
                 console.print("Use 'examina courses' to see available courses.\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
             console.print(f"Course: {found_course['name']} ({found_course['acronym']})\n")
 
         # Initialize components
@@ -534,10 +590,13 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
             # Use routing
             from core.provider_router import ProviderRouter
             from core.task_types import TaskType
+
             try:
                 router = ProviderRouter()
                 effective_provider = router.route(TaskType.BULK_ANALYSIS, profile)
-                console.print(f"[dim]Using profile '{profile}' → provider: {effective_provider}[/dim]")
+                console.print(
+                    f"[dim]Using profile '{profile}' → provider: {effective_provider}[/dim]"
+                )
             except Exception as e:
                 console.print(f"[yellow]Warning: Routing failed: {e}[/yellow]")
                 console.print(f"[dim]Falling back to default provider: {Config.LLM_PROVIDER}[/dim]")
@@ -548,22 +607,26 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
 
         # Choose splitter based on material type
         use_smart_splitter = False
-        if material_type == 'notes':
+        if material_type == "notes":
             # Lecture notes always require smart splitting for content detection
             from core.smart_splitter import SmartExerciseSplitter
             from models.llm_manager import LLMManager
 
-            console.print(f"[cyan]📚 Processing lecture notes with smart content detection ({effective_provider})[/cyan]")
-            console.print("[dim]   Detecting theory sections, worked examples, and practice exercises[/dim]\n")
+            console.print(
+                f"[cyan]📚 Processing lecture notes with smart content detection ({effective_provider})[/cyan]"
+            )
+            console.print(
+                "[dim]   Detecting theory sections, worked examples, and practice exercises[/dim]\n"
+            )
 
             llm = LLMManager(provider=effective_provider)
             exercise_splitter = SmartExerciseSplitter(
                 llm_manager=llm,
                 enable_smart_detection=True,
-                notes_mode=True  # Process ALL pages with LLM for content classification
+                notes_mode=True,  # Process ALL pages with LLM for content classification
             )
             use_smart_splitter = True
-        elif material_type == 'exams' and smart_split:
+        elif material_type == "exams" and smart_split:
             # Exams with --smart-split flag use hybrid approach
             from core.smart_splitter import SmartExerciseSplitter
             from models.llm_manager import LLMManager
@@ -572,10 +635,7 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
             console.print("[dim]   LLM-based detection for unstructured materials[/dim]\n")
 
             llm = LLMManager(provider=effective_provider)
-            exercise_splitter = SmartExerciseSplitter(
-                llm_manager=llm,
-                enable_smart_detection=True
-            )
+            exercise_splitter = SmartExerciseSplitter(llm_manager=llm, enable_smart_detection=True)
             use_smart_splitter = True
         else:
             # Default: pattern-based splitting for exams (fast, free)
@@ -605,7 +665,9 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
 
             # Check if scanned PDF
             if pdf_processor.is_scanned_pdf(pdf_path):
-                console.print("   [yellow]⚠️  Scanned PDF detected - OCR not yet implemented[/yellow]")
+                console.print(
+                    "   [yellow]⚠️  Scanned PDF detected - OCR not yet implemented[/yellow]"
+                )
                 console.print("   [dim]Skipping...[/dim]\n")
                 continue
 
@@ -624,25 +686,35 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
 
                     # Show smart splitting stats
                     if split_result.llm_based_count > 0:
-                        console.print(f"   ✓ Found {len(exercises)} exercise(s) "
-                                    f"(pattern: {split_result.pattern_based_count}, "
-                                    f"LLM: {split_result.llm_based_count})")
-                        console.print(f"   [dim]LLM processed {split_result.llm_pages_processed}/{split_result.total_pages} pages "
-                                    f"(est. cost: ${split_result.total_cost_estimate:.4f})[/dim]")
+                        console.print(
+                            f"   ✓ Found {len(exercises)} exercise(s) "
+                            f"(pattern: {split_result.pattern_based_count}, "
+                            f"LLM: {split_result.llm_based_count})"
+                        )
+                        console.print(
+                            f"   [dim]LLM processed {split_result.llm_pages_processed}/{split_result.total_pages} pages "
+                            f"(est. cost: ${split_result.total_cost_estimate:.4f})[/dim]"
+                        )
                     else:
                         console.print(f"   ✓ Found {len(exercises)} exercise(s) (pattern-based)")
 
                     # Show learning materials stats if any found
                     if learning_materials:
-                        console.print(f"   ✓ Found {split_result.theory_count} theory section(s), "
-                                    f"{split_result.worked_example_count} worked example(s)")
+                        console.print(
+                            f"   ✓ Found {split_result.theory_count} theory section(s), "
+                            f"{split_result.worked_example_count} worked example(s)"
+                        )
                 else:
                     # Regular ExerciseSplitter returns List[Exercise]
                     exercises = exercise_splitter.split_pdf_content(pdf_content, course_code)
 
                 # Filter valid exercises
-                valid_exercises = [ex for ex in exercises if exercise_splitter.validate_exercise(ex)]
-                if not use_smart_splitter or (use_smart_splitter and len(valid_exercises) != len(exercises)):
+                valid_exercises = [
+                    ex for ex in exercises if exercise_splitter.validate_exercise(ex)
+                ]
+                if not use_smart_splitter or (
+                    use_smart_splitter and len(valid_exercises) != len(exercises)
+                ):
                     console.print(f"   ✓ {len(valid_exercises)} valid exercise(s) after filtering")
 
                 # Store exercises in database
@@ -662,22 +734,22 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
 
                         # Prepare exercise data
                         exercise_data = {
-                            'id': exercise.id,
-                            'course_code': course_code,
-                            'topic_id': None,  # Will be filled in Phase 3 (AI analysis)
-                            'knowledge_item_id': None,  # Will be filled in Phase 3
-                            'source_pdf': pdf_path.name,
-                            'page_number': exercise.page_number,
-                            'exercise_number': exercise.exercise_number,
-                            'text': cleaned_text,
-                            'has_images': exercise.has_images,
-                            'image_paths': image_paths if image_paths else None,
-                            'latex_content': exercise.latex_content,
-                            'difficulty': None,  # Will be analyzed in Phase 3
-                            'variations': None,
-                            'solution': None,
-                            'analyzed': False,
-                            'analysis_metadata': None
+                            "id": exercise.id,
+                            "course_code": course_code,
+                            "topic_id": None,  # Will be filled in Phase 3 (AI analysis)
+                            "knowledge_item_id": None,  # Will be filled in Phase 3
+                            "source_pdf": pdf_path.name,
+                            "page_number": exercise.page_number,
+                            "exercise_number": exercise.exercise_number,
+                            "text": cleaned_text,
+                            "has_images": exercise.has_images,
+                            "image_paths": image_paths if image_paths else None,
+                            "latex_content": exercise.latex_content,
+                            "difficulty": None,  # Will be analyzed in Phase 3
+                            "variations": None,
+                            "solution": None,
+                            "analyzed": False,
+                            "analysis_metadata": None,
                         }
 
                         db.add_exercise(exercise_data)
@@ -704,15 +776,19 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
                             page_number=material.page_number,
                             has_images=material.has_images,
                             image_paths=material_image_paths if material_image_paths else None,
-                            latex_content=material.latex_content
+                            latex_content=material.latex_content,
                         )
 
                     db.conn.commit()
 
                 total_exercises += len(valid_exercises)
                 if use_smart_splitter:
-                    total_theory_sections += sum(1 for m in learning_materials if m.material_type == 'theory')
-                    total_worked_examples += sum(1 for m in learning_materials if m.material_type == 'worked_example')
+                    total_theory_sections += sum(
+                        1 for m in learning_materials if m.material_type == "theory"
+                    )
+                    total_worked_examples += sum(
+                        1 for m in learning_materials if m.material_type == "worked_example"
+                    )
                 processed_pdfs += 1
                 console.print(f"   ✓ Stored in database\n")
 
@@ -723,9 +799,11 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
         # Summary
         console.print("[bold green]✨ Ingestion complete![/bold green]\n")
         console.print(f"Processed: {processed_pdfs} PDF(s)")
-        console.print(f"Ingested: {total_exercises} exercise(s)", end='')
+        console.print(f"Ingested: {total_exercises} exercise(s)", end="")
         if total_theory_sections > 0 or total_worked_examples > 0:
-            console.print(f", {total_theory_sections} theory section(s), {total_worked_examples} worked example(s)")
+            console.print(
+                f", {total_theory_sections} theory section(s), {total_worked_examples} worked example(s)"
+            )
         else:
             console.print()
         console.print(f"\nNext steps:")
@@ -735,39 +813,84 @@ def ingest(course, zip_file, material_type, smart_split, provider, profile):
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
-@click.option('--limit', '-l', type=int, help='Limit number of exercises to analyze (for testing)')
-@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic', 'openai', 'deepseek']), default=None,
-              help='LLM provider (overrides profile routing)')
-@click.option('--profile', type=click.Choice(['free', 'pro', 'local']), default=None,
-              help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language for analysis (default: en)')
-@click.option('--force', '-f', is_flag=True, help='Force re-analysis of all exercises (ignore existing analysis)')
-@click.option('--parallel/--sequential', default=True,
-              help='Use parallel batch processing for better performance (default: parallel)')
-@click.option('--batch-size', '-b', type=int, default=None,
-              help=f'Batch size for parallel processing (default: {Config.BATCH_SIZE})')
-@click.option('--monolingual', is_flag=True,
-              help='Enable strictly monolingual mode - all procedures will be in single language (prevents cross-language duplicates)')
-@click.option('--async-mode', 'use_async', is_flag=True, default=False,
-              help='Use async processing for better performance (requires async-compatible provider)')
-def analyze(course, limit, provider, profile, lang, force, parallel, batch_size, monolingual, use_async):
+@click.option("--course", "-c", required=True, help="Course code (e.g., B006802 or ADE)")
+@click.option("--limit", "-l", type=int, help="Limit number of exercises to analyze (for testing)")
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["ollama", "groq", "anthropic", "openai", "deepseek"]),
+    default=None,
+    help="LLM provider (overrides profile routing)",
+)
+@click.option(
+    "--profile",
+    type=click.Choice(["free", "pro", "local"]),
+    default=None,
+    help="Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.",
+)
+@click.option(
+    "--lang",
+    type=click.Choice(["en", "it"]),
+    default="en",
+    help="Output language for analysis (default: en)",
+)
+@click.option(
+    "--force",
+    "-f",
+    is_flag=True,
+    help="Force re-analysis of all exercises (ignore existing analysis)",
+)
+@click.option(
+    "--parallel/--sequential",
+    default=True,
+    help="Use parallel batch processing for better performance (default: parallel)",
+)
+@click.option(
+    "--batch-size",
+    "-b",
+    type=int,
+    default=None,
+    help=f"Batch size for parallel processing (default: {Config.BATCH_SIZE})",
+)
+@click.option(
+    "--monolingual",
+    is_flag=True,
+    help="Enable strictly monolingual mode - all procedures will be in single language (prevents cross-language duplicates)",
+)
+@click.option(
+    "--async-mode",
+    "use_async",
+    is_flag=True,
+    default=False,
+    help="Use async processing for better performance (requires async-compatible provider)",
+)
+def analyze(
+    course, limit, provider, profile, lang, force, parallel, batch_size, monolingual, use_async
+):
     """Analyze exercises with AI to discover topics and core loops."""
     if use_async:
         # Run async version
-        asyncio.run(analyze_async(course, limit, provider, profile, lang, force, parallel, batch_size, monolingual))
+        asyncio.run(
+            analyze_async(
+                course, limit, provider, profile, lang, force, parallel, batch_size, monolingual
+            )
+        )
     else:
         # Run sync version
-        analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_size, monolingual)
+        analyze_sync(
+            course, limit, provider, profile, lang, force, parallel, batch_size, monolingual
+        )
 
 
-async def analyze_async(course, limit, provider, profile, lang, force, parallel, batch_size, monolingual):
+async def analyze_async(
+    course, limit, provider, profile, lang, force, parallel, batch_size, monolingual
+):
     """Asynchronous analysis implementation."""
     console.print(f"\n[bold cyan]Analyzing exercises for {course}...[/bold cyan]\n")
     console.print(f"[dim]Using async mode for improved performance[/dim]\n")
@@ -778,7 +901,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -786,7 +909,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
             console.print(f"Course: {found_course['name']} ({found_course['acronym']})\n")
 
             # Check for exercises and analyze resume capability
@@ -812,14 +935,20 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                 console.print("[yellow]--force flag: Re-analyzing all exercises[/yellow]\n")
                 exercises = all_exercises
                 # Reset analyzed flag for all exercises
-                db.conn.execute("UPDATE exercises SET analyzed = 0 WHERE course_code = ?", (course_code,))
+                db.conn.execute(
+                    "UPDATE exercises SET analyzed = 0 WHERE course_code = ?", (course_code,)
+                )
                 db.conn.commit()
             elif remaining_count == 0:
-                console.print("[green]All exercises already analyzed! Use --force to re-analyze.[/green]\n")
+                console.print(
+                    "[green]All exercises already analyzed! Use --force to re-analyze.[/green]\n"
+                )
                 return
             else:
                 if analyzed_count > 0:
-                    console.print(f"[cyan]Resuming analysis from checkpoint ({remaining_count} exercises remaining)...[/cyan]\n")
+                    console.print(
+                        f"[cyan]Resuming analysis from checkpoint ({remaining_count} exercises remaining)...[/cyan]\n"
+                    )
                 exercises = all_exercises  # Need all for proper merging context
 
         # Determine provider to use (provider flag overrides profile routing)
@@ -828,13 +957,18 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
             # Use routing
             from core.provider_router import ProviderRouter
             from core.task_types import TaskType
+
             try:
                 router = ProviderRouter()
                 effective_provider = router.route(TaskType.BULK_ANALYSIS, profile)
-                console.print(f"[dim]Using profile '{profile}' → provider: {effective_provider}[/dim]\n")
+                console.print(
+                    f"[dim]Using profile '{profile}' → provider: {effective_provider}[/dim]\n"
+                )
             except Exception as e:
                 console.print(f"[yellow]Warning: Routing failed: {e}[/yellow]")
-                console.print(f"[dim]Falling back to default provider: {Config.LLM_PROVIDER}[/dim]\n")
+                console.print(
+                    f"[dim]Falling back to default provider: {Config.LLM_PROVIDER}[/dim]\n"
+                )
                 effective_provider = Config.LLM_PROVIDER
         elif provider is None:
             # No provider or profile specified, use default
@@ -842,30 +976,41 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
 
         # Initialize components with async context manager
         mode_str = f"language: {lang}, monolingual: {'ON' if monolingual else 'OFF'}"
-        console.print(f"🤖 Initializing AI components (provider: {effective_provider}, {mode_str})...")
+        console.print(
+            f"🤖 Initializing AI components (provider: {effective_provider}, {mode_str})..."
+        )
 
         async with LLMManager(provider=effective_provider) as llm:
             # Initialize procedure cache for faster analysis (Option 3 - Performance)
             procedure_cache = None
             if Config.PROCEDURE_CACHE_ENABLED:
                 from core.procedure_cache import ProcedureCache
+
                 try:
                     # SemanticMatcher removed - using LLM-based detect_synonyms() instead
                     procedure_cache = ProcedureCache(db, semantic_matcher=None, user_id=None)
                     if Config.PROCEDURE_CACHE_PRELOAD:
                         procedure_cache.load_cache(course_code)
-                    console.print(f"   ✓ Procedure cache enabled ({len(procedure_cache._entries)} patterns)\n")
+                    console.print(
+                        f"   ✓ Procedure cache enabled ({len(procedure_cache._entries)} patterns)\n"
+                    )
                 except Exception as e:
                     console.print(f"   ⚠ Procedure cache unavailable: {e}\n")
                     procedure_cache = None
 
-            analyzer = ExerciseAnalyzer(llm, language=lang, monolingual=monolingual, procedure_cache=procedure_cache)
+            analyzer = ExerciseAnalyzer(
+                llm, language=lang, monolingual=monolingual, procedure_cache=procedure_cache
+            )
 
             # Translation detector removed - names always extracted in English
             translation_detector = None
 
             # For embeddings, we still need Ollama (Groq/Anthropic don't provide embeddings)
-            embed_llm = LLMManager(provider="ollama") if effective_provider in ["groq", "anthropic"] else llm
+            embed_llm = (
+                LLMManager(provider="ollama")
+                if effective_provider in ["groq", "anthropic"]
+                else llm
+            )
             vector_store = VectorStore(llm_manager=embed_llm)
 
             # Check if provider is ready
@@ -880,16 +1025,24 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                 console.print(f"   Using Groq API with {llm.primary_model}")
                 if not Config.GROQ_API_KEY:
                     console.print(f"[red]GROQ_API_KEY not set![/red]")
-                    console.print(f"[yellow]Get your free API key at: https://console.groq.com[/yellow]")
-                    console.print(f"[yellow]Then set it: export GROQ_API_KEY=your_key_here[/yellow]\n")
+                    console.print(
+                        f"[yellow]Get your free API key at: https://console.groq.com[/yellow]"
+                    )
+                    console.print(
+                        f"[yellow]Then set it: export GROQ_API_KEY=your_key_here[/yellow]\n"
+                    )
                     return
                 console.print(f"   ✓ API key found\n")
             elif provider == "anthropic":
                 console.print(f"   Using Anthropic API with {llm.primary_model}")
                 if not Config.ANTHROPIC_API_KEY:
                     console.print(f"[red]ANTHROPIC_API_KEY not set![/red]")
-                    console.print(f"[yellow]Get your API key at: https://console.anthropic.com[/yellow]")
-                    console.print(f"[yellow]Then set it: export ANTHROPIC_API_KEY=your_key_here[/yellow]\n")
+                    console.print(
+                        f"[yellow]Get your API key at: https://console.anthropic.com[/yellow]"
+                    )
+                    console.print(
+                        f"[yellow]Then set it: export ANTHROPIC_API_KEY=your_key_here[/yellow]\n"
+                    )
                     return
                 console.print(f"   ✓ API key found\n")
 
@@ -900,7 +1053,9 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
 
             # Analyze and merge using async method
             processing_mode = "async"
-            console.print(f"🔍 Analyzing and merging exercise fragments ({processing_mode} mode)...")
+            console.print(
+                f"🔍 Analyzing and merging exercise fragments ({processing_mode} mode)..."
+            )
             batch_size_msg = batch_size if batch_size else Config.BATCH_SIZE
             console.print(f"[dim]Using batch size: {batch_size_msg}[/dim]")
             console.print("[dim]This may take a while...[/dim]\n")
@@ -910,40 +1065,48 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
 
             # Use async discovery method
             discovery_result = await analyzer.discover_topics_and_knowledge_items_async(
-                course_code,
-                batch_size=batch_size or Config.BATCH_SIZE,
-                skip_analyzed=skip_analyzed
+                course_code, batch_size=batch_size or Config.BATCH_SIZE, skip_analyzed=skip_analyzed
             )
 
             # Show progress summary
             if skip_analyzed:
-                newly_analyzed = discovery_result['merged_count']
-                console.print(f"✓ Analyzed {newly_analyzed} new exercises (skipped {analyzed_count} already analyzed)")
-                console.print(f"  Total progress: {analyzed_count + newly_analyzed}/{total_count} exercises\n")
+                newly_analyzed = discovery_result["merged_count"]
+                console.print(
+                    f"✓ Analyzed {newly_analyzed} new exercises (skipped {analyzed_count} already analyzed)"
+                )
+                console.print(
+                    f"  Total progress: {analyzed_count + newly_analyzed}/{total_count} exercises\n"
+                )
             else:
-                console.print(f"✓ Merged {discovery_result['original_count']} fragments → {discovery_result['merged_count']} exercises\n")
+                console.print(
+                    f"✓ Merged {discovery_result['original_count']} fragments → {discovery_result['merged_count']} exercises\n"
+                )
 
             # Display results
-            topics = discovery_result['topics']
-            knowledge_items = discovery_result['knowledge_items']
+            topics = discovery_result["topics"]
+            knowledge_items = discovery_result["knowledge_items"]
 
             if topics:
                 console.print("[bold]📚 Discovered Topics:[/bold]")
                 for topic_name, topic_data in topics.items():
-                    console.print(f"  • {topic_name} ({topic_data['exercise_count']} exercises, {len(topic_data['knowledge_items'])} core loops)")
+                    console.print(
+                        f"  • {topic_name} ({topic_data['exercise_count']} exercises, {len(topic_data['knowledge_items'])} core loops)"
+                    )
 
             if knowledge_items:
                 console.print(f"\n[bold]🔄 Discovered Core Loops:[/bold]")
                 for loop_id, loop_data in knowledge_items.items():
-                    console.print(f"  • {loop_data['name']} ({loop_data['exercise_count']} exercises)")
-                    if loop_data['procedure']:
+                    console.print(
+                        f"  • {loop_data['name']} ({loop_data['exercise_count']} exercises)"
+                    )
+                    if loop_data["procedure"]:
                         console.print(f"    [dim]Steps: {len(loop_data['procedure'])}[/dim]")
 
             # Store in database
             console.print(f"\n💾 Storing analysis results...")
             with Database() as db:
                 # Get topic name mapping from analyzer (for deduplication)
-                topic_name_mapping = getattr(analyzer, 'topic_name_mapping', {})
+                topic_name_mapping = getattr(analyzer, "topic_name_mapping", {})
 
                 # Store topics (with language detection)
                 for topic_name in topics.keys():
@@ -962,7 +1125,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                 # Store core loops (with language detection)
                 for loop_id, loop_data in knowledge_items.items():
                     # Get topic_id
-                    topic_name = loop_data.get('topic')
+                    topic_name = loop_data.get("topic")
                     if topic_name:
                         # Map topic name to canonical name (if deduplicated)
                         canonical_topic_name = topic_name
@@ -970,7 +1133,9 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                             canonical_topic_name = topic_name_mapping[canonical_topic_name]
 
                         topic_rows = db.get_topics_by_course(course_code)
-                        topic_id = next((t['id'] for t in topic_rows if t['name'] == canonical_topic_name), None)
+                        topic_id = next(
+                            (t["id"] for t in topic_rows if t["name"] == canonical_topic_name), None
+                        )
 
                         if topic_id:
                             # Detect language if translation detector is available
@@ -979,37 +1144,42 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                                 # In monolingual mode, use the detected primary language
                                 loop_language = analyzer.primary_language
                             elif translation_detector:
-                                loop_language = translation_detector.detect_language(loop_data['name'])
+                                loop_language = translation_detector.detect_language(
+                                    loop_data["name"]
+                                )
                                 if loop_language == "unknown":
                                     loop_language = None  # Store NULL instead of "unknown"
 
                             db.add_knowledge_item(
                                 loop_id=loop_id,
                                 topic_id=topic_id,
-                                name=loop_data['name'],
-                                procedure=loop_data['procedure'],
+                                name=loop_data["name"],
+                                procedure=loop_data["procedure"],
                                 description=None,
-                                language=loop_language
+                                language=loop_language,
                             )
 
                 # Get core loop ID mapping from analyzer (for deduplication)
-                knowledge_item_id_mapping = getattr(analyzer, 'knowledge_item_id_mapping', {})
+                knowledge_item_id_mapping = getattr(analyzer, "knowledge_item_id_mapping", {})
 
                 # Update exercises with analysis
-                for merged_ex in discovery_result['merged_exercises']:
+                for merged_ex in discovery_result["merged_exercises"]:
                     # Update first exercise in merged group
-                    first_id = merged_ex['merged_from'][0]
+                    first_id = merged_ex["merged_from"][0]
 
                     # Check if this exercise was skipped due to low confidence
-                    if merged_ex.get('low_confidence_skipped'):
-                        db.conn.execute("""
+                    if merged_ex.get("low_confidence_skipped"):
+                        db.conn.execute(
+                            """
                             UPDATE exercises
                             SET analyzed = 1, low_confidence_skipped = 1
                             WHERE id = ?
-                        """, (first_id,))
+                        """,
+                            (first_id,),
+                        )
                         continue
 
-                    analysis = merged_ex.get('analysis')
+                    analysis = merged_ex.get("analysis")
                     if analysis and analysis.topic:
                         # Map topic name to canonical name (if deduplicated)
                         canonical_topic_name = analysis.topic
@@ -1018,18 +1188,30 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
 
                         # Get topic_id
                         topic_rows = db.get_topics_by_course(course_code)
-                        topic_id = next((t['id'] for t in topic_rows if t['name'] == canonical_topic_name), None)
+                        topic_id = next(
+                            (t["id"] for t in topic_rows if t["name"] == canonical_topic_name), None
+                        )
 
                         # Get primary knowledge_item_id (first procedure) for backward compatibility
                         primary_knowledge_item_id = analysis.knowledge_item_id
-                        if primary_knowledge_item_id and primary_knowledge_item_id in knowledge_item_id_mapping:
-                            primary_knowledge_item_id = knowledge_item_id_mapping[primary_knowledge_item_id]
+                        if (
+                            primary_knowledge_item_id
+                            and primary_knowledge_item_id in knowledge_item_id_mapping
+                        ):
+                            primary_knowledge_item_id = knowledge_item_id_mapping[
+                                primary_knowledge_item_id
+                            ]
 
                         # Only update if primary_knowledge_item_id exists in deduplicated knowledge_items OR database
-                        if primary_knowledge_item_id and primary_knowledge_item_id not in knowledge_items:
+                        if (
+                            primary_knowledge_item_id
+                            and primary_knowledge_item_id not in knowledge_items
+                        ):
                             # Check if it exists in database (may have been deduplicated to existing DB entry)
                             if not db.get_knowledge_item(primary_knowledge_item_id):
-                                print(f"[DEBUG] Skipping exercise {first_id[:20]}... - knowledge_item_id '{primary_knowledge_item_id}' not found in deduplicated knowledge_items or database")
+                                print(
+                                    f"[DEBUG] Skipping exercise {first_id[:20]}... - knowledge_item_id '{primary_knowledge_item_id}' not found in deduplicated knowledge_items or database"
+                                )
                                 primary_knowledge_item_id = None
 
                         # Collect tags for flexible search
@@ -1038,25 +1220,43 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                         # Process ALL procedures - link to junction table
                         if analysis.procedures:
                             for procedure_info in analysis.procedures:
-                                proc_knowledge_item_id = AnalysisResult._normalize_knowledge_item_id(procedure_info.name)
+                                proc_knowledge_item_id = (
+                                    AnalysisResult._normalize_knowledge_item_id(procedure_info.name)
+                                )
 
                                 # Map to canonical ID if deduplicated
-                                if proc_knowledge_item_id and proc_knowledge_item_id in knowledge_item_id_mapping:
-                                    proc_knowledge_item_id = knowledge_item_id_mapping[proc_knowledge_item_id]
+                                if (
+                                    proc_knowledge_item_id
+                                    and proc_knowledge_item_id in knowledge_item_id_mapping
+                                ):
+                                    proc_knowledge_item_id = knowledge_item_id_mapping[
+                                        proc_knowledge_item_id
+                                    ]
 
                                 # Link exercise to core loop via junction table (check both new loops and DB)
-                                if proc_knowledge_item_id and (proc_knowledge_item_id in knowledge_items or db.get_knowledge_item(proc_knowledge_item_id)):
+                                if proc_knowledge_item_id and (
+                                    proc_knowledge_item_id in knowledge_items
+                                    or db.get_knowledge_item(proc_knowledge_item_id)
+                                ):
                                     db.link_exercise_to_knowledge_item(
                                         exercise_id=first_id,
                                         knowledge_item_id=proc_knowledge_item_id,
-                                        step_number=procedure_info.point_number
+                                        step_number=procedure_info.point_number,
                                     )
 
                                     # Collect tags
                                     tags.append(procedure_info.type)
                                     if procedure_info.transformation:
-                                        src = procedure_info.transformation.get('source_format', '').lower().replace(' ', '_')
-                                        tgt = procedure_info.transformation.get('target_format', '').lower().replace(' ', '_')
+                                        src = (
+                                            procedure_info.transformation.get("source_format", "")
+                                            .lower()
+                                            .replace(" ", "_")
+                                        )
+                                        tgt = (
+                                            procedure_info.transformation.get("target_format", "")
+                                            .lower()
+                                            .replace(" ", "_")
+                                        )
                                         tags.append(f"transform_{src}_to_{tgt}")
 
                         # Update exercise with primary core loop and metadata
@@ -1066,7 +1266,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                             knowledge_item_id=primary_knowledge_item_id,
                             difficulty=analysis.difficulty,
                             variations=analysis.variations,
-                            analyzed=True
+                            analyzed=True,
                         )
 
                         # Update tags
@@ -1074,7 +1274,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                             db.update_exercise_tags(first_id, list(set(tags)))
 
                         # Phase 9.2: Update theory metadata if present
-                        if analysis.exercise_type in ['theory', 'proof', 'hybrid']:
+                        if analysis.exercise_type in ["theory", "proof", "hybrid"]:
                             db.update_exercise_theory_metadata(
                                 exercise_id=first_id,
                                 exercise_type=analysis.exercise_type,
@@ -1082,7 +1282,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
                                 theorem_name=analysis.theorem_name,
                                 concept_id=analysis.concept_id,
                                 prerequisite_concepts=analysis.prerequisite_concepts,
-                                theory_metadata=analysis.theory_metadata
+                                theory_metadata=analysis.theory_metadata,
                             )
 
                 db.conn.commit()
@@ -1090,17 +1290,17 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
 
             # Build vector store
             console.print("🧠 Building vector embeddings for RAG...")
-            vector_store.add_exercises_batch(course_code, discovery_result['merged_exercises'])
+            vector_store.add_exercises_batch(course_code, discovery_result["merged_exercises"])
 
             # Add core loops to vector store
             for loop_id, loop_data in knowledge_items.items():
                 vector_store.add_knowledge_item(
                     course_code=course_code,
                     knowledge_item_id=loop_id,
-                    name=loop_data['name'],
-                    description=loop_data.get('description', ''),
-                    procedure=loop_data['procedure'],
-                    example_exercises=loop_data['exercises']
+                    name=loop_data["name"],
+                    description=loop_data.get("description", ""),
+                    procedure=loop_data["procedure"],
+                    example_exercises=loop_data["exercises"],
                 )
 
             stats = vector_store.get_collection_stats(course_code)
@@ -1109,26 +1309,32 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
 
             # Show cache statistics
             cache_stats = llm.get_cache_stats()
-            if cache_stats['total_requests'] > 0:
+            if cache_stats["total_requests"] > 0:
                 console.print("📊 LLM Response Cache:")
                 console.print(f"   Cache hits: {cache_stats['cache_hits']}")
                 console.print(f"   Cache misses: {cache_stats['cache_misses']}")
                 console.print(f"   Hit rate: {cache_stats['hit_rate_percent']}%")
-                if cache_stats['cache_hits'] > 0:
-                    console.print(f"   [green]💰 Saved ~{cache_stats['cache_hits']} API calls![/green]\n")
+                if cache_stats["cache_hits"] > 0:
+                    console.print(
+                        f"   [green]💰 Saved ~{cache_stats['cache_hits']} API calls![/green]\n"
+                    )
                 else:
                     console.print(f"   [dim]Run analyze again to see cache benefits[/dim]\n")
 
             # Show procedure cache statistics (Option 3)
-            if analyzer.cache_stats and (analyzer.cache_stats['hits'] > 0 or analyzer.cache_stats['misses'] > 0):
-                total = analyzer.cache_stats['hits'] + analyzer.cache_stats['misses']
-                hit_rate = (analyzer.cache_stats['hits'] / total * 100) if total > 0 else 0
+            if analyzer.cache_stats and (
+                analyzer.cache_stats["hits"] > 0 or analyzer.cache_stats["misses"] > 0
+            ):
+                total = analyzer.cache_stats["hits"] + analyzer.cache_stats["misses"]
+                hit_rate = (analyzer.cache_stats["hits"] / total * 100) if total > 0 else 0
                 console.print("📊 Procedure Pattern Cache:")
                 console.print(f"   Hits: {analyzer.cache_stats['hits']}")
                 console.print(f"   Misses: {analyzer.cache_stats['misses']}")
                 console.print(f"   Hit rate: {hit_rate:.1f}%")
-                if analyzer.cache_stats['hits'] > 0:
-                    console.print(f"   [green]💰 Skipped {analyzer.cache_stats['hits']} LLM analyses via pattern matching![/green]\n")
+                if analyzer.cache_stats["hits"] > 0:
+                    console.print(
+                        f"   [green]💰 Skipped {analyzer.cache_stats['hits']} LLM analyses via pattern matching![/green]\n"
+                    )
 
             # Summary
             console.print("[bold green]✨ Analysis complete![/bold green]\n")
@@ -1142,6 +1348,7 @@ async def analyze_async(course, limit, provider, profile, lang, force, parallel,
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
@@ -1156,7 +1363,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -1164,7 +1371,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
             console.print(f"Course: {found_course['name']} ({found_course['acronym']})\n")
 
             # Check for exercises and analyze resume capability
@@ -1190,14 +1397,20 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                 console.print("[yellow]--force flag: Re-analyzing all exercises[/yellow]\n")
                 exercises = all_exercises
                 # Reset analyzed flag for all exercises
-                db.conn.execute("UPDATE exercises SET analyzed = 0 WHERE course_code = ?", (course_code,))
+                db.conn.execute(
+                    "UPDATE exercises SET analyzed = 0 WHERE course_code = ?", (course_code,)
+                )
                 db.conn.commit()
             elif remaining_count == 0:
-                console.print("[green]All exercises already analyzed! Use --force to re-analyze.[/green]\n")
+                console.print(
+                    "[green]All exercises already analyzed! Use --force to re-analyze.[/green]\n"
+                )
                 return
             else:
                 if analyzed_count > 0:
-                    console.print(f"[cyan]Resuming analysis from checkpoint ({remaining_count} exercises remaining)...[/cyan]\n")
+                    console.print(
+                        f"[cyan]Resuming analysis from checkpoint ({remaining_count} exercises remaining)...[/cyan]\n"
+                    )
                 exercises = all_exercises  # Need all for proper merging context
 
         # Determine provider to use (provider flag overrides profile routing)
@@ -1206,13 +1419,18 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
             # Use routing
             from core.provider_router import ProviderRouter
             from core.task_types import TaskType
+
             try:
                 router = ProviderRouter()
                 effective_provider = router.route(TaskType.BULK_ANALYSIS, profile)
-                console.print(f"[dim]Using profile '{profile}' → provider: {effective_provider}[/dim]\n")
+                console.print(
+                    f"[dim]Using profile '{profile}' → provider: {effective_provider}[/dim]\n"
+                )
             except Exception as e:
                 console.print(f"[yellow]Warning: Routing failed: {e}[/yellow]")
-                console.print(f"[dim]Falling back to default provider: {Config.LLM_PROVIDER}[/dim]\n")
+                console.print(
+                    f"[dim]Falling back to default provider: {Config.LLM_PROVIDER}[/dim]\n"
+                )
                 effective_provider = Config.LLM_PROVIDER
         elif provider is None:
             # No provider or profile specified, use default
@@ -1220,31 +1438,40 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
 
         # Initialize components
         mode_str = f"language: {lang}, monolingual: {'ON' if monolingual else 'OFF'}"
-        console.print(f"🤖 Initializing AI components (provider: {effective_provider}, {mode_str})...")
+        console.print(
+            f"🤖 Initializing AI components (provider: {effective_provider}, {mode_str})..."
+        )
         llm = LLMManager(provider=effective_provider)
 
         # Initialize procedure cache for faster analysis (Option 3 - Performance)
         procedure_cache = None
         if Config.PROCEDURE_CACHE_ENABLED:
             from core.procedure_cache import ProcedureCache
+
             try:
                 with Database() as cache_db:
                     # SemanticMatcher removed - using LLM-based detect_synonyms() instead
                     procedure_cache = ProcedureCache(cache_db, semantic_matcher=None, user_id=None)
                     if Config.PROCEDURE_CACHE_PRELOAD:
                         procedure_cache.load_cache(course_code)
-                    console.print(f"   ✓ Procedure cache enabled ({len(procedure_cache._entries)} patterns)\n")
+                    console.print(
+                        f"   ✓ Procedure cache enabled ({len(procedure_cache._entries)} patterns)\n"
+                    )
             except Exception as e:
                 console.print(f"   ⚠ Procedure cache unavailable: {e}\n")
                 procedure_cache = None
 
-        analyzer = ExerciseAnalyzer(llm, language=lang, monolingual=monolingual, procedure_cache=procedure_cache)
+        analyzer = ExerciseAnalyzer(
+            llm, language=lang, monolingual=monolingual, procedure_cache=procedure_cache
+        )
 
         # Translation detector removed - names always extracted in English
         translation_detector = None
 
         # For embeddings, we still need Ollama (Groq/Anthropic don't provide embeddings)
-        embed_llm = LLMManager(provider="ollama") if effective_provider in ["groq", "anthropic"] else llm
+        embed_llm = (
+            LLMManager(provider="ollama") if effective_provider in ["groq", "anthropic"] else llm
+        )
         vector_store = VectorStore(llm_manager=embed_llm)
 
         # Check if provider is ready
@@ -1259,7 +1486,9 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
             console.print(f"   Using Groq API with {llm.primary_model}")
             if not Config.GROQ_API_KEY:
                 console.print(f"[red]GROQ_API_KEY not set![/red]")
-                console.print(f"[yellow]Get your free API key at: https://console.groq.com[/yellow]")
+                console.print(
+                    f"[yellow]Get your free API key at: https://console.groq.com[/yellow]"
+                )
                 console.print(f"[yellow]Then set it: export GROQ_API_KEY=your_key_here[/yellow]\n")
                 return
             console.print(f"   ✓ API key found\n")
@@ -1267,8 +1496,12 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
             console.print(f"   Using Anthropic API with {llm.primary_model}")
             if not Config.ANTHROPIC_API_KEY:
                 console.print(f"[red]ANTHROPIC_API_KEY not set![/red]")
-                console.print(f"[yellow]Get your API key at: https://console.anthropic.com[/yellow]")
-                console.print(f"[yellow]Then set it: export ANTHROPIC_API_KEY=your_key_here[/yellow]\n")
+                console.print(
+                    f"[yellow]Get your API key at: https://console.anthropic.com[/yellow]"
+                )
+                console.print(
+                    f"[yellow]Then set it: export ANTHROPIC_API_KEY=your_key_here[/yellow]\n"
+                )
                 return
             console.print(f"   ✓ API key found\n")
 
@@ -1292,38 +1525,46 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
             course_code,
             batch_size=batch_size or Config.BATCH_SIZE,
             skip_analyzed=skip_analyzed,
-            use_parallel=parallel
+            use_parallel=parallel,
         )
 
         # Show progress summary
         if skip_analyzed:
-            newly_analyzed = discovery_result['merged_count']
-            console.print(f"✓ Analyzed {newly_analyzed} new exercises (skipped {analyzed_count} already analyzed)")
-            console.print(f"  Total progress: {analyzed_count + newly_analyzed}/{total_count} exercises\n")
+            newly_analyzed = discovery_result["merged_count"]
+            console.print(
+                f"✓ Analyzed {newly_analyzed} new exercises (skipped {analyzed_count} already analyzed)"
+            )
+            console.print(
+                f"  Total progress: {analyzed_count + newly_analyzed}/{total_count} exercises\n"
+            )
         else:
-            console.print(f"✓ Merged {discovery_result['original_count']} fragments → {discovery_result['merged_count']} exercises\n")
+            console.print(
+                f"✓ Merged {discovery_result['original_count']} fragments → {discovery_result['merged_count']} exercises\n"
+            )
 
         # Display results
-        topics = discovery_result['topics']
-        knowledge_items = discovery_result['knowledge_items']
+        topics = discovery_result["topics"]
+        knowledge_items = discovery_result["knowledge_items"]
 
         if topics:
             console.print("[bold]📚 Discovered Topics:[/bold]")
             for topic_name, topic_data in topics.items():
-                console.print(f"  • {topic_name} ({topic_data['exercise_count']} exercises, {len(topic_data['knowledge_items'])} core loops)")
+                console.print(
+                    f"  • {topic_name} ({topic_data['exercise_count']} exercises, {len(topic_data['knowledge_items'])} core loops)"
+                )
 
         if knowledge_items:
             console.print(f"\n[bold]🔄 Discovered Core Loops:[/bold]")
             for loop_id, loop_data in knowledge_items.items():
                 console.print(f"  • {loop_data['name']} ({loop_data['exercise_count']} exercises)")
-                if loop_data['procedure']:
+                if loop_data["procedure"]:
                     console.print(f"    [dim]Steps: {len(loop_data['procedure'])}[/dim]")
 
         # Store in database
         console.print(f"\n💾 Storing analysis results...")
         with Database() as db:
             # Get topic name mapping from analyzer (for deduplication)
-            topic_name_mapping = getattr(analyzer, 'topic_name_mapping', {})
+            topic_name_mapping = getattr(analyzer, "topic_name_mapping", {})
 
             # Store topics (with language detection)
             for topic_name in topics.keys():
@@ -1342,7 +1583,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
             # Store core loops (with language detection)
             for loop_id, loop_data in knowledge_items.items():
                 # Get topic_id
-                topic_name = loop_data.get('topic')
+                topic_name = loop_data.get("topic")
                 if topic_name:
                     # Map topic name to canonical name (if deduplicated)
                     canonical_topic_name = topic_name
@@ -1350,7 +1591,9 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                         canonical_topic_name = topic_name_mapping[canonical_topic_name]
 
                     topic_rows = db.get_topics_by_course(course_code)
-                    topic_id = next((t['id'] for t in topic_rows if t['name'] == canonical_topic_name), None)
+                    topic_id = next(
+                        (t["id"] for t in topic_rows if t["name"] == canonical_topic_name), None
+                    )
 
                     if topic_id:
                         # Detect language if translation detector is available
@@ -1359,37 +1602,40 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                             # In monolingual mode, use the detected primary language
                             loop_language = analyzer.primary_language
                         elif translation_detector:
-                            loop_language = translation_detector.detect_language(loop_data['name'])
+                            loop_language = translation_detector.detect_language(loop_data["name"])
                             if loop_language == "unknown":
                                 loop_language = None  # Store NULL instead of "unknown"
 
                         db.add_knowledge_item(
                             loop_id=loop_id,
                             topic_id=topic_id,
-                            name=loop_data['name'],
-                            procedure=loop_data['procedure'],
+                            name=loop_data["name"],
+                            procedure=loop_data["procedure"],
                             description=None,
-                            language=loop_language
+                            language=loop_language,
                         )
 
             # Get core loop ID mapping from analyzer (for deduplication)
-            knowledge_item_id_mapping = getattr(analyzer, 'knowledge_item_id_mapping', {})
+            knowledge_item_id_mapping = getattr(analyzer, "knowledge_item_id_mapping", {})
 
             # Update exercises with analysis
-            for merged_ex in discovery_result['merged_exercises']:
+            for merged_ex in discovery_result["merged_exercises"]:
                 # Update first exercise in merged group
-                first_id = merged_ex['merged_from'][0]
+                first_id = merged_ex["merged_from"][0]
 
                 # Check if this exercise was skipped due to low confidence
-                if merged_ex.get('low_confidence_skipped'):
-                    db.conn.execute("""
+                if merged_ex.get("low_confidence_skipped"):
+                    db.conn.execute(
+                        """
                         UPDATE exercises
                         SET analyzed = 1, low_confidence_skipped = 1
                         WHERE id = ?
-                    """, (first_id,))
+                    """,
+                        (first_id,),
+                    )
                     continue
 
-                analysis = merged_ex.get('analysis')
+                analysis = merged_ex.get("analysis")
                 if analysis and analysis.topic:
                     # Map topic name to canonical name (if deduplicated)
                     canonical_topic_name = analysis.topic
@@ -1398,18 +1644,30 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
 
                     # Get topic_id
                     topic_rows = db.get_topics_by_course(course_code)
-                    topic_id = next((t['id'] for t in topic_rows if t['name'] == canonical_topic_name), None)
+                    topic_id = next(
+                        (t["id"] for t in topic_rows if t["name"] == canonical_topic_name), None
+                    )
 
                     # Get primary knowledge_item_id (first procedure) for backward compatibility
                     primary_knowledge_item_id = analysis.knowledge_item_id
-                    if primary_knowledge_item_id and primary_knowledge_item_id in knowledge_item_id_mapping:
-                        primary_knowledge_item_id = knowledge_item_id_mapping[primary_knowledge_item_id]
+                    if (
+                        primary_knowledge_item_id
+                        and primary_knowledge_item_id in knowledge_item_id_mapping
+                    ):
+                        primary_knowledge_item_id = knowledge_item_id_mapping[
+                            primary_knowledge_item_id
+                        ]
 
                     # Only update if primary_knowledge_item_id exists in deduplicated knowledge_items OR database
-                    if primary_knowledge_item_id and primary_knowledge_item_id not in knowledge_items:
+                    if (
+                        primary_knowledge_item_id
+                        and primary_knowledge_item_id not in knowledge_items
+                    ):
                         # Check if it exists in database (may have been deduplicated to existing DB entry)
                         if not db.get_knowledge_item(primary_knowledge_item_id):
-                            print(f"[DEBUG] Skipping exercise {first_id[:20]}... - knowledge_item_id '{primary_knowledge_item_id}' not found in deduplicated knowledge_items or database")
+                            print(
+                                f"[DEBUG] Skipping exercise {first_id[:20]}... - knowledge_item_id '{primary_knowledge_item_id}' not found in deduplicated knowledge_items or database"
+                            )
                             primary_knowledge_item_id = None
 
                     # Collect tags for flexible search
@@ -1418,25 +1676,43 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                     # Process ALL procedures - link to junction table
                     if analysis.procedures:
                         for procedure_info in analysis.procedures:
-                            proc_knowledge_item_id = AnalysisResult._normalize_knowledge_item_id(procedure_info.name)
+                            proc_knowledge_item_id = AnalysisResult._normalize_knowledge_item_id(
+                                procedure_info.name
+                            )
 
                             # Map to canonical ID if deduplicated
-                            if proc_knowledge_item_id and proc_knowledge_item_id in knowledge_item_id_mapping:
-                                proc_knowledge_item_id = knowledge_item_id_mapping[proc_knowledge_item_id]
+                            if (
+                                proc_knowledge_item_id
+                                and proc_knowledge_item_id in knowledge_item_id_mapping
+                            ):
+                                proc_knowledge_item_id = knowledge_item_id_mapping[
+                                    proc_knowledge_item_id
+                                ]
 
                             # Link exercise to core loop via junction table (check both new loops and DB)
-                            if proc_knowledge_item_id and (proc_knowledge_item_id in knowledge_items or db.get_knowledge_item(proc_knowledge_item_id)):
+                            if proc_knowledge_item_id and (
+                                proc_knowledge_item_id in knowledge_items
+                                or db.get_knowledge_item(proc_knowledge_item_id)
+                            ):
                                 db.link_exercise_to_knowledge_item(
                                     exercise_id=first_id,
                                     knowledge_item_id=proc_knowledge_item_id,
-                                    step_number=procedure_info.point_number
+                                    step_number=procedure_info.point_number,
                                 )
 
                                 # Collect tags
                                 tags.append(procedure_info.type)
                                 if procedure_info.transformation:
-                                    src = procedure_info.transformation.get('source_format', '').lower().replace(' ', '_')
-                                    tgt = procedure_info.transformation.get('target_format', '').lower().replace(' ', '_')
+                                    src = (
+                                        procedure_info.transformation.get("source_format", "")
+                                        .lower()
+                                        .replace(" ", "_")
+                                    )
+                                    tgt = (
+                                        procedure_info.transformation.get("target_format", "")
+                                        .lower()
+                                        .replace(" ", "_")
+                                    )
                                     tags.append(f"transform_{src}_to_{tgt}")
 
                     # Update exercise with primary core loop and metadata
@@ -1446,7 +1722,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                         knowledge_item_id=primary_knowledge_item_id,
                         difficulty=analysis.difficulty,
                         variations=analysis.variations,
-                        analyzed=True
+                        analyzed=True,
                     )
 
                     # Update tags
@@ -1454,7 +1730,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                         db.update_exercise_tags(first_id, list(set(tags)))
 
                     # Phase 9.2: Update theory metadata if present
-                    if analysis.exercise_type in ['theory', 'proof', 'hybrid']:
+                    if analysis.exercise_type in ["theory", "proof", "hybrid"]:
                         db.update_exercise_theory_metadata(
                             exercise_id=first_id,
                             exercise_type=analysis.exercise_type,
@@ -1462,7 +1738,7 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
                             theorem_name=analysis.theorem_name,
                             concept_id=analysis.concept_id,
                             prerequisite_concepts=analysis.prerequisite_concepts,
-                            theory_metadata=analysis.theory_metadata
+                            theory_metadata=analysis.theory_metadata,
                         )
 
             db.conn.commit()
@@ -1470,17 +1746,17 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
 
         # Build vector store
         console.print("🧠 Building vector embeddings for RAG...")
-        vector_store.add_exercises_batch(course_code, discovery_result['merged_exercises'])
+        vector_store.add_exercises_batch(course_code, discovery_result["merged_exercises"])
 
         # Add core loops to vector store
         for loop_id, loop_data in knowledge_items.items():
             vector_store.add_knowledge_item(
                 course_code=course_code,
                 knowledge_item_id=loop_id,
-                name=loop_data['name'],
-                description=loop_data.get('description', ''),
-                procedure=loop_data['procedure'],
-                example_exercises=loop_data['exercises']
+                name=loop_data["name"],
+                description=loop_data.get("description", ""),
+                procedure=loop_data["procedure"],
+                example_exercises=loop_data["exercises"],
             )
 
         stats = vector_store.get_collection_stats(course_code)
@@ -1489,26 +1765,32 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
 
         # Show cache statistics
         cache_stats = llm.get_cache_stats()
-        if cache_stats['total_requests'] > 0:
+        if cache_stats["total_requests"] > 0:
             console.print("📊 LLM Response Cache:")
             console.print(f"   Cache hits: {cache_stats['cache_hits']}")
             console.print(f"   Cache misses: {cache_stats['cache_misses']}")
             console.print(f"   Hit rate: {cache_stats['hit_rate_percent']}%")
-            if cache_stats['cache_hits'] > 0:
-                console.print(f"   [green]💰 Saved ~{cache_stats['cache_hits']} API calls![/green]\n")
+            if cache_stats["cache_hits"] > 0:
+                console.print(
+                    f"   [green]💰 Saved ~{cache_stats['cache_hits']} API calls![/green]\n"
+                )
             else:
                 console.print(f"   [dim]Run analyze again to see cache benefits[/dim]\n")
 
         # Show procedure cache statistics (Option 3)
-        if analyzer.cache_stats and (analyzer.cache_stats['hits'] > 0 or analyzer.cache_stats['misses'] > 0):
-            total = analyzer.cache_stats['hits'] + analyzer.cache_stats['misses']
-            hit_rate = (analyzer.cache_stats['hits'] / total * 100) if total > 0 else 0
+        if analyzer.cache_stats and (
+            analyzer.cache_stats["hits"] > 0 or analyzer.cache_stats["misses"] > 0
+        ):
+            total = analyzer.cache_stats["hits"] + analyzer.cache_stats["misses"]
+            hit_rate = (analyzer.cache_stats["hits"] / total * 100) if total > 0 else 0
             console.print("📊 Procedure Pattern Cache:")
             console.print(f"   Hits: {analyzer.cache_stats['hits']}")
             console.print(f"   Misses: {analyzer.cache_stats['misses']}")
             console.print(f"   Hit rate: {hit_rate:.1f}%")
-            if analyzer.cache_stats['hits'] > 0:
-                console.print(f"   [green]💰 Skipped {analyzer.cache_stats['hits']} LLM analyses via pattern matching![/green]\n")
+            if analyzer.cache_stats["hits"] > 0:
+                console.print(
+                    f"   [green]💰 Skipped {analyzer.cache_stats['hits']} LLM analyses via pattern matching![/green]\n"
+                )
 
         # Summary
         console.print("[bold green]✨ Analysis complete![/bold green]\n")
@@ -1522,18 +1804,29 @@ def analyze_sync(course, limit, provider, profile, lang, force, parallel, batch_
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
-@cli.command(name='link-materials')
-@click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
-@click.option('--provider', '-p', type=click.Choice(['ollama', 'groq', 'anthropic', 'openai', 'deepseek']), default='anthropic',
-              help='LLM provider (default: anthropic)')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language for analysis (default: en)')
-@click.option('--link-exercises', is_flag=True,
-              help='Also link worked examples to similar exercises')
+@cli.command(name="link-materials")
+@click.option("--course", "-c", required=True, help="Course code (e.g., B006802 or ADE)")
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["ollama", "groq", "anthropic", "openai", "deepseek"]),
+    default="anthropic",
+    help="LLM provider (default: anthropic)",
+)
+@click.option(
+    "--lang",
+    type=click.Choice(["en", "it"]),
+    default="en",
+    help="Output language for analysis (default: en)",
+)
+@click.option(
+    "--link-exercises", is_flag=True, help="Also link worked examples to similar exercises"
+)
 def link_materials(course, provider, lang, link_exercises):
     """Link learning materials to topics and optionally to exercises.
 
@@ -1550,7 +1843,7 @@ def link_materials(course, provider, lang, link_exercises):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -1558,18 +1851,20 @@ def link_materials(course, provider, lang, link_exercises):
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
             console.print(f"Course: {found_course['name']} ({found_course['acronym']})\n")
 
             # Check for materials
             materials = db.get_learning_materials_by_course(course_code)
             if not materials:
-                console.print("[yellow]No learning materials found. Run 'examina ingest' first.[/yellow]\n")
+                console.print(
+                    "[yellow]No learning materials found. Run 'examina ingest' first.[/yellow]\n"
+                )
                 return
 
             material_types = {}
             for mat in materials:
-                mat_type = mat['material_type']
+                mat_type = mat["material_type"]
                 material_types[mat_type] = material_types.get(mat_type, 0) + 1
 
             console.print(f"Found {len(materials)} learning materials:")
@@ -1602,7 +1897,9 @@ def link_materials(course, provider, lang, link_exercises):
             console.print(f"   Using Groq API with {llm.primary_model}")
             if not Config.GROQ_API_KEY:
                 console.print(f"[red]GROQ_API_KEY not set![/red]")
-                console.print(f"[yellow]Get your free API key at: https://console.groq.com[/yellow]")
+                console.print(
+                    f"[yellow]Get your free API key at: https://console.groq.com[/yellow]"
+                )
                 console.print(f"[yellow]Then set it: export GROQ_API_KEY=your_key_here[/yellow]\n")
                 return
             console.print(f"   ✓ API key found\n")
@@ -1610,8 +1907,12 @@ def link_materials(course, provider, lang, link_exercises):
             console.print(f"   Using Anthropic API with {llm.primary_model}")
             if not Config.ANTHROPIC_API_KEY:
                 console.print(f"[red]ANTHROPIC_API_KEY not set![/red]")
-                console.print(f"[yellow]Get your API key at: https://console.anthropic.com[/yellow]")
-                console.print(f"[yellow]Then set it: export ANTHROPIC_API_KEY=your_key_here[/yellow]\n")
+                console.print(
+                    f"[yellow]Get your API key at: https://console.anthropic.com[/yellow]"
+                )
+                console.print(
+                    f"[yellow]Then set it: export ANTHROPIC_API_KEY=your_key_here[/yellow]\n"
+                )
                 return
             console.print(f"   ✓ API key found\n")
 
@@ -1633,28 +1934,36 @@ def link_materials(course, provider, lang, link_exercises):
         console.print(f"Next steps:")
         console.print(f"  • examina info --course {course} - View updated course info")
         if not link_exercises:
-            console.print(f"  • examina link-materials --course {course} --link-exercises - Link worked examples to exercises")
+            console.print(
+                f"  • examina link-materials --course {course} --link-exercises - Link worked examples to exercises"
+            )
         console.print()
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
-@cli.command(name='split-topics')
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--provider', type=click.Choice(['anthropic', 'openai', 'groq', 'ollama', 'deepseek']),
-              default=Config.LLM_PROVIDER, help=f'LLM provider (default: {Config.LLM_PROVIDER})')
-@click.option('--lang', type=click.Choice(['en', 'it']), default=Config.DEFAULT_LANGUAGE,
-              help=f'Output language (default: {Config.DEFAULT_LANGUAGE})')
-@click.option('--dry-run', is_flag=True,
-              help='Preview splits without applying changes')
-@click.option('--force', is_flag=True,
-              help='Skip confirmation prompts')
-@click.option('--delete-old', is_flag=True,
-              help='Delete old topic if empty after split')
+@cli.command(name="split-topics")
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option(
+    "--provider",
+    type=click.Choice(["anthropic", "openai", "groq", "ollama", "deepseek"]),
+    default=Config.LLM_PROVIDER,
+    help=f"LLM provider (default: {Config.LLM_PROVIDER})",
+)
+@click.option(
+    "--lang",
+    type=click.Choice(["en", "it"]),
+    default=Config.DEFAULT_LANGUAGE,
+    help=f"Output language (default: {Config.DEFAULT_LANGUAGE})",
+)
+@click.option("--dry-run", is_flag=True, help="Preview splits without applying changes")
+@click.option("--force", is_flag=True, help="Skip confirmation prompts")
+@click.option("--delete-old", is_flag=True, help="Delete old topic if empty after split")
 def split_topics(course, provider, lang, dry_run, force, delete_old):
     """Automatically split generic topics into specific subtopics."""
     try:
@@ -1670,6 +1979,7 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
 
             # Initialize analyzer
             from models.llm_manager import LLMManager
+
             llm_manager = LLMManager(provider=provider)
             analyzer = ExerciseAnalyzer(llm_manager=llm_manager, language=lang)
 
@@ -1678,7 +1988,9 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
             generic_topics = analyzer.detect_generic_topics(course, db)
 
             if not generic_topics:
-                console.print(f"[green]✓ No generic topics found! All topics are sufficiently specific.[/green]\n")
+                console.print(
+                    f"[green]✓ No generic topics found! All topics are sufficiently specific.[/green]\n"
+                )
                 return
 
             console.print(f"\n[yellow]Found {len(generic_topics)} generic topic(s):[/yellow]\n")
@@ -1688,21 +2000,21 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
                 console.print(f"    - Reason: {topic_info['reason']}\n")
 
             if dry_run:
-                console.print("[yellow]Dry run mode: showing preview only, no changes will be made[/yellow]\n")
+                console.print(
+                    "[yellow]Dry run mode: showing preview only, no changes will be made[/yellow]\n"
+                )
 
             # Process each generic topic
             for topic_info in generic_topics:
                 console.print(f"\n[bold]Processing topic: {topic_info['name']}[/bold]")
 
                 # Get core loops for this topic
-                knowledge_items = db.get_knowledge_items_by_topic(topic_info['id'])
+                knowledge_items = db.get_knowledge_items_by_topic(topic_info["id"])
 
                 # Cluster core loops using LLM
                 console.print(f"  Clustering {len(knowledge_items)} core loops...")
                 clusters = analyzer.cluster_knowledge_items_for_topic(
-                    topic_info['id'],
-                    topic_info['name'],
-                    knowledge_items
+                    topic_info["id"], topic_info["name"], knowledge_items
                 )
 
                 if not clusters:
@@ -1716,7 +2028,11 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
                     console.print(f"       Core loops: {len(cluster['knowledge_item_ids'])}")
 
                     # Show core loop names
-                    loop_names = [cl['name'] for cl in knowledge_items if cl['id'] in cluster['knowledge_item_ids']]
+                    loop_names = [
+                        cl["name"]
+                        for cl in knowledge_items
+                        if cl["id"] in cluster["knowledge_item_ids"]
+                    ]
                     for loop_name in loop_names[:3]:  # Show first 3
                         console.print(f"         - {loop_name}")
                     if len(loop_names) > 3:
@@ -1729,7 +2045,9 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
 
                 # Ask for confirmation unless --force
                 if not force:
-                    console.print(f"  [yellow]Apply this split to topic '{topic_info['name']}'?[/yellow]")
+                    console.print(
+                        f"  [yellow]Apply this split to topic '{topic_info['name']}'?[/yellow]"
+                    )
                     confirm = click.confirm("  Proceed", default=True)
                     if not confirm:
                         console.print("  [yellow]Skipped[/yellow]\n")
@@ -1738,10 +2056,10 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
                 # Apply the split
                 try:
                     stats = db.split_topic(
-                        old_topic_id=topic_info['id'],
+                        old_topic_id=topic_info["id"],
                         clusters=clusters,
                         course_code=course,
-                        delete_old=delete_old
+                        delete_old=delete_old,
                     )
 
                     console.print(f"\n  [green]✓ Successfully split topic![/green]")
@@ -1749,14 +2067,16 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
                     console.print(f"    - New topics: {len(stats['new_topics'])}")
                     console.print(f"    - Core loops moved: {stats['knowledge_items_moved']}")
 
-                    if delete_old and stats.get('old_topic_deleted'):
+                    if delete_old and stats.get("old_topic_deleted"):
                         console.print(f"    - Old topic deleted: Yes")
                     elif delete_old:
-                        console.print(f"    - Old topic deleted: No ({stats.get('remaining_knowledge_items', 0)} core loops remain)")
+                        console.print(
+                            f"    - Old topic deleted: No ({stats.get('remaining_knowledge_items', 0)} core loops remain)"
+                        )
 
-                    if stats.get('errors'):
+                    if stats.get("errors"):
                         console.print(f"\n  [yellow]Warnings:[/yellow]")
-                        for error in stats['errors']:
+                        for error in stats["errors"]:
                             console.print(f"    - {error}")
 
                 except Exception as e:
@@ -1768,29 +2088,47 @@ def split_topics(course, provider, lang, dry_run, force, delete_old):
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--loop', '-l', required=True, help='Core loop ID to learn')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language (default: en)')
-@click.option('--depth', '-d', type=click.Choice(['basic', 'medium', 'advanced']), default='medium',
-              help='Explanation depth: basic (concise), medium (balanced), advanced (comprehensive)')
-@click.option('--no-concepts', is_flag=True,
-              help='Skip prerequisite concept explanations')
-@click.option('--adaptive/--no-adaptive', default=True,
-              help='Use adaptive teaching (auto-select depth based on mastery, default: enabled)')
-@click.option('--strategy', is_flag=True,
-              help='Include study strategy and metacognitive guidance')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
-              default=None, help='LLM provider (overrides profile routing)')
-@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
-              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
-@click.option('--force', '-f', is_flag=True,
-              help='Skip prerequisite mastery check and learn anyway')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option("--loop", "-l", required=True, help="Core loop ID to learn")
+@click.option(
+    "--lang", type=click.Choice(["en", "it"]), default="en", help="Output language (default: en)"
+)
+@click.option(
+    "--depth",
+    "-d",
+    type=click.Choice(["basic", "medium", "advanced"]),
+    default="medium",
+    help="Explanation depth: basic (concise), medium (balanced), advanced (comprehensive)",
+)
+@click.option("--no-concepts", is_flag=True, help="Skip prerequisite concept explanations")
+@click.option(
+    "--adaptive/--no-adaptive",
+    default=True,
+    help="Use adaptive teaching (auto-select depth based on mastery, default: enabled)",
+)
+@click.option("--strategy", is_flag=True, help="Include study strategy and metacognitive guidance")
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["anthropic", "groq", "ollama", "openai", "deepseek"]),
+    default=None,
+    help="LLM provider (overrides profile routing)",
+)
+@click.option(
+    "--profile",
+    type=click.Choice(["free", "pro", "local"]),
+    default=None,
+    help="Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.",
+)
+@click.option(
+    "--force", "-f", is_flag=True, help="Skip prerequisite mastery check and learn anyway"
+)
 def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, profile, force):
     """Learn core loops with AI tutor explanation (enhanced with WHY reasoning)."""
     from core.tutor import Tutor
@@ -1799,11 +2137,17 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, 
     console.print(f"\n[bold cyan]Learning {loop}...[/bold cyan]")
 
     if adaptive:
-        console.print(f"[dim]Mode: Adaptive teaching (depth and prerequisites auto-selected based on mastery)[/dim]\n")
+        console.print(
+            f"[dim]Mode: Adaptive teaching (depth and prerequisites auto-selected based on mastery)[/dim]\n"
+        )
     elif not no_concepts:
-        console.print(f"[dim]Mode: Enhanced learning with foundational concepts (depth: {depth})[/dim]\n")
+        console.print(
+            f"[dim]Mode: Enhanced learning with foundational concepts (depth: {depth})[/dim]\n"
+        )
     else:
-        console.print(f"[dim]Mode: Direct explanation without prerequisites (depth: {depth})[/dim]\n")
+        console.print(
+            f"[dim]Mode: Direct explanation without prerequisites (depth: {depth})[/dim]\n"
+        )
 
     try:
         # Find course
@@ -1811,7 +2155,7 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, 
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -1819,38 +2163,48 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, 
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
             # Look up core loop by name to get its ID
-            knowledge_item_row = db.conn.execute("""
+            knowledge_item_row = db.conn.execute(
+                """
                 SELECT cl.id FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE cl.name = ? AND t.course_code = ?
-            """, (loop, course_code)).fetchone()
+            """,
+                (loop, course_code),
+            ).fetchone()
 
             if not knowledge_item_row:
                 console.print(f"[red]Core loop '{loop}' not found in course {course_code}.[/red]\n")
-                console.print("[dim]Use 'examina info --course CODE' to see available core loops.[/dim]\n")
+                console.print(
+                    "[dim]Use 'examina info --course CODE' to see available core loops.[/dim]\n"
+                )
                 return
 
-            knowledge_item_id = knowledge_item_row['id']
+            knowledge_item_id = knowledge_item_row["id"]
 
             # Check prerequisite mastery (unless --force is used)
             if not force:
                 from core.adaptive_teaching import AdaptiveTeachingManager
+
                 with AdaptiveTeachingManager() as atm:
                     prereq_check = atm.check_prerequisite_mastery(course_code, loop)
 
-                    if not prereq_check['ready']:
+                    if not prereq_check["ready"]:
                         console.print("[bold yellow]⚠️  Prerequisite Warning[/bold yellow]\n")
                         console.print("Some related concepts in this topic have low mastery:\n")
 
-                        for prereq in prereq_check['weak_prerequisites'][:5]:
-                            mastery_pct = prereq['mastery'] * 100
-                            console.print(f"  • [yellow]{prereq['name']}[/yellow] - {mastery_pct:.0f}% mastery")
+                        for prereq in prereq_check["weak_prerequisites"][:5]:
+                            mastery_pct = prereq["mastery"] * 100
+                            console.print(
+                                f"  • [yellow]{prereq['name']}[/yellow] - {mastery_pct:.0f}% mastery"
+                            )
 
                         console.print(f"\n[dim]{prereq_check['recommendation']}[/dim]")
-                        console.print("\n[dim]Use --force to skip this check and learn anyway.[/dim]\n")
+                        console.print(
+                            "\n[dim]Use --force to skip this check and learn anyway.[/dim]\n"
+                        )
 
                         if not click.confirm("Continue anyway?", default=False):
                             return
@@ -1871,7 +2225,7 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, 
             explain_concepts=not no_concepts,
             depth=depth,
             adaptive=adaptive,
-            include_study_strategy=strategy
+            include_study_strategy=strategy,
         )
 
         if not result.success:
@@ -1880,43 +2234,64 @@ def learn(course, loop, lang, depth, no_concepts, adaptive, strategy, provider, 
 
         # Display explanation
         from rich.markdown import Markdown
+
         md = Markdown(result.content)
         console.print(md)
 
         # Display metadata
-        includes_prereqs = result.metadata.get('includes_prerequisites', False)
-        examples_count = result.metadata.get('examples_count', 0)
-        actual_depth = result.metadata.get('depth', depth)
+        includes_prereqs = result.metadata.get("includes_prerequisites", False)
+        examples_count = result.metadata.get("examples_count", 0)
+        actual_depth = result.metadata.get("depth", depth)
         prereq_status = "with prerequisites" if includes_prereqs else "without prerequisites"
-        adaptive_status = "adaptive" if result.metadata.get('adaptive', False) else "manual"
-        console.print(f"\n[dim]Core loop: {loop} | Depth: {actual_depth} | {prereq_status} | Examples: {examples_count} | Mode: {adaptive_status}[/dim]\n")
+        adaptive_status = "adaptive" if result.metadata.get("adaptive", False) else "manual"
+        console.print(
+            f"\n[dim]Core loop: {loop} | Depth: {actual_depth} | {prereq_status} | Examples: {examples_count} | Mode: {adaptive_status}[/dim]\n"
+        )
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--exercise', '-e', type=int, help='Specific exercise ID to prove')
-@click.option('--interactive', is_flag=True, default=True,
-              help='Interactive mode with step-by-step guidance (default)')
-@click.option('--technique', '-t', type=click.Choice(['direct', 'contradiction', 'induction', 'construction', 'contrapositive']),
-              help='Force a specific proof technique')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language (default: en)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
-              default=None, help='LLM provider (overrides profile routing)')
-@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
-              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option("--exercise", "-e", type=int, help="Specific exercise ID to prove")
+@click.option(
+    "--interactive",
+    is_flag=True,
+    default=True,
+    help="Interactive mode with step-by-step guidance (default)",
+)
+@click.option(
+    "--technique",
+    "-t",
+    type=click.Choice(["direct", "contradiction", "induction", "construction", "contrapositive"]),
+    help="Force a specific proof technique",
+)
+@click.option(
+    "--lang", type=click.Choice(["en", "it"]), default="en", help="Output language (default: en)"
+)
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["anthropic", "groq", "ollama", "openai", "deepseek"]),
+    default=None,
+    help="LLM provider (overrides profile routing)",
+)
+@click.option(
+    "--profile",
+    type=click.Choice(["free", "pro", "local"]),
+    default=None,
+    help="Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.",
+)
 def prove(course, exercise, interactive, technique, lang, provider, profile):
     """Practice mathematical proofs interactively with AI guidance."""
-    from core.tutor import Tutor
     from core.proof_tutor import ProofTutor
     from models.llm_manager import LLMManager
-    from rich.prompt import Prompt, Confirm
+    from rich.prompt import Confirm
 
     console.print(f"\n[bold cyan]Proof Practice Mode[/bold cyan]\n")
 
@@ -1926,7 +2301,7 @@ def prove(course, exercise, interactive, technique, lang, provider, profile):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -1934,15 +2309,15 @@ def prove(course, exercise, interactive, technique, lang, provider, profile):
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
             # Get proof exercise
             if exercise:
                 # Get specific exercise
                 cursor = db.conn.execute(
-                    '''SELECT id, text, exercise_type FROM exercises
-                       WHERE course_code = ? AND id = ? AND exercise_type IN ('proof', 'theory', 'hybrid')''',
-                    (course_code, exercise)
+                    """SELECT id, text, exercise_type FROM exercises
+                       WHERE course_code = ? AND id = ? AND exercise_type IN ('proof', 'theory', 'hybrid')""",
+                    (course_code, exercise),
                 )
                 ex = cursor.fetchone()
                 if not ex:
@@ -1952,15 +2327,19 @@ def prove(course, exercise, interactive, technique, lang, provider, profile):
             else:
                 # Get random proof exercise
                 cursor = db.conn.execute(
-                    '''SELECT id, text, exercise_type FROM exercises
+                    """SELECT id, text, exercise_type FROM exercises
                        WHERE course_code = ? AND exercise_type IN ('proof', 'theory')
-                       ORDER BY RANDOM() LIMIT 1''',
-                    (course_code,)
+                       ORDER BY RANDOM() LIMIT 1""",
+                    (course_code,),
                 )
                 result = cursor.fetchone()
                 if not result:
-                    console.print(f"[yellow]No proof exercises found for course {course}.[/yellow]\n")
-                    console.print("[dim]Tip: Run analyze command first to detect exercise types[/dim]\n")
+                    console.print(
+                        f"[yellow]No proof exercises found for course {course}.[/yellow]\n"
+                    )
+                    console.print(
+                        "[dim]Tip: Run analyze command first to detect exercise types[/dim]\n"
+                    )
                     return
                 ex_id, ex_text, ex_type = result
 
@@ -1974,6 +2353,7 @@ def prove(course, exercise, interactive, technique, lang, provider, profile):
         # Display exercise
         console.print(f"[bold]Exercise {ex_id} ({ex_type}):[/bold]")
         from rich.markdown import Markdown
+
         console.print(Markdown(ex_text))
         console.print()
 
@@ -1985,11 +2365,11 @@ def prove(course, exercise, interactive, technique, lang, provider, profile):
             # Get proof analysis
             console.print("🤖 Analyzing proof structure...\n")
             suggested_technique = proof_tutor.suggest_technique(ex_text)
-            analysis_result = {'technique': suggested_technique}
+            analysis_result = {"technique": suggested_technique}
 
             if analysis_result:
                 # Show technique suggestion
-                suggested_technique = analysis_result.get('technique', 'direct')
+                suggested_technique = analysis_result.get("technique", "direct")
                 actual_technique = technique or suggested_technique
 
                 console.print(f"[bold]Suggested proof technique:[/bold] {suggested_technique}")
@@ -2008,8 +2388,8 @@ def prove(course, exercise, interactive, technique, lang, provider, profile):
                 console.print("🤖 Generating step-by-step proof guidance...\n")
                 guidance = proof_tutor.get_proof_guidance(ex_text, actual_technique)
 
-                if guidance and guidance.get('success'):
-                    steps = guidance.get('steps', [])
+                if guidance and guidance.get("success"):
+                    steps = guidance.get("steps", [])
                     console.print(f"[bold]Proof steps ({len(steps)} steps):[/bold]\n")
 
                     for i, step in enumerate(steps, 1):
@@ -2049,21 +2429,33 @@ def prove(course, exercise, interactive, technique, lang, provider, profile):
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--topic', '-t', help='Topic to practice')
-@click.option('--difficulty', '-d', type=click.Choice(['easy', 'medium', 'hard']),
-              help='Difficulty level')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language (default: en)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
-              default=None, help='LLM provider (overrides profile routing)')
-@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
-              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option("--topic", "-t", help="Topic to practice")
+@click.option(
+    "--difficulty", "-d", type=click.Choice(["easy", "medium", "hard"]), help="Difficulty level"
+)
+@click.option(
+    "--lang", type=click.Choice(["en", "it"]), default="en", help="Output language (default: en)"
+)
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["anthropic", "groq", "ollama", "openai", "deepseek"]),
+    default=None,
+    help="LLM provider (overrides profile routing)",
+)
+@click.option(
+    "--profile",
+    type=click.Choice(["free", "pro", "local"]),
+    default=None,
+    help="Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.",
+)
 def practice(course, topic, difficulty, lang, provider, profile):
     """Practice exercises interactively with AI feedback."""
     from core.tutor import Tutor
@@ -2077,7 +2469,7 @@ def practice(course, topic, difficulty, lang, provider, profile):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -2085,7 +2477,7 @@ def practice(course, topic, difficulty, lang, provider, profile):
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
         # Determine provider (practice uses INTERACTIVE)
         effective_provider = get_effective_provider(provider, profile, "interactive")
@@ -2125,9 +2517,7 @@ def practice(course, topic, difficulty, lang, provider, profile):
         # Evaluate answer
         console.print("\n🤖 Evaluating your answer...\n")
         feedback = tutor.check_answer(
-            result.metadata['exercise_id'],
-            user_answer,
-            provide_hints=True
+            result.metadata["exercise_id"], user_answer, provide_hints=True
         )
 
         if feedback.success:
@@ -2142,21 +2532,37 @@ def practice(course, topic, difficulty, lang, provider, profile):
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--loop', '-l', required=True, help='Core loop ID')
-@click.option('--difficulty', '-d', type=click.Choice(['easy', 'medium', 'hard']),
-              default='medium', help='Exercise difficulty')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language (default: en)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
-              default=None, help='LLM provider (overrides profile routing)')
-@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
-              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option("--loop", "-l", required=True, help="Core loop ID")
+@click.option(
+    "--difficulty",
+    "-d",
+    type=click.Choice(["easy", "medium", "hard"]),
+    default="medium",
+    help="Exercise difficulty",
+)
+@click.option(
+    "--lang", type=click.Choice(["en", "it"]), default="en", help="Output language (default: en)"
+)
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["anthropic", "groq", "ollama", "openai", "deepseek"]),
+    default=None,
+    help="LLM provider (overrides profile routing)",
+)
+@click.option(
+    "--profile",
+    type=click.Choice(["free", "pro", "local"]),
+    default=None,
+    help="Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.",
+)
 def generate(course, loop, difficulty, lang, provider, profile):
     """Generate new practice exercises with AI."""
     from core.tutor import Tutor
@@ -2170,7 +2576,7 @@ def generate(course, loop, difficulty, lang, provider, profile):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -2178,7 +2584,7 @@ def generate(course, loop, difficulty, lang, provider, profile):
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
         # Determine provider (generate uses INTERACTIVE)
         effective_provider = get_effective_provider(provider, profile, "interactive")
@@ -2198,24 +2604,37 @@ def generate(course, loop, difficulty, lang, provider, profile):
         # Display generated exercise
         console.print("[bold]Generated Exercise:[/bold]\n")
         console.print(result.content)
-        console.print(f"\n[dim]Core loop: {loop} | Difficulty: {difficulty} | Based on {result.metadata.get('based_on_examples', 0)} examples[/dim]\n")
+        console.print(
+            f"\n[dim]Core loop: {loop} | Difficulty: {difficulty} | Based on {result.metadata.get('based_on_examples', 0)} examples[/dim]\n"
+        )
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--interactive', '-i', is_flag=True, help='Interactive proof practice mode')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language (default: en)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
-              default=None, help='LLM provider (overrides profile routing)')
-@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
-              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option("--interactive", "-i", is_flag=True, help="Interactive proof practice mode")
+@click.option(
+    "--lang", type=click.Choice(["en", "it"]), default="en", help="Output language (default: en)"
+)
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["anthropic", "groq", "ollama", "openai", "deepseek"]),
+    default=None,
+    help="LLM provider (overrides profile routing)",
+)
+@click.option(
+    "--profile",
+    type=click.Choice(["free", "pro", "local"]),
+    default=None,
+    help="Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.",
+)
 def prove(course, interactive, lang, provider, profile):
     """Practice proof exercises with specialized proof guidance."""
     from core.proof_tutor import ProofTutor
@@ -2230,7 +2649,7 @@ def prove(course, interactive, lang, provider, profile):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -2238,7 +2657,7 @@ def prove(course, interactive, lang, provider, profile):
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
             # Find proof exercises
             exercises = db.get_exercises_by_course(course_code)
@@ -2251,10 +2670,14 @@ def prove(course, interactive, lang, provider, profile):
         proof_tutor = ProofTutor(llm, language=lang)
 
         # Filter proof exercises
-        proof_exercises = [ex for ex in exercises if proof_tutor.is_proof_exercise(ex.get('text', ''))]
+        proof_exercises = [
+            ex for ex in exercises if proof_tutor.is_proof_exercise(ex.get("text", ""))
+        ]
 
         if not proof_exercises:
-            console.print(f"[yellow]No proof exercises found for {found_course['name']}.[/yellow]\n")
+            console.print(
+                f"[yellow]No proof exercises found for {found_course['name']}.[/yellow]\n"
+            )
             console.print("Try a different course (AL or PC often have proofs).\n")
             return
 
@@ -2262,16 +2685,17 @@ def prove(course, interactive, lang, provider, profile):
 
         # Pick a random proof exercise
         import random
+
         exercise = random.choice(proof_exercises)
 
         # Display exercise
         console.print("[bold]Proof Exercise:[/bold]\n")
-        console.print(Panel(exercise['text'], border_style="blue"))
+        console.print(Panel(exercise["text"], border_style="blue"))
         console.print()
 
         # Analyze the proof
         console.print("🔍 Analyzing proof structure...\n")
-        analysis = proof_tutor.analyze_proof(course_code, exercise['text'])
+        analysis = proof_tutor.analyze_proof(course_code, exercise["text"])
 
         console.print(f"[bold]Proof Analysis:[/bold]")
         console.print(f"  Type: {analysis.proof_type}")
@@ -2308,30 +2732,35 @@ def prove(course, interactive, lang, provider, profile):
                 console.print("\n[yellow]No proof provided. Showing solution instead...[/yellow]\n")
                 # Generate explanation
                 console.print("🤖 Generating proof explanation...\n")
-                explanation = proof_tutor.learn_proof(course_code, exercise['id'], exercise['text'])
+                explanation = proof_tutor.learn_proof(course_code, exercise["id"], exercise["text"])
                 from rich.markdown import Markdown
+
                 md = Markdown(explanation)
                 console.print(md)
             else:
                 # Evaluate proof attempt
                 console.print("\n🤖 Evaluating your proof...\n")
-                result = proof_tutor.practice_proof(course_code, exercise['text'], user_proof, provide_hints=True)
+                result = proof_tutor.practice_proof(
+                    course_code, exercise["text"], user_proof, provide_hints=True
+                )
 
                 # Display feedback
                 from rich.markdown import Markdown
-                md = Markdown(result['feedback'])
+
+                md = Markdown(result["feedback"])
                 console.print(md)
 
-                score_pct = int(result['score'] * 100)
-                if result['is_correct']:
+                score_pct = int(result["score"] * 100)
+                if result["is_correct"]:
                     console.print(f"\n[green]✅ Correct! Score: {score_pct}%[/green]\n")
                 else:
                     console.print(f"\n[yellow]Score: {score_pct}%[/yellow]\n")
         else:
             # Just show explanation
             console.print("🤖 Generating proof explanation...\n")
-            explanation = proof_tutor.learn_proof(course_code, exercise['id'], exercise['text'])
+            explanation = proof_tutor.learn_proof(course_code, exercise["id"], exercise["text"])
             from rich.markdown import Markdown
+
             md = Markdown(explanation)
             console.print(md)
             console.print(f"\n[dim]Exercise ID: {exercise['id'][:20]}...[/dim]\n")
@@ -2341,34 +2770,76 @@ def prove(course, interactive, lang, provider, profile):
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code (e.g., B006802 or ADE)')
-@click.option('--questions', '-n', type=int, default=10, help='Number of questions (default: 10)')
-@click.option('--topic', '-t', help='Filter by topic')
-@click.option('--loop', '-l', help='Filter by core loop ID or name pattern')
-@click.option('--difficulty', '-d', type=click.Choice(['easy', 'medium', 'hard']),
-              help='Filter by difficulty')
-@click.option('--review-only', is_flag=True, help='Only exercises due for review')
-@click.option('--adaptive', '-a', is_flag=True,
-              help='Adaptive selection based on mastery (40% weak, 40% learning, 20% strong)')
-@click.option('--procedure', '-p',
-              type=click.Choice(['design', 'transformation', 'verification', 'minimization', 'analysis', 'implementation']),
-              help='Filter by procedure type')
-@click.option('--multi-only', is_flag=True, help='Only show multi-procedure exercises')
-@click.option('--tags', help='Filter by tags (comma-separated)')
-@click.option('--type', 'exercise_type', type=click.Choice(['procedural', 'theory', 'proof']),
-              help='Filter by exercise type (procedural=design/implementation, theory=analysis, proof=proofs)')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Language for feedback (default: en)')
-@click.option('--provider', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
-              default=None, help='LLM provider (overrides profile routing)')
-@click.option('--profile', type=click.Choice(['free', 'pro', 'local']),
-              default=None, help='Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.')
-def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, procedure, multi_only, tags, exercise_type, lang, provider, profile):
+@click.option("--course", "-c", required=True, help="Course code (e.g., B006802 or ADE)")
+@click.option("--questions", "-n", type=int, default=10, help="Number of questions (default: 10)")
+@click.option("--topic", "-t", help="Filter by topic")
+@click.option("--loop", "-l", help="Filter by core loop ID or name pattern")
+@click.option(
+    "--difficulty", "-d", type=click.Choice(["easy", "medium", "hard"]), help="Filter by difficulty"
+)
+@click.option("--review-only", is_flag=True, help="Only exercises due for review")
+@click.option(
+    "--adaptive",
+    "-a",
+    is_flag=True,
+    help="Adaptive selection based on mastery (40% weak, 40% learning, 20% strong)",
+)
+@click.option(
+    "--procedure",
+    "-p",
+    type=click.Choice(
+        ["design", "transformation", "verification", "minimization", "analysis", "implementation"]
+    ),
+    help="Filter by procedure type",
+)
+@click.option("--multi-only", is_flag=True, help="Only show multi-procedure exercises")
+@click.option("--tags", help="Filter by tags (comma-separated)")
+@click.option(
+    "--type",
+    "exercise_type",
+    type=click.Choice(["procedural", "theory", "proof"]),
+    help="Filter by exercise type (procedural=design/implementation, theory=analysis, proof=proofs)",
+)
+@click.option(
+    "--lang",
+    type=click.Choice(["en", "it"]),
+    default="en",
+    help="Language for feedback (default: en)",
+)
+@click.option(
+    "--provider",
+    type=click.Choice(["anthropic", "groq", "ollama", "openai", "deepseek"]),
+    default=None,
+    help="LLM provider (overrides profile routing)",
+)
+@click.option(
+    "--profile",
+    type=click.Choice(["free", "pro", "local"]),
+    default=None,
+    help="Provider profile for routing (free/pro/local). Uses EXAMINA_PROVIDER_PROFILE if not specified.",
+)
+def quiz(
+    course,
+    questions,
+    topic,
+    loop,
+    difficulty,
+    review_only,
+    adaptive,
+    procedure,
+    multi_only,
+    tags,
+    exercise_type,
+    lang,
+    provider,
+    profile,
+):
     """Take an interactive quiz to test your knowledge."""
     from core.quiz_engine import QuizEngine
     from models.llm_manager import LLMManager
@@ -2382,7 +2853,7 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -2391,7 +2862,7 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
                 console.print("Use 'examina courses' to see available courses.\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
         # Determine provider (quiz uses INTERACTIVE)
         effective_provider = get_effective_provider(provider, profile, "interactive")
@@ -2415,7 +2886,7 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
                 multi_only=multi_only,
                 tags=tags,
                 exercise_type=exercise_type,
-                adaptive=adaptive
+                adaptive=adaptive,
             )
         except ValueError as e:
             console.print(f"[red]Error: {e}[/red]\n")
@@ -2434,14 +2905,18 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
                 if weak_loops:
                     console.print("[dim]📊 Adaptive mode detected weak areas:[/dim]")
                     for wl in weak_loops[:3]:
-                        console.print(f"   [yellow]• {wl['knowledge_item_name']}[/yellow] ({wl['mastery_score']:.0%} mastery)")
+                        console.print(
+                            f"   [yellow]• {wl['knowledge_item_name']}[/yellow] ({wl['mastery_score']:.0%} mastery)"
+                        )
                     console.print("[dim]   Quiz will prioritize these areas.\n[/dim]")
 
                 # If filtering by specific core loop, check prerequisites
                 if loop:
                     with AdaptiveTeachingManager() as atm:
-                        prereq_check = atm.check_prerequisite_mastery(course_code, loop, threshold=0.4)
-                        if not prereq_check['ready']:
+                        prereq_check = atm.check_prerequisite_mastery(
+                            course_code, loop, threshold=0.4
+                        )
+                        if not prereq_check["ready"]:
                             console.print(f"[dim]💡 Tip: {prereq_check['recommendation']}[/dim]\n")
 
         # Display quiz info
@@ -2475,14 +2950,18 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
 
             # Display metadata - check if multi-procedure exercise
             if question.knowledge_items and len(question.knowledge_items) > 1:
-                console.print(f"[dim]Topic: {question.topic_name} | Difficulty: {question.difficulty}[/dim]")
+                console.print(
+                    f"[dim]Topic: {question.topic_name} | Difficulty: {question.difficulty}[/dim]"
+                )
                 console.print("[dim]Procedures:[/dim]")
                 for idx, loop in enumerate(question.knowledge_items, 1):
-                    loop_name = loop.get('name', 'Unknown')
+                    loop_name = loop.get("name", "Unknown")
                     console.print(f"[dim]  {idx}. {loop_name}[/dim]")
                 console.print()
             else:
-                console.print(f"[dim]Topic: {question.topic_name} | Core Loop: {question.knowledge_item_name} | Difficulty: {question.difficulty}[/dim]\n")
+                console.print(
+                    f"[dim]Topic: {question.topic_name} | Core Loop: {question.knowledge_item_name} | Difficulty: {question.difficulty}[/dim]\n"
+                )
 
             console.print(Panel(question.exercise_text, title="Exercise", border_style="blue"))
             console.print()
@@ -2517,58 +2996,58 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=console
+                console=console,
             ) as progress:
                 progress.add_task(description="Checking...", total=None)
                 evaluation = quiz_engine.evaluate_answer(
-                    session=session,
-                    question=question,
-                    user_answer=user_answer,
-                    provide_hints=False
+                    session=session, question=question, user_answer=user_answer, provide_hints=False
                 )
 
             # Update question with results
             question.user_answer = user_answer
-            question.is_correct = evaluation['is_correct']
-            question.score = evaluation['score']
-            question.feedback = evaluation['feedback']
+            question.is_correct = evaluation["is_correct"]
+            question.score = evaluation["score"]
+            question.feedback = evaluation["feedback"]
             question.time_spent = int(time.time() - question_start_time)
 
             # Display feedback
             console.print()
             if question.is_correct:
-                console.print(Panel(
-                    evaluation['feedback'],
-                    title="✅ Correct!",
-                    border_style="green"
-                ))
+                console.print(
+                    Panel(evaluation["feedback"], title="✅ Correct!", border_style="green")
+                )
             else:
-                console.print(Panel(
-                    evaluation['feedback'],
-                    title="❌ Incorrect",
-                    border_style="red"
-                ))
+                console.print(
+                    Panel(evaluation["feedback"], title="❌ Incorrect", border_style="red")
+                )
 
             console.print(f"\n[dim]Score: {question.score:.1%}[/dim]")
 
             # Show real-time mastery update for this exercise
             if adaptive:
                 from core.mastery_aggregator import MasteryAggregator
+
                 with Database() as db:
                     agg = MasteryAggregator(db)
                     ex_mastery = agg.get_exercise_mastery(question.exercise_id)
                     if ex_mastery:
-                        level = ex_mastery['mastery_level']
+                        level = ex_mastery["mastery_level"]
                         level_color = {
-                            'new': 'red', 'learning': 'yellow',
-                            'reviewing': 'cyan', 'mastered': 'green'
-                        }.get(level, 'white')
-                        console.print(f"[dim]Mastery: [{level_color}]{level}[/{level_color}] (reps: {ex_mastery['repetition_number']}, next: {ex_mastery['interval_days']}d)[/dim]")
+                            "new": "red",
+                            "learning": "yellow",
+                            "reviewing": "cyan",
+                            "mastered": "green",
+                        }.get(level, "white")
+                        console.print(
+                            f"[dim]Mastery: [{level_color}]{level}[/{level_color}] (reps: {ex_mastery['repetition_number']}, next: {ex_mastery['interval_days']}d)[/dim]"
+                        )
 
             # Show progress
             answered = i
             session.total_correct = sum(1 for q in session.questions[:answered] if q.is_correct)
-            console.print(f"[dim]Progress: {answered}/{session.total_questions} | Correct: {session.total_correct}/{answered}[/dim]\n")
+            console.print(
+                f"[dim]Progress: {answered}/{session.total_questions} | Correct: {session.total_correct}/{answered}[/dim]\n"
+            )
 
             # Wait for user to continue (except on last question)
             if i < session.total_questions:
@@ -2579,13 +3058,15 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
         quiz_engine.complete_session(session)
 
         # Display final results
-        console.print("\n" + "="*60 + "\n")
+        console.print("\n" + "=" * 60 + "\n")
         console.print("[bold cyan]📊 Quiz Complete![/bold cyan]\n")
 
         final_score = session.score * 100
         score_color = "green" if final_score >= 80 else "yellow" if final_score >= 60 else "red"
 
-        console.print(f"[bold]Final Score: [{score_color}]{final_score:.1f}%[/{score_color}][/bold]")
+        console.print(
+            f"[bold]Final Score: [{score_color}]{final_score:.1f}%[/{score_color}][/bold]"
+        )
         console.print(f"Correct: {session.total_correct}/{session.total_questions}")
 
         if session.started_at and session.completed_at:
@@ -2595,35 +3076,50 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
         # Show mastery updates
         console.print("\n[bold]Mastery Updates:[/bold]")
         from core.analytics import ProgressAnalytics
+
         analytics = ProgressAnalytics()
 
         # Get unique core loops from quiz
         knowledge_items = set(q.knowledge_item_id for q in session.questions if q.knowledge_item_id)
         for loop_id in knowledge_items:
             progress = analytics.get_knowledge_item_progress(course_code, loop_id)
-            loop_name = next((q.knowledge_item_name for q in session.questions if q.knowledge_item_id == loop_id), loop_id)
+            loop_name = next(
+                (
+                    q.knowledge_item_name
+                    for q in session.questions
+                    if q.knowledge_item_id == loop_id
+                ),
+                loop_id,
+            )
 
-            mastery_pct = progress['mastery_score'] * 100
-            mastery_color = "green" if mastery_pct >= 80 else "yellow" if mastery_pct >= 50 else "red"
+            mastery_pct = progress["mastery_score"] * 100
+            mastery_color = (
+                "green" if mastery_pct >= 80 else "yellow" if mastery_pct >= 50 else "red"
+            )
 
-            console.print(f"  • {loop_name}: [{mastery_color}]{mastery_pct:.0f}%[/{mastery_color}] mastery")
+            console.print(
+                f"  • {loop_name}: [{mastery_color}]{mastery_pct:.0f}%[/{mastery_color}] mastery"
+            )
 
         # Show personalized learning path recommendations (adaptive mode)
         if adaptive:
             from core.adaptive_teaching import AdaptiveTeachingManager
+
             atm = AdaptiveTeachingManager()
             learning_path = atm.get_personalized_learning_path(course_code, limit=3)
 
             if learning_path:
                 console.print("\n[bold]📚 Recommended Next Steps:[/bold]")
                 for item in learning_path:
-                    action = item.get('action', 'practice')
+                    action = item.get("action", "practice")
                     action_emoji = {
-                        'review': '🔄', 'strengthen': '💪',
-                        'learn': '📖', 'practice': '✏️'
-                    }.get(action, '→')
-                    name = item.get('knowledge_item_name') or item.get('topic_name', 'Unknown')
-                    reason = item.get('reason', '')
+                        "review": "🔄",
+                        "strengthen": "💪",
+                        "learn": "📖",
+                        "practice": "✏️",
+                    }.get(action, "→")
+                    name = item.get("knowledge_item_name") or item.get("topic_name", "Unknown")
+                    reason = item.get("reason", "")
                     console.print(f"  {action_emoji} {action.capitalize()}: [cyan]{name}[/cyan]")
                     if reason:
                         console.print(f"     [dim]{reason}[/dim]")
@@ -2635,16 +3131,16 @@ def quiz(course, questions, topic, loop, difficulty, review_only, adaptive, proc
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', help='Course code (e.g., B006802 or ADE)')
+@click.option("--course", "-c", help="Course code (e.g., B006802 or ADE)")
 def suggest(course):
     """Get personalized study suggestions based on spaced repetition."""
     from core.analytics import ProgressAnalytics
-    from rich.panel import Panel
 
     try:
         # Find course
@@ -2654,7 +3150,7 @@ def suggest(course):
                 all_courses = db.get_all_courses()
                 found_course = None
                 for c in all_courses:
-                    if c['code'] == course or c['acronym'] == course:
+                    if c["code"] == course or c["acronym"] == course:
                         found_course = c
                         break
 
@@ -2663,7 +3159,7 @@ def suggest(course):
                     console.print("Use 'examina courses' to see available courses.\n")
                     return
 
-                course_code = found_course['code']
+                course_code = found_course["code"]
 
         # Get suggestions
         analytics = ProgressAnalytics()
@@ -2675,7 +3171,9 @@ def suggest(course):
         if course_code:
             with Database() as db:
                 course_info = db.get_course(course_code)
-                console.print(f"[dim]Course: {course_info['name']} ({course_info['acronym']})[/dim]\n")
+                console.print(
+                    f"[dim]Course: {course_info['name']} ({course_info['acronym']})[/dim]\n"
+                )
 
         for suggestion in suggestions:
             console.print(f"  {suggestion}")
@@ -2685,19 +3183,19 @@ def suggest(course):
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', help='Course code (e.g., B006802 or ADE)')
-@click.option('--topics', is_flag=True, help='Show topic breakdown')
-@click.option('--detailed', is_flag=True, help='Show detailed statistics')
+@click.option("--course", "-c", help="Course code (e.g., B006802 or ADE)")
+@click.option("--topics", is_flag=True, help="Show topic breakdown")
+@click.option("--detailed", is_flag=True, help="Show detailed statistics")
 def progress(course, topics, detailed):
     """View your learning progress and mastery levels."""
     from core.analytics import ProgressAnalytics
     from rich.progress import Progress as RichProgress, BarColumn, TextColumn, TaskProgressColumn
-    from rich.panel import Panel
 
     try:
         # Find course
@@ -2710,7 +3208,7 @@ def progress(course, topics, detailed):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -2719,7 +3217,7 @@ def progress(course, topics, detailed):
                 console.print("Use 'examina courses' to see available courses.\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
         # Get analytics
         analytics = ProgressAnalytics()
@@ -2733,61 +3231,75 @@ def progress(course, topics, detailed):
         console.print("[bold]📊 Overall Progress[/bold]\n")
 
         # Create progress bars
-        if summary['total_exercises'] > 0:
+        if summary["total_exercises"] > 0:
             # Attempted progress
-            attempted_pct = (summary['exercises_attempted'] / summary['total_exercises']) * 100
-            mastered_pct = (summary['exercises_mastered'] / summary['total_exercises']) * 100
+            attempted_pct = (summary["exercises_attempted"] / summary["total_exercises"]) * 100
+            mastered_pct = (summary["exercises_mastered"] / summary["total_exercises"]) * 100
 
-            console.print(f"Exercises Attempted: {summary['exercises_attempted']}/{summary['total_exercises']} ({attempted_pct:.1f}%)")
+            console.print(
+                f"Exercises Attempted: {summary['exercises_attempted']}/{summary['total_exercises']} ({attempted_pct:.1f}%)"
+            )
             with RichProgress(
                 TextColumn(""),
                 BarColumn(complete_style="cyan", finished_style="cyan"),
                 TaskProgressColumn(),
-                console=console
+                console=console,
             ) as progress_bar:
-                task = progress_bar.add_task("", total=summary['total_exercises'])
-                progress_bar.update(task, completed=summary['exercises_attempted'])
+                task = progress_bar.add_task("", total=summary["total_exercises"])
+                progress_bar.update(task, completed=summary["exercises_attempted"])
 
-            console.print(f"\nExercises Mastered: {summary['exercises_mastered']}/{summary['total_exercises']} ({mastered_pct:.1f}%)")
+            console.print(
+                f"\nExercises Mastered: {summary['exercises_mastered']}/{summary['total_exercises']} ({mastered_pct:.1f}%)"
+            )
             with RichProgress(
                 TextColumn(""),
                 BarColumn(complete_style="green", finished_style="green"),
                 TaskProgressColumn(),
-                console=console
+                console=console,
             ) as progress_bar:
-                task = progress_bar.add_task("", total=summary['total_exercises'])
-                progress_bar.update(task, completed=summary['exercises_mastered'])
+                task = progress_bar.add_task("", total=summary["total_exercises"])
+                progress_bar.update(task, completed=summary["exercises_mastered"])
 
             console.print(f"\nOverall Mastery: {summary['overall_mastery']:.1%}")
-            mastery_color = "green" if summary['overall_mastery'] >= 0.8 else "yellow" if summary['overall_mastery'] >= 0.5 else "red"
+            mastery_color = (
+                "green"
+                if summary["overall_mastery"] >= 0.8
+                else "yellow"
+                if summary["overall_mastery"] >= 0.5
+                else "red"
+            )
             with RichProgress(
                 TextColumn(""),
                 BarColumn(complete_style=mastery_color, finished_style=mastery_color),
                 TaskProgressColumn(),
-                console=console
+                console=console,
             ) as progress_bar:
                 task = progress_bar.add_task("", total=100)
-                progress_bar.update(task, completed=int(summary['overall_mastery'] * 100))
+                progress_bar.update(task, completed=int(summary["overall_mastery"] * 100))
         else:
-            console.print("[yellow]No exercises found. Run 'examina ingest' and 'examina analyze' first.[/yellow]")
+            console.print(
+                "[yellow]No exercises found. Run 'examina ingest' and 'examina analyze' first.[/yellow]"
+            )
 
         console.print()
 
         # Quiz statistics
-        if summary['quiz_sessions_completed'] > 0:
+        if summary["quiz_sessions_completed"] > 0:
             console.print("[bold]🎯 Quiz Statistics[/bold]\n")
             console.print(f"Sessions Completed: {summary['quiz_sessions_completed']}")
             console.print(f"Average Score: {summary['avg_score']:.1%}")
             console.print(f"Total Time: {summary['total_time_spent']} minutes\n")
 
         # Core loops progress
-        if summary['knowledge_items_discovered'] > 0:
+        if summary["knowledge_items_discovered"] > 0:
             console.print("[bold]🔄 Core Loops[/bold]\n")
             console.print(f"Discovered: {summary['knowledge_items_discovered']}")
             console.print(f"Attempted: {summary['knowledge_items_attempted']}")
 
-            if summary['knowledge_items_attempted'] > 0:
-                progress_pct = (summary['knowledge_items_attempted'] / summary['knowledge_items_discovered']) * 100
+            if summary["knowledge_items_attempted"] > 0:
+                progress_pct = (
+                    summary["knowledge_items_attempted"] / summary["knowledge_items_discovered"]
+                ) * 100
                 console.print(f"Progress: {progress_pct:.1f}%")
 
             console.print()
@@ -2800,6 +3312,7 @@ def progress(course, topics, detailed):
             if breakdown:
                 # Create table
                 from rich.table import Table
+
                 table = Table(show_header=True, header_style="bold")
                 table.add_column("Topic", style="cyan")
                 table.add_column("Status", justify="center")
@@ -2809,27 +3322,32 @@ def progress(course, topics, detailed):
                 for topic_data in breakdown:
                     # Status icon
                     status_icons = {
-                        'mastered': '✅',
-                        'in_progress': '🔄',
-                        'weak': '⚠️',
-                        'not_started': '❌'
+                        "mastered": "✅",
+                        "in_progress": "🔄",
+                        "weak": "⚠️",
+                        "not_started": "❌",
                     }
-                    status = status_icons.get(topic_data['status'], '❓')
+                    status = status_icons.get(topic_data["status"], "❓")
 
                     # Mastery color
-                    mastery = topic_data['mastery_score']
-                    mastery_color = "green" if mastery >= 0.8 else "yellow" if mastery >= 0.5 else "red" if mastery > 0 else "dim"
+                    mastery = topic_data["mastery_score"]
+                    mastery_color = (
+                        "green"
+                        if mastery >= 0.8
+                        else "yellow"
+                        if mastery >= 0.5
+                        else "red"
+                        if mastery > 0
+                        else "dim"
+                    )
                     mastery_str = f"[{mastery_color}]{mastery:.1%}[/{mastery_color}]"
 
                     # Exercises
-                    exercises_str = f"{topic_data['exercises_attempted']}/{topic_data['exercises_count']}"
-
-                    table.add_row(
-                        topic_data['topic_name'],
-                        status,
-                        mastery_str,
-                        exercises_str
+                    exercises_str = (
+                        f"{topic_data['exercises_attempted']}/{topic_data['exercises_count']}"
                     )
+
+                    table.add_row(topic_data["topic_name"], status, mastery_str, exercises_str)
 
                 console.print(table)
                 console.print()
@@ -2845,19 +3363,23 @@ def progress(course, topics, detailed):
             if weak_areas:
                 console.print("[bold red]Weak Areas (< 50% mastery):[/bold red]")
                 for area in weak_areas[:5]:  # Top 5
-                    console.print(f"  • {area['name']} ({area['topic_name']}): {area['mastery_score']:.1%} mastery")
+                    console.print(
+                        f"  • {area['name']} ({area['topic_name']}): {area['mastery_score']:.1%} mastery"
+                    )
                 console.print()
 
             # Due reviews
             due_reviews = analytics.get_due_reviews(course_code)
             if due_reviews:
-                overdue = [r for r in due_reviews if r['priority'] == 'overdue']
-                due_today = [r for r in due_reviews if r['priority'] == 'due_today']
+                overdue = [r for r in due_reviews if r["priority"] == "overdue"]
+                due_today = [r for r in due_reviews if r["priority"] == "due_today"]
 
                 if overdue:
                     console.print(f"[bold red]Overdue Reviews ({len(overdue)}):[/bold red]")
                     for review in overdue[:5]:
-                        console.print(f"  • {review['knowledge_item_name']}: {review['days_overdue']} days overdue")
+                        console.print(
+                            f"  • {review['knowledge_item_name']}: {review['days_overdue']} days overdue"
+                        )
                     console.print()
 
                 if due_today:
@@ -2867,23 +3389,36 @@ def progress(course, topics, detailed):
                     console.print()
 
         # Next steps
-        console.print("[dim]Use 'examina suggest --course {0}' for study recommendations[/dim]".format(course_code))
-        console.print("[dim]Use 'examina quiz --course {0}' to start practicing[/dim]\n".format(course_code))
+        console.print(
+            "[dim]Use 'examina suggest --course {0}' for study recommendations[/dim]".format(
+                course_code
+            )
+        )
+        console.print(
+            "[dim]Use 'examina quiz --course {0}' to start practicing[/dim]\n".format(course_code)
+        )
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--loop', '-l', required=True, help='Core loop ID or name')
-@click.option('--difficulty', '-d', type=click.Choice(['easy', 'medium', 'hard']), default='medium',
-              help='Difficulty level for strategy adaptation (default: medium)')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language (default: en)')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option("--loop", "-l", required=True, help="Core loop ID or name")
+@click.option(
+    "--difficulty",
+    "-d",
+    type=click.Choice(["easy", "medium", "hard"]),
+    default="medium",
+    help="Difficulty level for strategy adaptation (default: medium)",
+)
+@click.option(
+    "--lang", type=click.Choice(["en", "it"]), default="en", help="Output language (default: en)"
+)
 def strategy(course, loop, difficulty, lang):
     """View study strategy and metacognitive guidance for a core loop."""
     from core.study_strategies import StudyStrategyManager
@@ -2897,7 +3432,7 @@ def strategy(course, loop, difficulty, lang):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -2905,42 +3440,54 @@ def strategy(course, loop, difficulty, lang):
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
             # Get core loop details
-            knowledge_item = db.conn.execute("""
+            knowledge_item = db.conn.execute(
+                """
                 SELECT cl.*, t.name as topic_name
                 FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE cl.id = ? AND t.course_code = ?
-            """, (loop, course_code)).fetchone()
+            """,
+                (loop, course_code),
+            ).fetchone()
 
             if not knowledge_item:
                 # Try searching by name pattern
-                knowledge_item = db.conn.execute("""
+                knowledge_item = db.conn.execute(
+                    """
                     SELECT cl.*, t.name as topic_name
                     FROM knowledge_items cl
                     JOIN topics t ON cl.topic_id = t.id
                     WHERE cl.name LIKE ? AND t.course_code = ?
                     LIMIT 1
-                """, (f"%{loop}%", course_code)).fetchone()
+                """,
+                    (f"%{loop}%", course_code),
+                ).fetchone()
 
             if not knowledge_item:
                 console.print(f"[red]Core loop '{loop}' not found for course {course}.[/red]\n")
-                console.print("Use 'examina info --course {0}' to see available core loops.\n".format(course))
+                console.print(
+                    "Use 'examina info --course {0}' to see available core loops.\n".format(course)
+                )
                 return
 
         knowledge_item_dict = dict(knowledge_item)
-        knowledge_item_name = knowledge_item_dict.get('name', '')
+        knowledge_item_name = knowledge_item_dict.get("name", "")
 
         # Initialize strategy manager
         strategy_mgr = StudyStrategyManager(language=lang)
 
         # Get strategy
-        strat = strategy_mgr.get_strategy_for_knowledge_item(knowledge_item_name, difficulty=difficulty)
+        strat = strategy_mgr.get_strategy_for_knowledge_item(
+            knowledge_item_name, difficulty=difficulty
+        )
 
         if not strat:
-            console.print(f"[yellow]No specific strategy found for '{knowledge_item_name}'.[/yellow]\n")
+            console.print(
+                f"[yellow]No specific strategy found for '{knowledge_item_name}'.[/yellow]\n"
+            )
             console.print("This core loop may be new or not yet covered by the strategy system.\n")
             return
 
@@ -2949,25 +3496,30 @@ def strategy(course, loop, difficulty, lang):
         md = Markdown(formatted_strategy)
         console.print(md)
 
-        console.print(f"\n[dim]Core loop: {knowledge_item_name} | Difficulty: {difficulty} | Language: {lang}[/dim]\n")
+        console.print(
+            f"\n[dim]Core loop: {knowledge_item_name} | Difficulty: {difficulty} | Language: {lang}[/dim]\n"
+        )
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--limit', '-n', type=int, default=10, help='Number of items in learning path (default: 10)')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language (default: en)')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option(
+    "--limit", "-n", type=int, default=10, help="Number of items in learning path (default: 10)"
+)
+@click.option(
+    "--lang", type=click.Choice(["en", "it"]), default="en", help="Output language (default: en)"
+)
 def path(course, limit, lang):
     """Show personalized learning path based on mastery and spaced repetition."""
     from core.adaptive_teaching import AdaptiveTeachingManager
     from rich.table import Table
-    from rich.panel import Panel
 
     try:
         # Find course
@@ -2975,7 +3527,7 @@ def path(course, limit, lang):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -2984,7 +3536,7 @@ def path(course, limit, lang):
                 console.print("Use 'examina courses' to see available courses.\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
         # Get personalized learning path
         with AdaptiveTeachingManager() as atm:
@@ -3010,51 +3562,44 @@ def path(course, limit, lang):
 
         for item in learning_path:
             # Format action with emoji
-            action_icons = {
-                'review': '🔄',
-                'strengthen': '💪',
-                'learn': '📖',
-                'practice': '✍️'
-            }
+            action_icons = {"review": "🔄", "strengthen": "💪", "learn": "📖", "practice": "✍️"}
             action_display = f"{action_icons.get(item['action'], '•')} {item['action'].title()}"
 
             # Format urgency color
-            urgency_colors = {
-                'high': 'red',
-                'medium': 'yellow',
-                'low': 'dim'
-            }
-            urgency_color = urgency_colors.get(item.get('urgency', 'low'), 'dim')
+            urgency_colors = {"high": "red", "medium": "yellow", "low": "dim"}
+            urgency_color = urgency_colors.get(item.get("urgency", "low"), "dim")
 
             table.add_row(
-                str(item['priority']),
+                str(item["priority"]),
                 action_display,
                 f"[{urgency_color}]{item['knowledge_item']}[/{urgency_color}]",
-                item['topic'],
-                item['reason'],
-                f"{item['estimated_time']}m"
+                item["topic"],
+                item["reason"],
+                f"{item['estimated_time']}m",
             )
 
         console.print(table)
-        console.print(f"\n[dim]Total estimated time: {sum(item['estimated_time'] for item in learning_path)} minutes[/dim]\n")
+        console.print(
+            f"\n[dim]Total estimated time: {sum(item['estimated_time'] for item in learning_path)} minutes[/dim]\n"
+        )
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--loop', '-l', help='Filter by specific core loop')
-@click.option('--lang', type=click.Choice(['en', 'it']), default='en',
-              help='Output language (default: en)')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option("--loop", "-l", help="Filter by specific core loop")
+@click.option(
+    "--lang", type=click.Choice(["en", "it"]), default="en", help="Output language (default: en)"
+)
 def gaps(course, loop, lang):
     """Identify knowledge gaps and weak areas."""
     from core.adaptive_teaching import AdaptiveTeachingManager
-    from rich.table import Table
-    from rich.panel import Panel
 
     try:
         # Find course
@@ -3062,7 +3607,7 @@ def gaps(course, loop, lang):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -3071,7 +3616,7 @@ def gaps(course, loop, lang):
                 console.print("Use 'examina courses' to see available courses.\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
         # Detect knowledge gaps
         with AdaptiveTeachingManager() as atm:
@@ -3087,19 +3632,19 @@ def gaps(course, loop, lang):
         console.print(f"[dim]{found_course['name']} ({found_course['acronym']})[/dim]\n")
 
         # Group by severity
-        high_gaps = [g for g in knowledge_gaps if g['severity'] == 'high']
-        medium_gaps = [g for g in knowledge_gaps if g['severity'] == 'medium']
-        low_gaps = [g for g in knowledge_gaps if g['severity'] == 'low']
+        high_gaps = [g for g in knowledge_gaps if g["severity"] == "high"]
+        medium_gaps = [g for g in knowledge_gaps if g["severity"] == "medium"]
+        low_gaps = [g for g in knowledge_gaps if g["severity"] == "low"]
 
         # Display high priority gaps
         if high_gaps:
             console.print("[bold red]⚠️  High Priority Gaps[/bold red]\n")
             for gap in high_gaps:
-                mastery_pct = int(gap['mastery'] * 100)
+                mastery_pct = int(gap["mastery"] * 100)
                 console.print(f"  [red]•[/red] [bold]{gap['gap']}[/bold] ({gap['topic']})")
                 console.print(f"    Mastery: {mastery_pct}%")
                 console.print(f"    💡 {gap['recommendation']}")
-                if gap['impact']:
+                if gap["impact"]:
                     console.print(f"    Affects: {', '.join(gap['impact'][:3])}")
                 console.print()
 
@@ -3107,13 +3652,17 @@ def gaps(course, loop, lang):
         if medium_gaps:
             console.print("[bold yellow]⚡ Medium Priority Gaps[/bold yellow]\n")
             for gap in medium_gaps:
-                mastery_pct = int(gap['mastery'] * 100)
-                console.print(f"  [yellow]•[/yellow] {gap['gap']} ({gap['topic']}) - {mastery_pct}% mastery")
+                mastery_pct = int(gap["mastery"] * 100)
+                console.print(
+                    f"  [yellow]•[/yellow] {gap['gap']} ({gap['topic']}) - {mastery_pct}% mastery"
+                )
                 console.print(f"    💡 {gap['recommendation']}\n")
 
         # Display low priority gaps (summarized)
         if low_gaps:
-            console.print(f"[dim]ℹ️  {len(low_gaps)} additional area(s) for improvement (low priority)[/dim]\n")
+            console.print(
+                f"[dim]ℹ️  {len(low_gaps)} additional area(s) for improvement (low priority)[/dim]\n"
+            )
 
         # Summary
         console.print(f"[bold]Summary:[/bold]")
@@ -3122,21 +3671,33 @@ def gaps(course, loop, lang):
         console.print(f"  Medium priority: {len(medium_gaps)}")
         console.print(f"  Low priority: {len(low_gaps)}\n")
 
-        console.print(f"[dim]Use 'examina path --course {course}' to see a personalized study plan[/dim]\n")
+        console.print(
+            f"[dim]Use 'examina path --course {course}' to see a personalized study plan[/dim]\n"
+        )
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--dry-run', is_flag=True, help='Show what would be merged without making changes')
-@click.option('--threshold', type=float, default=None, help='Similarity threshold (0.0-1.0, default: 0.85 for semantic, 0.85 for string)')
-@click.option('--bilingual', is_flag=True, help='Enable LLM-based translation matching (works for ANY language pair)')
-@click.option('--clean-orphans', is_flag=True, help='Delete orphaned core loops with no exercises')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option("--dry-run", is_flag=True, help="Show what would be merged without making changes")
+@click.option(
+    "--threshold",
+    type=float,
+    default=None,
+    help="Similarity threshold (0.0-1.0, default: 0.85 for semantic, 0.85 for string)",
+)
+@click.option(
+    "--bilingual",
+    is_flag=True,
+    help="Enable LLM-based translation matching (works for ANY language pair)",
+)
+@click.option("--clean-orphans", is_flag=True, help="Delete orphaned core loops with no exercises")
 def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
     """Merge duplicate exercises, topics, and core loops using LLM-based synonym detection."""
     from difflib import SequenceMatcher
@@ -3163,7 +3724,9 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
             use_semantic = False
             default_threshold = Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
     except ImportError as e:
-        console.print(f"[yellow]LLM-based synonym detection not available ({e}), using string similarity[/yellow]")
+        console.print(
+            f"[yellow]LLM-based synonym detection not available ({e}), using string similarity[/yellow]"
+        )
         use_semantic = False
         default_threshold = Config.KNOWLEDGE_ITEM_SIMILARITY_THRESHOLD
 
@@ -3188,7 +3751,7 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -3196,16 +3759,19 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
             # NEW: Deduplicate exercises (by text hash)
             console.print("[bold]Deduplicating Exercises...[/bold]")
-            cursor = db.conn.execute("""
+            cursor = db.conn.execute(
+                """
                 SELECT id, text, exercise_type, course_code
                 FROM exercises
                 WHERE course_code = ? AND analyzed = 1
                 ORDER BY id
-            """, (course_code,))
+            """,
+                (course_code,),
+            )
 
             exercises = cursor.fetchall()
             exercise_hashes = {}
@@ -3213,7 +3779,7 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
 
             for ex_id, text, ex_type, _ in exercises:
                 # Create hash of normalized text (remove whitespace variations)
-                normalized = ' '.join(text.split())
+                normalized = " ".join(text.split())
                 text_hash = hashlib.md5(normalized.encode()).hexdigest()
 
                 if text_hash in exercise_hashes:
@@ -3226,7 +3792,7 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
             if exercise_duplicates:
                 console.print(f"Found {len(exercise_duplicates)} duplicate exercise(s):\n")
                 for orig_id, dup_id, ex_type in exercise_duplicates:
-                    ex_type_display = ex_type or 'procedural'
+                    ex_type_display = ex_type or "procedural"
                     console.print(f"  • {orig_id[:30]}... ← {dup_id[:30]}... ({ex_type_display})")
 
                 if not dry_run:
@@ -3235,7 +3801,9 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                         db.conn.execute("DELETE FROM exercises WHERE id = ?", (dup_id,))
 
                     db.conn.commit()
-                    console.print(f"\n[green]✓ Removed {len(exercise_duplicates)} duplicate exercises[/green]\n")
+                    console.print(
+                        f"\n[green]✓ Removed {len(exercise_duplicates)} duplicate exercises[/green]\n"
+                    )
             else:
                 console.print("  No duplicate exercises found\n")
 
@@ -3254,21 +3822,27 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                 if use_semantic and semantic_matcher and semantic_matcher.translation_detector:
                     try:
                         result = semantic_matcher.translation_detector.are_translations(
-                            name1, name2,
+                            name1,
+                            name2,
                             min_embedding_similarity=0.70,
-                            use_language_detection=False  # Skip for speed
+                            use_language_detection=False,  # Skip for speed
                         )
                         if result.is_translation:
-                            return True, f"translation_detected (confidence: {result.confidence:.2f})"
+                            return (
+                                True,
+                                f"translation_detected (confidence: {result.confidence:.2f})",
+                            )
                     except Exception as e:
                         console.print(f"[yellow]Translation detection failed: {e}[/yellow]")
 
                 return False, None
 
             for i, topic1 in enumerate(topics):
-                for topic2 in topics[i+1:]:
+                for topic2 in topics[i + 1 :]:
                     # First check bilingual translations
-                    is_bilingual, bilingual_reason = is_bilingual_match(topic1['name'], topic2['name'])
+                    is_bilingual, bilingual_reason = is_bilingual_match(
+                        topic1["name"], topic2["name"]
+                    )
                     if is_bilingual:
                         topic_merges.append((topic1, topic2, 1.0, bilingual_reason))
                         continue
@@ -3276,14 +3850,20 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                     # Then check semantic/string similarity
                     if use_semantic and semantic_matcher:
                         result = semantic_matcher.should_merge(
-                            topic1['name'], topic2['name'], threshold
+                            topic1["name"], topic2["name"], threshold
                         )
                         if result.should_merge:
-                            topic_merges.append((topic1, topic2, result.similarity_score, result.reason))
+                            topic_merges.append(
+                                (topic1, topic2, result.similarity_score, result.reason)
+                            )
                         elif Config.SEMANTIC_LOG_NEAR_MISSES and result.similarity_score >= 0.80:
-                            topic_skips.append((topic1, topic2, result.similarity_score, result.reason))
+                            topic_skips.append(
+                                (topic1, topic2, result.similarity_score, result.reason)
+                            )
                     else:
-                        similarity = SequenceMatcher(None, topic1['name'].lower(), topic2['name'].lower()).ratio()
+                        similarity = SequenceMatcher(
+                            None, topic1["name"].lower(), topic2["name"].lower()
+                        ).ratio()
                         if similarity >= threshold:
                             topic_merges.append((topic1, topic2, similarity, "string_similarity"))
 
@@ -3298,7 +3878,7 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                     merge_map = {}  # topic_id → canonical_topic_id
 
                     for t1, t2, sim, reason in topic_merges:
-                        merge_map[t2['id']] = t1['id']
+                        merge_map[t2["id"]] = t1["id"]
 
                     # Resolve chains: follow the chain to find ultimate target
                     def get_canonical(topic_id):
@@ -3319,42 +3899,61 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                     # Apply merges: update all references to point to canonical topic
                     for source_id, target_id in merge_map.items():
                         # Update all exercises
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             UPDATE exercises SET topic_id = ? WHERE topic_id = ?
-                        """, (target_id, source_id))
+                        """,
+                            (target_id, source_id),
+                        )
 
                         # Update all core loops
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             UPDATE knowledge_items SET topic_id = ? WHERE topic_id = ?
-                        """, (target_id, source_id))
+                        """,
+                            (target_id, source_id),
+                        )
 
                         # Update topic_mastery
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             UPDATE topic_mastery SET topic_id = ? WHERE topic_id = ?
-                        """, (target_id, source_id))
+                        """,
+                            (target_id, source_id),
+                        )
 
                         # Update quiz_sessions
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             UPDATE quiz_sessions SET filter_topic_id = ? WHERE filter_topic_id = ?
-                        """, (target_id, source_id))
+                        """,
+                            (target_id, source_id),
+                        )
 
                         # Update theory_concepts
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             UPDATE theory_concepts SET topic_id = ? WHERE topic_id = ?
-                        """, (target_id, source_id))
+                        """,
+                            (target_id, source_id),
+                        )
 
                     # Delete all merged topics (sources only, not targets)
                     for source_id in merge_map.keys():
                         db.conn.execute("DELETE FROM topics WHERE id = ?", (source_id,))
 
                     db.conn.commit()
-                    console.print(f"\n[green]✓ Merged {len(topic_merges)} duplicate topics[/green]\n")
+                    console.print(
+                        f"\n[green]✓ Merged {len(topic_merges)} duplicate topics[/green]\n"
+                    )
             else:
                 console.print("  No duplicate topics found\n")
 
             # Show near-misses if semantic matching is enabled
             if topic_skips:
-                console.print(f"\n[yellow]Skipped {len(topic_skips)} near-misses (high similarity but semantically different):[/yellow]")
+                console.print(
+                    f"\n[yellow]Skipped {len(topic_skips)} near-misses (high similarity but semantically different):[/yellow]"
+                )
                 for t1, t2, sim, reason in topic_skips:
                     console.print(f"  • '{t1['name']}' ≠ '{t2['name']}'")
                     console.print(f"    Similarity: {sim:.2f}, Reason: {reason}")
@@ -3367,9 +3966,11 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
             loop_skips = []
 
             for i, loop1 in enumerate(knowledge_items):
-                for loop2 in knowledge_items[i+1:]:
+                for loop2 in knowledge_items[i + 1 :]:
                     # First check bilingual translations
-                    is_bilingual, bilingual_reason = is_bilingual_match(loop1['name'], loop2['name'])
+                    is_bilingual, bilingual_reason = is_bilingual_match(
+                        loop1["name"], loop2["name"]
+                    )
                     if is_bilingual:
                         loop_merges.append((loop1, loop2, 1.0, bilingual_reason))
                         continue
@@ -3377,14 +3978,20 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                     # Then check semantic/string similarity
                     if use_semantic and semantic_matcher:
                         result = semantic_matcher.should_merge(
-                            loop1['name'], loop2['name'], threshold
+                            loop1["name"], loop2["name"], threshold
                         )
                         if result.should_merge:
-                            loop_merges.append((loop1, loop2, result.similarity_score, result.reason))
+                            loop_merges.append(
+                                (loop1, loop2, result.similarity_score, result.reason)
+                            )
                         elif Config.SEMANTIC_LOG_NEAR_MISSES and result.similarity_score >= 0.80:
-                            loop_skips.append((loop1, loop2, result.similarity_score, result.reason))
+                            loop_skips.append(
+                                (loop1, loop2, result.similarity_score, result.reason)
+                            )
                     else:
-                        similarity = SequenceMatcher(None, loop1['name'].lower(), loop2['name'].lower()).ratio()
+                        similarity = SequenceMatcher(
+                            None, loop1["name"].lower(), loop2["name"].lower()
+                        ).ratio()
                         if similarity >= threshold:
                             loop_merges.append((loop1, loop2, similarity, "string_similarity"))
 
@@ -3399,7 +4006,7 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                     loop_merge_map = {}  # loop_id → canonical_loop_id
 
                     for l1, l2, sim, reason in loop_merges:
-                        loop_merge_map[l2['id']] = l1['id']
+                        loop_merge_map[l2["id"]] = l1["id"]
 
                     # Resolve chains
                     def get_canonical_loop(loop_id):
@@ -3419,40 +4026,53 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                     # Apply merges
                     for source_id, target_id in loop_merge_map.items():
                         # Delete duplicate entries from exercise_knowledge_items where exercise already has target
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             DELETE FROM exercise_knowledge_items
                             WHERE knowledge_item_id = ?
                             AND exercise_id IN (
                                 SELECT exercise_id FROM exercise_knowledge_items WHERE knowledge_item_id = ?
                             )
-                        """, (source_id, target_id))
+                        """,
+                            (source_id, target_id),
+                        )
 
                         # Update remaining exercise_knowledge_items entries
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             UPDATE exercise_knowledge_items
                             SET knowledge_item_id = ?
                             WHERE knowledge_item_id = ?
-                        """, (target_id, source_id))
+                        """,
+                            (target_id, source_id),
+                        )
 
                         # Update legacy knowledge_item_id in exercises
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             UPDATE exercises
                             SET knowledge_item_id = ?
                             WHERE knowledge_item_id = ?
-                        """, (target_id, source_id))
+                        """,
+                            (target_id, source_id),
+                        )
 
                     # Delete all merged core loops (sources only)
                     for source_id in loop_merge_map.keys():
                         db.conn.execute("DELETE FROM knowledge_items WHERE id = ?", (source_id,))
 
                     db.conn.commit()
-                    console.print(f"\n[green]✓ Merged {len(loop_merges)} duplicate core loops[/green]\n")
+                    console.print(
+                        f"\n[green]✓ Merged {len(loop_merges)} duplicate core loops[/green]\n"
+                    )
             else:
                 console.print("  No duplicate core loops found\n")
 
             # Show near-misses if semantic matching is enabled
             if loop_skips:
-                console.print(f"\n[yellow]Skipped {len(loop_skips)} near-misses (high similarity but semantically different):[/yellow]")
+                console.print(
+                    f"\n[yellow]Skipped {len(loop_skips)} near-misses (high similarity but semantically different):[/yellow]"
+                )
                 for l1, l2, sim, reason in loop_skips:
                     console.print(f"  • '{l1['name']}' ≠ '{l2['name']}'")
                     console.print(f"    Similarity: {sim:.2f}, Reason: {reason}")
@@ -3464,7 +4084,8 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                 console.print("[bold]Cleaning Orphaned Core Loops...[/bold]")
 
                 # Find core loops with no exercises
-                cursor = db.conn.execute('''
+                cursor = db.conn.execute(
+                    """
                     SELECT cl.id, cl.name, t.name as topic_name
                     FROM knowledge_items cl
                     JOIN topics t ON cl.topic_id = t.id
@@ -3477,7 +4098,9 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                         SELECT DISTINCT knowledge_item_id FROM exercise_knowledge_items
                     )
                     ORDER BY cl.name
-                ''', (course_code,))
+                """,
+                    (course_code,),
+                )
 
                 orphans = cursor.fetchall()
 
@@ -3491,7 +4114,9 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
                             db.conn.execute("DELETE FROM knowledge_items WHERE id = ?", (loop_id,))
                         db.conn.commit()
                         orphan_count = len(orphans)
-                        console.print(f"\n[green]✓ Deleted {orphan_count} orphaned core loops[/green]\n")
+                        console.print(
+                            f"\n[green]✓ Deleted {orphan_count} orphaned core loops[/green]\n"
+                        )
                     else:
                         console.print(f"\n[yellow](Dry run - orphans not deleted)[/yellow]\n")
                 else:
@@ -3501,24 +4126,26 @@ def deduplicate(course, dry_run, threshold, bilingual, clean_orphans):
             if not dry_run and changes_made:
                 console.print("[green]Deduplication complete![/green]\n")
             elif dry_run:
-                console.print("[yellow]Dry run complete. Use without --dry-run to apply changes.[/yellow]\n")
+                console.print(
+                    "[yellow]Dry run complete. Use without --dry-run to apply changes.[/yellow]\n"
+                )
             else:
                 console.print("[green]No changes needed![/green]\n")
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
-@cli.command(name='rate-limits')
-@click.option('--provider', '-p', help='Show limits for specific provider (default: all)')
-@click.option('--reset', is_flag=True, help='Reset rate limit tracking for provider')
+@cli.command(name="rate-limits")
+@click.option("--provider", "-p", help="Show limits for specific provider (default: all)")
+@click.option("--reset", is_flag=True, help="Reset rate limit tracking for provider")
 def rate_limits(provider, reset):
     """View current rate limit usage for LLM API providers."""
     from models.llm_manager import LLMManager
-    from rich.table import Table
     from rich.panel import Panel
 
     try:
@@ -3548,29 +4175,31 @@ def rate_limits(provider, reset):
 
         # Display each provider
         for prov_name, stats in providers_to_show.items():
-            if 'error' in stats:
+            if "error" in stats:
                 console.print(f"[yellow]Provider '{prov_name}': {stats['error']}[/yellow]\n")
                 continue
 
-            if not stats.get('has_limits'):
-                console.print(f"[bold]{prov_name.title()}[/bold]: [green]No rate limits (local/unlimited)[/green]\n")
+            if not stats.get("has_limits"):
+                console.print(
+                    f"[bold]{prov_name.title()}[/bold]: [green]No rate limits (local/unlimited)[/green]\n"
+                )
                 continue
 
             # Create provider panel
-            req_stats = stats['requests']
-            token_stats = stats['tokens']
+            req_stats = stats["requests"]
+            token_stats = stats["tokens"]
 
             # Format request stats
-            req_limit = req_stats['limit']
-            req_used = req_stats['used']
-            req_remaining = req_stats['remaining']
-            req_pct = req_stats['percentage']
+            req_limit = req_stats["limit"]
+            req_used = req_stats["used"]
+            req_remaining = req_stats["remaining"]
+            req_pct = req_stats["percentage"]
 
             # Format token stats
-            token_limit = token_stats['limit']
-            token_used = token_stats['used']
-            token_remaining = token_stats['remaining']
-            token_pct = token_stats['percentage']
+            token_limit = token_stats["limit"]
+            token_used = token_stats["used"]
+            token_remaining = token_stats["remaining"]
+            token_pct = token_stats["percentage"]
 
             # Choose color based on usage
             def get_color(percentage):
@@ -3587,24 +4216,30 @@ def rate_limits(provider, reset):
             # Build panel content
             content_lines = []
             content_lines.append(f"[bold]Provider:[/bold] {prov_name}")
-            content_lines.append(f"[bold]Current Provider:[/bold] {'✓ Active' if prov_name == Config.LLM_PROVIDER else '○ Inactive'}")
+            content_lines.append(
+                f"[bold]Current Provider:[/bold] {'✓ Active' if prov_name == Config.LLM_PROVIDER else '○ Inactive'}"
+            )
             content_lines.append("")
 
             # Requests section
             if req_limit:
                 content_lines.append(f"[bold]Requests (per minute):[/bold]")
-                content_lines.append(f"  Used: [{req_color}]{req_used}/{req_limit}[/{req_color}] ({req_pct}%)")
+                content_lines.append(
+                    f"  Used: [{req_color}]{req_used}/{req_limit}[/{req_color}] ({req_pct}%)"
+                )
                 content_lines.append(f"  Remaining: {req_remaining}")
 
             # Tokens section
             if token_limit:
                 content_lines.append("")
                 content_lines.append(f"[bold]Tokens (per minute):[/bold]")
-                content_lines.append(f"  Used: [{token_color}]{token_used:,}/{token_limit:,}[/{token_color}] ({token_pct}%)")
+                content_lines.append(
+                    f"  Used: [{token_color}]{token_used:,}/{token_limit:,}[/{token_color}] ({token_pct}%)"
+                )
                 content_lines.append(f"  Remaining: {token_remaining:,}")
 
             # Time info
-            time_until_reset = stats.get('time_until_reset', 0)
+            time_until_reset = stats.get("time_until_reset", 0)
             if time_until_reset > 0:
                 content_lines.append("")
                 content_lines.append(f"[dim]Time until reset: {time_until_reset:.1f}s[/dim]")
@@ -3612,30 +4247,47 @@ def rate_limits(provider, reset):
             content = "\n".join(content_lines)
 
             # Display panel
-            border_color = "red" if req_pct >= 90 or token_pct >= 90 else "yellow" if req_pct >= 70 or token_pct >= 70 else "green"
-            console.print(Panel(content, title=f"📊 {prov_name.title()}", border_style=border_color))
+            border_color = (
+                "red"
+                if req_pct >= 90 or token_pct >= 90
+                else "yellow"
+                if req_pct >= 70 or token_pct >= 70
+                else "green"
+            )
+            console.print(
+                Panel(content, title=f"📊 {prov_name.title()}", border_style=border_color)
+            )
             console.print()
 
         # Show helpful tips
         console.print("[dim]Tips:[/dim]")
-        console.print("[dim]  • Rate limiting is automatic - requests will wait if limits are exceeded[/dim]")
+        console.print(
+            "[dim]  • Rate limiting is automatic - requests will wait if limits are exceeded[/dim]"
+        )
         console.print("[dim]  • Use --provider <name> to see a specific provider[/dim]")
         console.print("[dim]  • Use --reset to clear rate limit tracking[/dim]")
-        console.print("[dim]  • Configure limits in .env: GROQ_RPM=30, ANTHROPIC_RPM=50, etc.[/dim]\n")
+        console.print(
+            "[dim]  • Configure limits in .env: GROQ_RPM=30, ANTHROPIC_RPM=50, etc.[/dim]\n"
+        )
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
-@cli.command(name='pattern-cache')
-@click.option('--course', '-c', help='Course code (optional, defaults to all courses)')
-@click.option('--stats', 'action', flag_value='stats', default=True, help='Show cache statistics (default)')
-@click.option('--build', 'action', flag_value='build', help='Build cache from existing analyzed exercises')
-@click.option('--clear', 'action', flag_value='clear', help='Clear cache entries')
-@click.option('--force', is_flag=True, default=False, help='Skip confirmation prompts')
+@cli.command(name="pattern-cache")
+@click.option("--course", "-c", help="Course code (optional, defaults to all courses)")
+@click.option(
+    "--stats", "action", flag_value="stats", default=True, help="Show cache statistics (default)"
+)
+@click.option(
+    "--build", "action", flag_value="build", help="Build cache from existing analyzed exercises"
+)
+@click.option("--clear", "action", flag_value="clear", help="Clear cache entries")
+@click.option("--force", is_flag=True, default=False, help="Skip confirmation prompts")
 def pattern_cache(course, action, force):
     """Manage procedure pattern cache for faster analysis.
 
@@ -3651,7 +4303,6 @@ def pattern_cache(course, action, force):
         examina pattern-cache --clear -c ARCH1  # Clear cache for specific course
     """
     from rich.table import Table
-    from rich.panel import Panel
     from core.procedure_cache import ProcedureCache
 
     try:
@@ -3661,14 +4312,14 @@ def pattern_cache(course, action, force):
             if course:
                 all_courses = db.get_all_courses()
                 for c in all_courses:
-                    if c['code'] == course or c['acronym'] == course:
-                        course_code = c['code']
+                    if c["code"] == course or c["acronym"] == course:
+                        course_code = c["code"]
                         break
                 if not course_code:
                     console.print(f"[red]Course '{course}' not found.[/red]\n")
                     return
 
-            if action == 'stats':
+            if action == "stats":
                 # Show cache statistics
                 console.print("\n[bold cyan]Procedure Pattern Cache Statistics[/bold cyan]\n")
 
@@ -3685,12 +4336,12 @@ def pattern_cache(course, action, force):
                 table.add_column("Metric", style="cyan")
                 table.add_column("Value", style="white")
 
-                table.add_row("Total Patterns Cached", str(db_stats.get('total_entries', 0)))
-                table.add_row("Total Cache Hits", str(db_stats.get('total_hits', 0)))
+                table.add_row("Total Patterns Cached", str(db_stats.get("total_entries", 0)))
+                table.add_row("Total Cache Hits", str(db_stats.get("total_hits", 0)))
 
                 # Add per-course breakdown if showing all
                 if not course_code:
-                    course_stats = db_stats.get('by_course', {})
+                    course_stats = db_stats.get("by_course", {})
                     if course_stats:
                         table.add_row("", "")  # Spacer
                         table.add_row("[bold]By Course[/bold]", "")
@@ -3702,20 +4353,30 @@ def pattern_cache(course, action, force):
 
                 # Show configuration
                 console.print("[bold]Configuration:[/bold]")
-                console.print(f"  • Embedding threshold: {Config.PROCEDURE_CACHE_EMBEDDING_THRESHOLD}")
-                console.print(f"  • Text validation threshold: {Config.PROCEDURE_CACHE_TEXT_VALIDATION_THRESHOLD}")
+                console.print(
+                    f"  • Embedding threshold: {Config.PROCEDURE_CACHE_EMBEDDING_THRESHOLD}"
+                )
+                console.print(
+                    f"  • Text validation threshold: {Config.PROCEDURE_CACHE_TEXT_VALIDATION_THRESHOLD}"
+                )
                 console.print(f"  • Min confidence: {Config.PROCEDURE_CACHE_MIN_CONFIDENCE}")
                 console.print(f"  • Cache enabled: {Config.PROCEDURE_CACHE_ENABLED}")
                 console.print()
 
                 # Tips
                 console.print("[dim]Tips:[/dim]")
-                console.print("[dim]  • Use --build to populate cache from existing analyzed exercises[/dim]")
-                console.print("[dim]  • Use --clear to reset cache (useful after major changes)[/dim]")
-                console.print("[dim]  • Configure thresholds via EXAMINA_PROCEDURE_CACHE_* env vars[/dim]")
+                console.print(
+                    "[dim]  • Use --build to populate cache from existing analyzed exercises[/dim]"
+                )
+                console.print(
+                    "[dim]  • Use --clear to reset cache (useful after major changes)[/dim]"
+                )
+                console.print(
+                    "[dim]  • Configure thresholds via EXAMINA_PROCEDURE_CACHE_* env vars[/dim]"
+                )
                 console.print()
 
-            elif action == 'build':
+            elif action == "build":
                 # Build cache from existing analyzed exercises
                 console.print("\n[bold cyan]Building Procedure Pattern Cache[/bold cyan]\n")
 
@@ -3738,7 +4399,8 @@ def pattern_cache(course, action, force):
                 # Query exercises with core loops (where procedures are stored)
                 # Handle both schemas: junction table AND legacy knowledge_item_id column
                 if course_code:
-                    cursor = db.conn.execute("""
+                    cursor = db.conn.execute(
+                        """
                         SELECT e.id, e.text as exercise_text, e.source_pdf,
                                t.name as topic, e.difficulty, e.variations,
                                cl.procedure as procedures_json, cl.id as knowledge_item_id
@@ -3755,7 +4417,9 @@ def pattern_cache(course, action, force):
                         JOIN knowledge_items cl ON e.knowledge_item_id = cl.id
                         JOIN topics t ON cl.topic_id = t.id
                         WHERE e.course_code = ? AND e.knowledge_item_id IS NOT NULL AND cl.procedure IS NOT NULL
-                    """, (course_code, course_code))
+                    """,
+                        (course_code, course_code),
+                    )
                 else:
                     cursor = db.conn.execute("""
                         SELECT e.id, e.text as exercise_text, e.source_pdf, e.course_code,
@@ -3793,18 +4457,18 @@ def pattern_cache(course, action, force):
 
                 for row in rows:
                     row_dict = dict(zip(columns, row))
-                    exercise_text = row_dict['exercise_text']
-                    topic = row_dict.get('topic')
-                    difficulty = row_dict.get('difficulty')
-                    ex_course_code = row_dict.get('course_code', course_code)
+                    exercise_text = row_dict["exercise_text"]
+                    topic = row_dict.get("topic")
+                    difficulty = row_dict.get("difficulty")
+                    ex_course_code = row_dict.get("course_code", course_code)
 
                     # Parse JSON fields (variations is stored as JSON string in exercises table)
                     try:
-                        variations_raw = row_dict.get('variations')
+                        variations_raw = row_dict.get("variations")
                         variations = json.loads(variations_raw) if variations_raw else []
 
                         # Procedures are stored as JSON in knowledge_items.procedure
-                        procedures_raw = row_dict.get('procedures_json')
+                        procedures_raw = row_dict.get("procedures_json")
                         procedures = json.loads(procedures_raw) if procedures_raw else []
                     except json.JSONDecodeError:
                         skipped += 1
@@ -3827,7 +4491,7 @@ def pattern_cache(course, action, force):
                             variations=variations,
                             procedures=procedures,
                             confidence=confidence,
-                            course_code=ex_course_code
+                            course_code=ex_course_code,
                         )
                         added += 1
                     except Exception:
@@ -3838,12 +4502,14 @@ def pattern_cache(course, action, force):
                 console.print(f"  • Skipped: {skipped} (duplicates/low confidence/no procedures)")
                 console.print(f"  • Total in cache: {len(cache._entries)}\n")
 
-            elif action == 'clear':
+            elif action == "clear":
                 # Clear cache entries
                 scope_msg = f"for course '{course_code}'" if course_code else "for ALL courses"
 
                 if not force:
-                    console.print(f"\n[yellow]Warning:[/yellow] This will delete all cached procedure patterns {scope_msg}.\n")
+                    console.print(
+                        f"\n[yellow]Warning:[/yellow] This will delete all cached procedure patterns {scope_msg}.\n"
+                    )
                     if not click.confirm("Are you sure you want to continue?"):
                         console.print("[dim]Cancelled.[/dim]\n")
                         return
@@ -3857,23 +4523,38 @@ def pattern_cache(course, action, force):
                 entries_before = len(cache._entries)
                 cache.clear(course_code)
 
-                console.print(f"[green]✓ Cleared {entries_before} cache entries {scope_msg}[/green]\n")
+                console.print(
+                    f"[green]✓ Cleared {entries_before} cache entries {scope_msg}[/green]\n"
+                )
 
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--dry-run', is_flag=True, default=True,
-              help='Preview changes without updating database (default: true)')
-@click.option('--confidence-threshold', type=float, default=0.5,
-              help='Minimum confidence to separate (0.0-1.0, default: 0.5)')
-@click.option('--provider', '-p', type=click.Choice(['anthropic', 'groq', 'ollama', 'openai', 'deepseek']),
-              help='LLM provider (default: from config)')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=True,
+    help="Preview changes without updating database (default: true)",
+)
+@click.option(
+    "--confidence-threshold",
+    type=float,
+    default=0.5,
+    help="Minimum confidence to separate (0.0-1.0, default: 0.5)",
+)
+@click.option(
+    "--provider",
+    "-p",
+    type=click.Choice(["anthropic", "groq", "ollama", "openai", "deepseek"]),
+    help="LLM provider (default: from config)",
+)
 def separate_solutions(course, dry_run, confidence_threshold, provider):
     """Separate questions from solutions in exercises using LLM (works for any format/language)."""
     from core.solution_separator import process_course_solutions
@@ -3890,7 +4571,7 @@ def separate_solutions(course, dry_run, confidence_threshold, provider):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -3898,7 +4579,7 @@ def separate_solutions(course, dry_run, confidence_threshold, provider):
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
         # Initialize LLM
         console.print("🤖 Initializing AI solution separator...")
@@ -3907,11 +4588,7 @@ def separate_solutions(course, dry_run, confidence_threshold, provider):
 
         # Process course
         console.print(f"📝 Analyzing exercises for {course_code}...\n")
-        stats = process_course_solutions(
-            course_code=course_code,
-            llm_manager=llm,
-            dry_run=dry_run
-        )
+        stats = process_course_solutions(course_code=course_code, llm_manager=llm, dry_run=dry_run)
 
         # Display results
         console.print("\n[bold]Results:[/bold]")
@@ -3921,11 +4598,15 @@ def separate_solutions(course, dry_run, confidence_threshold, provider):
         console.print(f"  High confidence (≥0.8): {stats['high_confidence']}")
         console.print(f"  Failed: {stats['failed']}")
 
-        if stats['separated'] > 0:
-            success_rate = (stats['separated'] / stats['has_solution'] * 100) if stats['has_solution'] > 0 else 0
+        if stats["separated"] > 0:
+            success_rate = (
+                (stats["separated"] / stats["has_solution"] * 100)
+                if stats["has_solution"] > 0
+                else 0
+            )
             console.print(f"\n[green]✓ Separation success rate: {success_rate:.1f}%[/green]")
 
-        if dry_run and stats['separated'] > 0:
+        if dry_run and stats["separated"] > 0:
             console.print(f"\n[yellow]Run without --dry-run to apply changes[/yellow]")
 
         console.print()
@@ -3933,14 +4614,17 @@ def separate_solutions(course, dry_run, confidence_threshold, provider):
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
 @cli.command()
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--dry-run', is_flag=True, default=False, help='Preview changes without updating database')
-@click.option('--force', is_flag=True, default=False, help='Re-detect language even if already set')
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option(
+    "--dry-run", is_flag=True, default=False, help="Preview changes without updating database"
+)
+@click.option("--force", is_flag=True, default=False, help="Re-detect language even if already set")
 def detect_languages(course, dry_run, force):
     """DEPRECATED: Language detection is no longer needed - names are always extracted in English."""
     console.print(f"\n[bold yellow]DEPRECATED[/bold yellow]\n")
@@ -3957,7 +4641,7 @@ def detect_languages(course, dry_run, force):
             all_courses = db.get_all_courses()
             found_course = None
             for c in all_courses:
-                if c['code'] == course or c['acronym'] == course:
+                if c["code"] == course or c["acronym"] == course:
                     found_course = c
                     break
 
@@ -3965,7 +4649,7 @@ def detect_languages(course, dry_run, force):
                 console.print(f"[red]Course '{course}' not found.[/red]\n")
                 return
 
-            course_code = found_course['code']
+            course_code = found_course["code"]
 
         # Initialize LLM and detector
         console.print("🤖 Initializing language detector...")
@@ -4024,9 +4708,12 @@ def detect_languages(course, dry_run, force):
 
                     # Update database
                     if not dry_run and (force or not current_lang):
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             UPDATE knowledge_items SET language = ? WHERE id = ?
-                        """, (lang_info.name, loop_id))
+                        """,
+                            (lang_info.name, loop_id),
+                        )
                         updated_count += 1
 
                 console.print(table)
@@ -4035,7 +4722,9 @@ def detect_languages(course, dry_run, force):
                 if not dry_run:
                     console.print(f"[green]✓ Updated {updated_count} core loops[/green]\n")
                 else:
-                    console.print(f"[yellow]Would update {len(loops)} core loops (use without --dry-run to apply)[/yellow]\n")
+                    console.print(
+                        f"[yellow]Would update {len(loops)} core loops (use without --dry-run to apply)[/yellow]\n"
+                    )
 
             # Detect for topics
             if force:
@@ -4083,9 +4772,12 @@ def detect_languages(course, dry_run, force):
 
                     # Update database
                     if not dry_run and (force or not current_lang):
-                        db.conn.execute("""
+                        db.conn.execute(
+                            """
                             UPDATE topics SET language = ? WHERE id = ?
-                        """, (lang_info.name, topic_id))
+                        """,
+                            (lang_info.name, topic_id),
+                        )
                         updated_count += 1
 
                 console.print(table)
@@ -4094,11 +4786,15 @@ def detect_languages(course, dry_run, force):
                 if not dry_run:
                     console.print(f"[green]✓ Updated {updated_count} topics[/green]\n")
                 else:
-                    console.print(f"[yellow]Would update {len(topics)} topics (use without --dry-run to apply)[/yellow]\n")
+                    console.print(
+                        f"[yellow]Would update {len(topics)} topics (use without --dry-run to apply)[/yellow]\n"
+                    )
 
             # Get cache stats
             stats = detector.get_cache_stats()
-            console.print(f"[dim]Cache: {stats['language_cache_size']} languages, {stats['translation_cache_size']} translations[/dim]")
+            console.print(
+                f"[dim]Cache: {stats['language_cache_size']} languages, {stats['translation_cache_size']} translations[/dim]"
+            )
 
             if not dry_run:
                 db.conn.commit()
@@ -4108,18 +4804,27 @@ def detect_languages(course, dry_run, force):
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
-@cli.command(name='concept-graph')
-@click.option('--course', '-c', required=True, help='Course code')
-@click.option('--format', type=click.Choice(['ascii', 'mermaid', 'json']), default='ascii',
-              help='Output format (default: ascii)')
-@click.option('--export', type=click.Path(), help='Export to file')
-@click.option('--concept', help='Show learning path to specific concept')
-@click.option('--provider', type=click.Choice(['anthropic', 'openai', 'groq', 'ollama', 'deepseek']),
-              default=Config.LLM_PROVIDER, help=f'LLM provider (default: {Config.LLM_PROVIDER})')
+@cli.command(name="concept-graph")
+@click.option("--course", "-c", required=True, help="Course code")
+@click.option(
+    "--format",
+    type=click.Choice(["ascii", "mermaid", "json"]),
+    default="ascii",
+    help="Output format (default: ascii)",
+)
+@click.option("--export", type=click.Path(), help="Export to file")
+@click.option("--concept", help="Show learning path to specific concept")
+@click.option(
+    "--provider",
+    type=click.Choice(["anthropic", "openai", "groq", "ollama", "deepseek"]),
+    default=Config.LLM_PROVIDER,
+    help=f"LLM provider (default: {Config.LLM_PROVIDER})",
+)
 def concept_graph(course, format, export, concept, provider):
     """Visualize theory concept dependencies and learning order."""
     try:
@@ -4139,11 +4844,19 @@ def concept_graph(course, format, export, concept, provider):
 
         if not graph.concepts:
             console.print("[yellow]No theory concepts found in this course.[/yellow]")
-            console.print("Theory concepts are extracted from exercises marked as 'theory', 'proof', or 'hybrid'.")
-            console.print("\nTip: Run 'examina analyze --course {} --reanalyze' to detect theory exercises.".format(course))
+            console.print(
+                "Theory concepts are extracted from exercises marked as 'theory', 'proof', or 'hybrid'."
+            )
+            console.print(
+                "\nTip: Run 'examina analyze --course {} --reanalyze' to detect theory exercises.".format(
+                    course
+                )
+            )
             return
 
-        console.print(f"[green]✓ Found {len(graph.concepts)} concepts with {len(graph.edges)} dependencies[/green]\n")
+        console.print(
+            f"[green]✓ Found {len(graph.concepts)} concepts with {len(graph.edges)} dependencies[/green]\n"
+        )
 
         # Check for cycles
         cycles = graph.detect_cycles()
@@ -4160,15 +4873,15 @@ def concept_graph(course, format, export, concept, provider):
         if concept:
             # Show learning path to specific concept
             output = visualizer.render_learning_path(graph, concept)
-        elif format == 'ascii':
+        elif format == "ascii":
             output = visualizer.render_ascii(graph)
-        elif format == 'mermaid':
+        elif format == "mermaid":
             output = visualizer.render_mermaid(graph)
         else:  # json
             output = visualizer.export_json(graph)
 
         if export:
-            with open(export, 'w') as f:
+            with open(export, "w") as f:
                 f.write(output)
             console.print(f"[green]✓ Exported to {export}[/green]")
         else:
@@ -4179,9 +4892,13 @@ def concept_graph(course, format, export, concept, provider):
             console.print("\n[bold]Learning Order Summary:[/bold]")
             learning_order = graph.topological_sort()
             if learning_order:
-                foundation_concepts = [cid for cid in learning_order if not graph.get_prerequisites(cid)]
+                foundation_concepts = [
+                    cid for cid in learning_order if not graph.get_prerequisites(cid)
+                ]
                 console.print(f"  • Foundation concepts (start here): {len(foundation_concepts)}")
-                console.print(f"  • Advanced concepts (require prerequisites): {len(learning_order) - len(foundation_concepts)}")
+                console.print(
+                    f"  • Advanced concepts (require prerequisites): {len(learning_order) - len(foundation_concepts)}"
+                )
 
                 if foundation_concepts:
                     console.print("\n[bold]Recommended Starting Points:[/bold]")
@@ -4196,9 +4913,10 @@ def concept_graph(course, format, export, concept, provider):
     except Exception as e:
         console.print(f"\n[bold red]Error:[/bold red] {e}\n")
         import traceback
+
         traceback.print_exc()
         raise click.Abort()
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()

@@ -6,10 +6,9 @@ Option C: Full LLM-based strategy generation with caching.
 No hardcoded strategies - fully scalable to any subject.
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional
 import json
 import hashlib
-from pathlib import Path
 
 
 class StudyStrategyManager:
@@ -34,6 +33,7 @@ class StudyStrategyManager:
         try:
             from models.llm_manager import LLMManager
             from config import Config
+
             self.llm_manager = LLMManager(provider=Config.LLM_PROVIDER)
         except Exception as e:
             print(f"[ERROR] Could not initialize LLM manager: {e}")
@@ -43,7 +43,9 @@ class StudyStrategyManager:
         """Generate language instruction phrase for any language."""
         return f"in {self.language.upper()} language"
 
-    def get_strategy_for_knowledge_item(self, knowledge_item_name: str, difficulty: str = "medium") -> Optional[Dict]:
+    def get_strategy_for_knowledge_item(
+        self, knowledge_item_name: str, difficulty: str = "medium"
+    ) -> Optional[Dict]:
         """
         Get study strategy for a specific core loop and difficulty.
 
@@ -87,7 +89,9 @@ class StudyStrategyManager:
     # LLM Generation & Caching Methods
     # ========================================================================
 
-    def _generate_strategy_with_llm(self, knowledge_item_name: str, difficulty: str) -> Optional[Dict]:
+    def _generate_strategy_with_llm(
+        self, knowledge_item_name: str, difficulty: str
+    ) -> Optional[Dict]:
         """
         Generate study strategy using LLM with caching.
 
@@ -143,7 +147,7 @@ class StudyStrategyManager:
             cache_file = Config.STUDY_STRATEGY_CACHE_DIR / f"{cache_key}.json"
 
             if cache_file.exists():
-                with open(cache_file, 'r', encoding='utf-8') as f:
+                with open(cache_file, "r", encoding="utf-8") as f:
                     return json.load(f)
 
         except Exception as e:
@@ -164,7 +168,7 @@ class StudyStrategyManager:
             cache_key = self._get_cache_key(knowledge_item_name, difficulty)
             cache_file = Config.STUDY_STRATEGY_CACHE_DIR / f"{cache_key}.json"
 
-            with open(cache_file, 'w', encoding='utf-8') as f:
+            with open(cache_file, "w", encoding="utf-8") as f:
                 json.dump(strategy, f, indent=2, ensure_ascii=False)
 
         except Exception as e:
@@ -269,8 +273,13 @@ Return ONLY valid JSON, no markdown code blocks or extra text."""
             strategy = json.loads(response)
 
             # Validate required fields
-            required_fields = ["framework", "learning_tips", "self_assessment",
-                             "retrieval_practice", "common_mistakes"]
+            required_fields = [
+                "framework",
+                "learning_tips",
+                "self_assessment",
+                "retrieval_practice",
+                "common_mistakes",
+            ]
 
             for field in required_fields:
                 if field not in strategy:

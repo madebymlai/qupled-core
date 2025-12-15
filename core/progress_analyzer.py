@@ -92,24 +92,18 @@ class ProgressAnalyzer:
             MasteryLevel.REVIEWING: 0.6,
             MasteryLevel.MASTERED: 1.0,
         }
-        avg_mastery_level = sum(
-            level_scores.get(r.mastery_level, 0.0) for r in reviews
-        ) / len(reviews)
+        avg_mastery_level = sum(level_scores.get(r.mastery_level, 0.0) for r in reviews) / len(
+            reviews
+        )
 
         # Recency bonus (10%) - if 3+ reviews in last 7 days
         recent_reviews = [
-            r for r in reviews
-            if r.last_reviewed_at and (now - r.last_reviewed_at).days <= 7
+            r for r in reviews if r.last_reviewed_at and (now - r.last_reviewed_at).days <= 7
         ]
         recency_bonus = 0.05 if len(recent_reviews) >= 3 else 0.0
 
         # Combine with weights
-        mastery = (
-            0.4 * accuracy +
-            0.3 * avg_mastery_level +
-            0.2 * interval_score +
-            recency_bonus
-        )
+        mastery = 0.4 * accuracy + 0.3 * avg_mastery_level + 0.2 * interval_score + recency_bonus
 
         return min(mastery, 1.0)
 
@@ -132,12 +126,8 @@ class ProgressAnalyzer:
             return MasteryTrend.NEW
 
         total = len(reviews)
-        mastered_count = sum(
-            1 for r in reviews if r.mastery_level == MasteryLevel.MASTERED
-        )
-        learning_count = sum(
-            1 for r in reviews if r.mastery_level == MasteryLevel.LEARNING
-        )
+        mastered_count = sum(1 for r in reviews if r.mastery_level == MasteryLevel.MASTERED)
+        learning_count = sum(1 for r in reviews if r.mastery_level == MasteryLevel.LEARNING)
 
         if mastered_count / total > 0.5:
             return MasteryTrend.IMPROVING
@@ -249,9 +239,7 @@ class ProgressAnalyzer:
             mistakes.append(f"Low accuracy on {topic_name} exercises")
 
         # Stuck in learning mode check
-        learning_count = sum(
-            1 for r in reviews if r.mastery_level == MasteryLevel.LEARNING
-        )
+        learning_count = sum(1 for r in reviews if r.mastery_level == MasteryLevel.LEARNING)
         if len(reviews) > 0 and learning_count / len(reviews) > 0.6:
             mistakes.append("Difficulty progressing past learning stage")
 
@@ -367,17 +355,19 @@ class ProgressAnalyzer:
             if len(items) >= max_items:
                 break
             order += 1
-            items.append(LearningPathItem(
-                item_type="topic",
-                item_id=gap.topic_id,
-                title=gap.topic_name,
-                description=f"Critical knowledge gap requiring immediate attention",
-                difficulty="hard",
-                estimated_time_minutes=gap.estimated_time_minutes,
-                priority="high",
-                reason=f"Critical knowledge gap. Current mastery: {gap.current_mastery:.1f}%",
-                order=order,
-            ))
+            items.append(
+                LearningPathItem(
+                    item_type="topic",
+                    item_id=gap.topic_id,
+                    title=gap.topic_name,
+                    description=f"Critical knowledge gap requiring immediate attention",
+                    difficulty="hard",
+                    estimated_time_minutes=gap.estimated_time_minutes,
+                    priority="high",
+                    reason=f"Critical knowledge gap. Current mastery: {gap.current_mastery:.1f}%",
+                    order=order,
+                )
+            )
 
         # Tier 2: Significant gaps (top 2)
         significant_gaps = [g for g in knowledge_gaps if g.gap_severity == GapSeverity.SIGNIFICANT]
@@ -385,17 +375,19 @@ class ProgressAnalyzer:
             if len(items) >= max_items:
                 break
             order += 1
-            items.append(LearningPathItem(
-                item_type="topic",
-                item_id=gap.topic_id,
-                title=gap.topic_name,
-                description=f"Significant knowledge gap",
-                difficulty="medium",
-                estimated_time_minutes=gap.estimated_time_minutes,
-                priority="high",
-                reason=f"Significant knowledge gap. Current mastery: {gap.current_mastery:.1f}%",
-                order=order,
-            ))
+            items.append(
+                LearningPathItem(
+                    item_type="topic",
+                    item_id=gap.topic_id,
+                    title=gap.topic_name,
+                    description=f"Significant knowledge gap",
+                    difficulty="medium",
+                    estimated_time_minutes=gap.estimated_time_minutes,
+                    priority="high",
+                    reason=f"Significant knowledge gap. Current mastery: {gap.current_mastery:.1f}%",
+                    order=order,
+                )
+            )
 
         # Tier 3: In-progress topics (mastery 0.6-0.8)
         in_progress = [t for t in topic_results if 0.6 <= t.mastery_score < 0.8]
@@ -403,34 +395,38 @@ class ProgressAnalyzer:
             if len(items) >= max_items:
                 break
             order += 1
-            items.append(LearningPathItem(
-                item_type="topic",
-                item_id=topic.topic_id,
-                title=topic.topic_name,
-                description="Continue making progress",
-                difficulty="medium",
-                estimated_time_minutes=30,
-                priority="medium",
-                reason=f"You're making good progress! Current mastery: {topic.mastery_score * 100:.1f}%",
-                order=order,
-            ))
+            items.append(
+                LearningPathItem(
+                    item_type="topic",
+                    item_id=topic.topic_id,
+                    title=topic.topic_name,
+                    description="Continue making progress",
+                    difficulty="medium",
+                    estimated_time_minutes=30,
+                    priority="medium",
+                    reason=f"You're making good progress! Current mastery: {topic.mastery_score * 100:.1f}%",
+                    order=order,
+                )
+            )
 
         # Tier 4: Review items for mastered topics
         mastered = [t for t in topic_results if t.mastery_score >= 0.8]
         if mastered and len(items) < max_items:
             topic = mastered[0]
             order += 1
-            items.append(LearningPathItem(
-                item_type="review",
-                item_id=topic.topic_id,
-                title=f"Review: {topic.topic_name}",
-                description="Reinforce mastered concepts",
-                difficulty="easy",
-                estimated_time_minutes=15,
-                priority="low",
-                reason="Reinforce mastered concepts with spaced repetition",
-                order=order,
-            ))
+            items.append(
+                LearningPathItem(
+                    item_type="review",
+                    item_id=topic.topic_id,
+                    title=f"Review: {topic.topic_name}",
+                    description="Reinforce mastered concepts",
+                    difficulty="easy",
+                    estimated_time_minutes=15,
+                    priority="low",
+                    reason="Reinforce mastered concepts with spaced repetition",
+                    order=order,
+                )
+            )
 
         return items
 
@@ -504,8 +500,6 @@ class ProgressAnalyzer:
             GapSeverity.SIGNIFICANT: 1,
             GapSeverity.MINOR: 2,
         }
-        weak_areas.sort(
-            key=lambda x: (severity_order[x.gap_severity], x.current_mastery)
-        )
+        weak_areas.sort(key=lambda x: (severity_order[x.gap_severity], x.current_mastery))
 
         return weak_areas

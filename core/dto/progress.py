@@ -28,6 +28,7 @@ class KnowledgeGap:
         exercises_to_review: Number of exercises recommended
         estimated_time_minutes: Estimated time to close the gap
     """
+
     topic_id: str
     topic_name: str
     gap_severity: GapSeverity
@@ -56,6 +57,7 @@ class LearningPathItem:
         reason: Explanation of why this item is recommended
         order: Position in the learning path
     """
+
     item_type: str
     item_id: str
     title: str
@@ -82,6 +84,7 @@ class LearningPathResult:
         total_estimated_time_minutes: Total time for all items
         generated_at: When the path was generated
     """
+
     course_id: str
     course_name: str
     overall_mastery: float

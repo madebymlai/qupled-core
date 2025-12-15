@@ -4,6 +4,7 @@ Post-processor for knowledge item merging.
 Groups equivalent knowledge items by skill and picks canonical names.
 Uses description-based approach for better accuracy.
 """
+
 import json
 import logging
 
@@ -39,7 +40,7 @@ def group_items(
         return []
 
     # Build prompt with anonymous IDs - LLM never sees names
-    items_text = [f"- Item {i+1}: {item['description']}" for i, item in enumerate(items)]
+    items_text = [f"- Item {i + 1}: {item['description']}" for i, item in enumerate(items)]
 
     system = "You are a teacher grouping concepts for students to study."
 
@@ -83,7 +84,9 @@ Return {{"reasoning": "...", "groups": []}} if all different."""
             if len(group_items) < 2:
                 continue
             # Convert to 0-indexed and validate
-            indices = [idx - 1 for idx in group_items if isinstance(idx, int) and 0 < idx <= len(items)]
+            indices = [
+                idx - 1 for idx in group_items if isinstance(idx, int) and 0 < idx <= len(items)
+            ]
             if len(indices) >= 2:
                 result_groups.append(indices)
                 logger.info(f"Group: items {indices}" + (f" - {reason}" if reason else ""))
@@ -368,19 +371,23 @@ def merge_items(
     normalized_items: list[dict] = []
     for item in items:
         if isinstance(item, tuple):
-            normalized_items.append({
-                "name": item[0],
-                "type": item[1],
-                "exercises": [],
-                "learning_approach": None,
-            })
+            normalized_items.append(
+                {
+                    "name": item[0],
+                    "type": item[1],
+                    "exercises": [],
+                    "learning_approach": None,
+                }
+            )
         elif isinstance(item, dict):
-            normalized_items.append({
-                "name": item.get("name", ""),
-                "type": item.get("type", "key_concept"),
-                "exercises": item.get("exercises", []),
-                "learning_approach": item.get("learning_approach"),
-            })
+            normalized_items.append(
+                {
+                    "name": item.get("name", ""),
+                    "type": item.get("type", "key_concept"),
+                    "exercises": item.get("exercises", []),
+                    "learning_approach": item.get("learning_approach"),
+                }
+            )
 
     # Use new function to group by skill
     groups = group_items_by_skill(normalized_items, llm)
@@ -407,7 +414,9 @@ def merge_items(
         item_type = group_items[0].get("type", "key_concept")
 
         all_results.append((canonical_name, item_type, group_names, learning_approach))
-        logger.info(f"Skill group: {group_names} -> canonical='{canonical_name}', approach={learning_approach}")
+        logger.info(
+            f"Skill group: {group_names} -> canonical='{canonical_name}', approach={learning_approach}"
+        )
 
     return all_results
 

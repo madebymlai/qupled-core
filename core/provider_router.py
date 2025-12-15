@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class TaskConfig:
     """Configuration for a specific task type within a profile."""
+
     enabled: bool
     primary: Optional[str]  # Primary provider name
     fallback: Optional[str]  # Fallback provider name (None = no fallback)
@@ -50,6 +51,7 @@ class TaskConfig:
 @dataclass
 class ProviderProfile:
     """Complete profile defining provider routing for all task types."""
+
     name: str
     description: str
     tasks: Dict[str, TaskConfig]  # Maps task_type -> TaskConfig
@@ -142,42 +144,46 @@ class ProviderRouter:
                 )
 
             try:
-                with open(self.profiles_path, 'r') as f:
+                with open(self.profiles_path, "r") as f:
                     config_data = yaml.safe_load(f)
 
-                if not config_data or 'profiles' not in config_data:
+                if not config_data or "profiles" not in config_data:
                     raise ValueError("Invalid profiles configuration: missing 'profiles' key")
 
                 # Parse profiles
-                for profile_name, profile_data in config_data['profiles'].items():
+                for profile_name, profile_data in config_data["profiles"].items():
                     tasks = {}
 
                     # Parse task configurations
-                    for task_name, task_data in profile_data.get('tasks', {}).items():
+                    for task_name, task_data in profile_data.get("tasks", {}).items():
                         # Validate task_name is a valid TaskType
                         try:
                             TaskType.from_string(task_name)
                         except ValueError as e:
-                            logger.warning(f"Skipping invalid task type '{task_name}' in profile '{profile_name}': {e}")
+                            logger.warning(
+                                f"Skipping invalid task type '{task_name}' in profile '{profile_name}': {e}"
+                            )
                             continue
 
                         # Parse task config
                         tasks[task_name] = TaskConfig(
-                            enabled=task_data.get('enabled', True),
-                            primary=task_data.get('primary'),
-                            fallback=task_data.get('fallback'),
-                            max_retries=task_data.get('max_retries', 3),
-                            retry_delay=task_data.get('retry_delay', 2.0)
+                            enabled=task_data.get("enabled", True),
+                            primary=task_data.get("primary"),
+                            fallback=task_data.get("fallback"),
+                            max_retries=task_data.get("max_retries", 3),
+                            retry_delay=task_data.get("retry_delay", 2.0),
                         )
 
                     # Create profile
                     self.profiles[profile_name] = ProviderProfile(
                         name=profile_name,
-                        description=profile_data.get('description', ''),
-                        tasks=tasks
+                        description=profile_data.get("description", ""),
+                        tasks=tasks,
                     )
 
-                logger.info(f"Loaded {len(self.profiles)} provider profiles from {self.profiles_path}")
+                logger.info(
+                    f"Loaded {len(self.profiles)} provider profiles from {self.profiles_path}"
+                )
 
             except yaml.YAMLError as e:
                 raise ValueError(f"Failed to parse provider profiles YAML: {e}")
@@ -214,11 +220,8 @@ class ProviderRouter:
         """
         # Get profile
         if profile_name not in self.profiles:
-            available = ', '.join(self.profiles.keys())
-            raise ValueError(
-                f"Profile '{profile_name}' not found. "
-                f"Available profiles: {available}"
-            )
+            available = ", ".join(self.profiles.keys())
+            raise ValueError(f"Profile '{profile_name}' not found. Available profiles: {available}")
 
         profile = self.profiles[profile_name]
 
@@ -231,7 +234,9 @@ class ProviderRouter:
 
         # Try primary provider
         primary = task_config.primary
-        logger.info(f"[ROUTING] Task: {task_type.value}, Profile: {profile_name}, Primary: {primary}")
+        logger.info(
+            f"[ROUTING] Task: {task_type.value}, Profile: {profile_name}, Primary: {primary}"
+        )
 
         if self._is_provider_available(primary):
             logger.info(f"[ROUTING] {primary.title()} available, using as primary")
@@ -256,8 +261,9 @@ class ProviderRouter:
 
         return self._execute_fallback(task_type, profile_name, primary, fallback)
 
-    def _execute_fallback(self, task_type: TaskType, profile_name: str,
-                         primary: str, fallback: str) -> str:
+    def _execute_fallback(
+        self, task_type: TaskType, profile_name: str, primary: str, fallback: str
+    ) -> str:
         """Execute fallback to alternative provider.
 
         Args:
@@ -277,9 +283,7 @@ class ProviderRouter:
                 f"[FALLBACK SUCCESS] Using '{fallback}' as fallback for '{primary}' "
                 f"(task: {task_type.value}, profile: {profile_name})"
             )
-            logger.warning(
-                f"[WARNING] Using fallback provider may affect response quality or cost"
-            )
+            logger.warning(f"[WARNING] Using fallback provider may affect response quality or cost")
             return fallback
 
         # Both primary and fallback unavailable
@@ -362,11 +366,8 @@ class ProviderRouter:
             ValueError: If profile not found
         """
         if profile_name not in self.profiles:
-            available = ', '.join(self.profiles.keys())
-            raise ValueError(
-                f"Profile '{profile_name}' not found. "
-                f"Available profiles: {available}"
-            )
+            available = ", ".join(self.profiles.keys())
+            raise ValueError(f"Profile '{profile_name}' not found. Available profiles: {available}")
 
         return self.profiles[profile_name]
 
@@ -399,14 +400,10 @@ class ProviderRouter:
                 "primary": task_config.primary,
                 "fallback": task_config.fallback,
                 "max_retries": task_config.max_retries,
-                "retry_delay": task_config.retry_delay
+                "retry_delay": task_config.retry_delay,
             }
 
-        return {
-            "name": profile.name,
-            "description": profile.description,
-            "tasks": tasks_info
-        }
+        return {"name": profile.name, "description": profile.description, "tasks": tasks_info}
 
     def validate_profiles(self) -> Dict[str, List[str]]:
         """Validate all profiles and return any issues.
@@ -441,7 +438,9 @@ class ProviderRouter:
                         )
 
                     # Check fallback provider if specified
-                    if task_config.fallback and not self._is_provider_available(task_config.fallback):
+                    if task_config.fallback and not self._is_provider_available(
+                        task_config.fallback
+                    ):
                         profile_issues.append(
                             f"Task '{task_name}' fallback provider '{task_config.fallback}' is not available"
                         )

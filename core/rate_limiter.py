@@ -15,7 +15,7 @@ import threading
 from pathlib import Path
 from typing import Dict, Optional, Any
 from collections import deque
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass
 import logging
 
 logger = logging.getLogger(__name__)
@@ -24,6 +24,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class UsageWindow:
     """Tracks usage within a time window."""
+
     requests: deque  # Timestamps of requests
     tokens: deque  # (timestamp, token_count) tuples
     last_reset: float  # Last reset timestamp
@@ -37,6 +38,7 @@ class UsageWindow:
 @dataclass
 class ProviderLimits:
     """Rate limits for a provider."""
+
     requests_per_minute: Optional[int] = None
     tokens_per_minute: Optional[int] = None
     burst_size: int = 1
@@ -82,16 +84,14 @@ class RateLimitTracker:
                 }
             cache_path: Optional path for persistent cache (default: data/cache/rate_limits.json)
         """
-        self.limits = {
-            name: ProviderLimits(**limits)
-            for name, limits in provider_limits.items()
-        }
+        self.limits = {name: ProviderLimits(**limits) for name, limits in provider_limits.items()}
         self.usage: Dict[str, UsageWindow] = {}
         self.lock = threading.RLock()
 
         # Setup cache
         if cache_path is None:
             from config import Config
+
             Config.ensure_dirs()
             cache_path = Config.CACHE_PATH / "rate_limits.json"
         self.cache_path = cache_path
@@ -105,7 +105,7 @@ class RateLimitTracker:
             return
 
         try:
-            with open(self.cache_path, 'r') as f:
+            with open(self.cache_path, "r") as f:
                 cache_data = json.load(f)
 
             current_time = time.time()
@@ -144,10 +144,10 @@ class RateLimitTracker:
                 cache_data[provider] = {
                     "requests": list(window.requests),
                     "tokens": list(window.tokens),
-                    "last_reset": window.last_reset
+                    "last_reset": window.last_reset,
                 }
 
-            with open(self.cache_path, 'w') as f:
+            with open(self.cache_path, "w") as f:
                 json.dump(cache_data, f, indent=2)
 
         except Exception as e:
@@ -266,7 +266,10 @@ class RateLimitTracker:
                 oldest_timestamp = None
 
                 # Check which limit we're hitting
-                if limits.requests_per_minute and len(window.requests) >= limits.requests_per_minute:
+                if (
+                    limits.requests_per_minute
+                    and len(window.requests) >= limits.requests_per_minute
+                ):
                     oldest_timestamp = window.requests[0]
 
                 if limits.tokens_per_minute:
@@ -280,7 +283,9 @@ class RateLimitTracker:
                     # Wait until oldest entry expires (60 seconds old)
                     wait_time = 60 - (current_time - oldest_timestamp) + 0.1  # Add buffer
                     if wait_time > 0:
-                        logger.info(f"Rate limit reached for '{provider}', waiting {wait_time:.1f}s")
+                        logger.info(
+                            f"Rate limit reached for '{provider}', waiting {wait_time:.1f}s"
+                        )
                         time.sleep(wait_time)
                         return wait_time
 
@@ -300,7 +305,7 @@ class RateLimitTracker:
                 return {
                     "provider": provider,
                     "error": "Provider not configured",
-                    "has_limits": False
+                    "has_limits": False,
                 }
 
             limits = self.limits[provider]
@@ -309,16 +314,8 @@ class RateLimitTracker:
                 return {
                     "provider": provider,
                     "has_limits": False,
-                    "requests": {
-                        "limit": None,
-                        "used": 0,
-                        "remaining": "unlimited"
-                    },
-                    "tokens": {
-                        "limit": None,
-                        "used": 0,
-                        "remaining": "unlimited"
-                    }
+                    "requests": {"limit": None, "used": 0, "remaining": "unlimited"},
+                    "tokens": {"limit": None, "used": 0, "remaining": "unlimited"},
                 }
 
             window = self._get_or_create_window(provider)
@@ -343,17 +340,25 @@ class RateLimitTracker:
                 "requests": {
                     "limit": limits.requests_per_minute,
                     "used": requests_used,
-                    "remaining": limits.requests_per_minute - requests_used if limits.requests_per_minute else "unlimited",
-                    "percentage": round(requests_used / limits.requests_per_minute * 100, 1) if limits.requests_per_minute else 0
+                    "remaining": limits.requests_per_minute - requests_used
+                    if limits.requests_per_minute
+                    else "unlimited",
+                    "percentage": round(requests_used / limits.requests_per_minute * 100, 1)
+                    if limits.requests_per_minute
+                    else 0,
                 },
                 "tokens": {
                     "limit": limits.tokens_per_minute,
                     "used": tokens_used,
-                    "remaining": limits.tokens_per_minute - tokens_used if limits.tokens_per_minute else "unlimited",
-                    "percentage": round(tokens_used / limits.tokens_per_minute * 100, 1) if limits.tokens_per_minute else 0
+                    "remaining": limits.tokens_per_minute - tokens_used
+                    if limits.tokens_per_minute
+                    else "unlimited",
+                    "percentage": round(tokens_used / limits.tokens_per_minute * 100, 1)
+                    if limits.tokens_per_minute
+                    else 0,
                 },
                 "time_until_reset": round(time_until_reset, 1),
-                "burst_size": limits.burst_size
+                "burst_size": limits.burst_size,
             }
 
             return stats
@@ -383,7 +388,4 @@ class RateLimitTracker:
         Returns:
             Dict mapping provider names to their stats
         """
-        return {
-            provider: self.get_usage_stats(provider)
-            for provider in self.limits.keys()
-        }
+        return {provider: self.get_usage_stats(provider) for provider in self.limits.keys()}

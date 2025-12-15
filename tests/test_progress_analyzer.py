@@ -10,7 +10,7 @@ import os
 from datetime import datetime, timezone, timedelta
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.progress_analyzer import ProgressAnalyzer
 from core.dto.mastery import (
@@ -27,6 +27,7 @@ from core.dto.progress import KnowledgeGap
 # ============================================================================
 # Test calculate_mastery_score()
 # ============================================================================
+
 
 def test_calculate_mastery_score_empty():
     """Test mastery score with no reviews returns 0."""
@@ -129,6 +130,7 @@ def test_calculate_mastery_score_mixed():
 # ============================================================================
 # Test determine_trend()
 # ============================================================================
+
 
 def test_determine_trend_empty():
     """Test trend with no reviews returns NEW."""
@@ -238,6 +240,7 @@ def test_determine_trend_stable():
 # Test classify_gap_severity()
 # ============================================================================
 
+
 def test_classify_gap_severity_critical():
     """Test critical gap severity for low mastery."""
     severity = ProgressAnalyzer.classify_gap_severity(0.2)
@@ -272,6 +275,7 @@ def test_classify_gap_severity_boundary():
 # Test calculate_recommendations()
 # ============================================================================
 
+
 def test_calculate_recommendations_critical():
     """Test recommendations for critical mastery."""
     exercises, time = ProgressAnalyzer.calculate_recommendations(0.2)
@@ -300,6 +304,7 @@ def test_calculate_recommendations_minor():
 # Test detect_common_mistakes()
 # ============================================================================
 
+
 def test_detect_common_mistakes_no_reviews():
     """Test common mistakes with no reviews."""
     mistakes = ProgressAnalyzer.detect_common_mistakes([], "Test Topic")
@@ -319,7 +324,9 @@ def test_detect_common_mistakes_low_accuracy():
         ),
     ]
     mistakes = ProgressAnalyzer.detect_common_mistakes(reviews, "Math")
-    assert any("Low accuracy" in m for m in mistakes), f"Expected low accuracy message, got {mistakes}"
+    assert any("Low accuracy" in m for m in mistakes), (
+        f"Expected low accuracy message, got {mistakes}"
+    )
     print("✓ test_detect_common_mistakes_low_accuracy passed")
 
 
@@ -336,13 +343,16 @@ def test_detect_common_mistakes_stuck_learning():
         for i in range(10)  # 100% in learning
     ]
     mistakes = ProgressAnalyzer.detect_common_mistakes(reviews, "Physics")
-    assert any("Difficulty progressing" in m for m in mistakes), f"Expected stuck message, got {mistakes}"
+    assert any("Difficulty progressing" in m for m in mistakes), (
+        f"Expected stuck message, got {mistakes}"
+    )
     print("✓ test_detect_common_mistakes_stuck_learning passed")
 
 
 # ============================================================================
 # Test calculate_topic_mastery()
 # ============================================================================
+
 
 def test_calculate_topic_mastery():
     """Test complete topic mastery calculation."""
@@ -387,6 +397,7 @@ def test_calculate_topic_mastery():
 # Test build_knowledge_gap()
 # ============================================================================
 
+
 def test_build_knowledge_gap():
     """Test building a complete knowledge gap."""
     reviews = [
@@ -422,6 +433,7 @@ def test_build_knowledge_gap():
 # ============================================================================
 # Test prioritize_learning_items()
 # ============================================================================
+
 
 def test_prioritize_learning_items():
     """Test learning path prioritization."""
@@ -497,6 +509,7 @@ def test_prioritize_learning_items_empty():
 # Test generate_recommended_actions()
 # ============================================================================
 
+
 def test_generate_recommended_actions():
     """Test generating recommended actions."""
     actions = ProgressAnalyzer.generate_recommended_actions(
@@ -516,6 +529,7 @@ def test_generate_recommended_actions():
 # ============================================================================
 # Main runner
 # ============================================================================
+
 
 def run_all_tests():
     """Run all tests."""

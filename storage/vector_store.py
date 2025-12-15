@@ -15,8 +15,9 @@ from models.llm_manager import LLMManager
 class VectorStore:
     """Manages vector embeddings and semantic search."""
 
-    def __init__(self, persist_dir: Optional[Path] = None,
-                 llm_manager: Optional[LLMManager] = None):
+    def __init__(
+        self, persist_dir: Optional[Path] = None, llm_manager: Optional[LLMManager] = None
+    ):
         """Initialize vector store.
 
         Args:
@@ -28,12 +29,12 @@ class VectorStore:
 
         # Initialize ChromaDB client
         self.client = chromadb.PersistentClient(
-            path=str(self.persist_dir),
-            settings=Settings(anonymized_telemetry=False)
+            path=str(self.persist_dir), settings=Settings(anonymized_telemetry=False)
         )
 
-    def get_or_create_collection(self, course_code: str,
-                                 collection_type: str = "exercises") -> chromadb.Collection:
+    def get_or_create_collection(
+        self, course_code: str, collection_type: str = "exercises"
+    ) -> chromadb.Collection:
         """Get or create a collection for a course.
 
         Args:
@@ -47,14 +48,12 @@ class VectorStore:
 
         # Get or create collection
         collection = self.client.get_or_create_collection(
-            name=collection_name,
-            metadata={"course_code": course_code, "type": collection_type}
+            name=collection_name, metadata={"course_code": course_code, "type": collection_type}
         )
 
         return collection
 
-    def add_exercise(self, course_code: str, exercise_id: str,
-                    text: str, metadata: Dict[str, Any]):
+    def add_exercise(self, course_code: str, exercise_id: str, text: str, metadata: Dict[str, Any]):
         """Add an exercise to the vector store.
 
         Args:
@@ -73,14 +72,10 @@ class VectorStore:
 
         # Add to collection
         collection.add(
-            ids=[exercise_id],
-            embeddings=[embedding],
-            documents=[text],
-            metadatas=[metadata]
+            ids=[exercise_id], embeddings=[embedding], documents=[text], metadatas=[metadata]
         )
 
-    def add_exercises_batch(self, course_code: str,
-                           exercises: List[Dict[str, Any]]):
+    def add_exercises_batch(self, course_code: str, exercises: List[Dict[str, Any]]):
         """Add multiple exercises at once.
 
         Args:
@@ -114,21 +109,20 @@ class VectorStore:
                 "difficulty": exercise.get("difficulty") or "unknown",
                 "has_images": exercise.get("has_images", False),
                 "page_number": exercise.get("page_number", 0),
-                "source_pdf": exercise.get("source_pdf") or "unknown"
+                "source_pdf": exercise.get("source_pdf") or "unknown",
             }
             metadatas.append(metadata)
 
         if ids:
-            collection.add(
-                ids=ids,
-                embeddings=embeddings,
-                documents=documents,
-                metadatas=metadatas
-            )
+            collection.add(ids=ids, embeddings=embeddings, documents=documents, metadatas=metadatas)
 
-    def search_similar(self, course_code: str, query: str,
-                      n_results: int = 5,
-                      filter_metadata: Optional[Dict[str, Any]] = None) -> List[Dict[str, Any]]:
+    def search_similar(
+        self,
+        course_code: str,
+        query: str,
+        n_results: int = 5,
+        filter_metadata: Optional[Dict[str, Any]] = None,
+    ) -> List[Dict[str, Any]]:
         """Search for similar exercises.
 
         Args:
@@ -149,27 +143,33 @@ class VectorStore:
 
         # Search
         results = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results,
-            where=filter_metadata
+            query_embeddings=[query_embedding], n_results=n_results, where=filter_metadata
         )
 
         # Format results
         matches = []
         if results["ids"]:
             for i, ex_id in enumerate(results["ids"][0]):
-                matches.append({
-                    "id": ex_id,
-                    "text": results["documents"][0][i],
-                    "metadata": results["metadatas"][0][i],
-                    "distance": results["distances"][0][i] if "distances" in results else None
-                })
+                matches.append(
+                    {
+                        "id": ex_id,
+                        "text": results["documents"][0][i],
+                        "metadata": results["metadatas"][0][i],
+                        "distance": results["distances"][0][i] if "distances" in results else None,
+                    }
+                )
 
         return matches
 
-    def add_knowledge_item(self, course_code: str, knowledge_item_id: str,
-                     name: str, description: str, procedure: List[str],
-                     example_exercises: List[str]):
+    def add_knowledge_item(
+        self,
+        course_code: str,
+        knowledge_item_id: str,
+        name: str,
+        description: str,
+        procedure: List[str],
+        example_exercises: List[str],
+    ):
         """Add a core loop to the vector store.
 
         Args:
@@ -184,7 +184,7 @@ class VectorStore:
 
         # Create document from procedure
         procedure_text = f"{name}\n\n{description}\n\nProcedure:\n" + "\n".join(
-            f"{i+1}. {step}" for i, step in enumerate(procedure)
+            f"{i + 1}. {step}" for i, step in enumerate(procedure)
         )
 
         # Generate embedding
@@ -198,15 +198,14 @@ class VectorStore:
             ids=[knowledge_item_id],
             embeddings=[embedding],
             documents=[procedure_text],
-            metadatas=[{
-                "name": name,
-                "example_count": len(example_exercises),
-                "course_code": course_code
-            }]
+            metadatas=[
+                {"name": name, "example_count": len(example_exercises), "course_code": course_code}
+            ],
         )
 
-    def search_knowledge_items(self, course_code: str, query: str,
-                         n_results: int = 3) -> List[Dict[str, Any]]:
+    def search_knowledge_items(
+        self, course_code: str, query: str, n_results: int = 3
+    ) -> List[Dict[str, Any]]:
         """Search for relevant core loops.
 
         Args:
@@ -225,21 +224,20 @@ class VectorStore:
             return []
 
         # Search
-        results = collection.query(
-            query_embeddings=[query_embedding],
-            n_results=n_results
-        )
+        results = collection.query(query_embeddings=[query_embedding], n_results=n_results)
 
         # Format results
         matches = []
         if results["ids"]:
             for i, loop_id in enumerate(results["ids"][0]):
-                matches.append({
-                    "id": loop_id,
-                    "procedure_text": results["documents"][0][i],
-                    "metadata": results["metadatas"][0][i],
-                    "distance": results["distances"][0][i] if "distances" in results else None
-                })
+                matches.append(
+                    {
+                        "id": loop_id,
+                        "procedure_text": results["documents"][0][i],
+                        "metadata": results["metadatas"][0][i],
+                        "distance": results["distances"][0][i] if "distances" in results else None,
+                    }
+                )
 
         return matches
 

@@ -1,6 +1,7 @@
 """
 Examina Cloud - FastAPI Backend
 """
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 

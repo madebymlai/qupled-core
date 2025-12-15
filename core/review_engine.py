@@ -9,7 +9,6 @@ Used by examina-cloud for Review Mode v2.
 """
 
 import json
-import re
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
@@ -33,6 +32,7 @@ class LLMInterface(Protocol):
 @dataclass
 class ExerciseExample:
     """Example exercise with optional solution."""
+
     text: str
     solution: Optional[str] = None
     source_type: str = "practice"  # "exam" or "practice"
@@ -41,6 +41,7 @@ class ExerciseExample:
 @dataclass
 class GeneratedExercise:
     """Generated review exercise."""
+
     exercise_text: str
     expected_answer: str
     exercise_type: str  # calculation, short_answer, explanation, scenario
@@ -49,6 +50,7 @@ class GeneratedExercise:
 @dataclass
 class ReviewEvaluation:
     """Result of review answer evaluation."""
+
     score: float  # 0.0 - 1.0
     is_correct: bool  # True if score >= 0.7
     feedback: str
@@ -183,8 +185,7 @@ class ReviewEngine:
                 avoid_text += f"{i}. {ex[:200]}...\n" if len(ex) > 200 else f"{i}. {ex}\n"
 
         approach_prompt = self.APPROACH_PROMPTS.get(
-            learning_approach,
-            self.APPROACH_PROMPTS["conceptual"]
+            learning_approach, self.APPROACH_PROMPTS["conceptual"]
         )
 
         prompt = f"""You are creating a review exercise for a student preparing for an exam.
@@ -238,11 +239,12 @@ Return valid JSON:
         try:
             response = self._llm.generate(prompt, json_mode=True)
             # Handle LLMResponse object or string
-            response_text = response.text if hasattr(response, 'text') else str(response)
+            response_text = response.text if hasattr(response, "text") else str(response)
             return self._parse_exercise_response(response_text, knowledge_item_name)
         except Exception as e:
             # Fallback: create simple exercise
             import logging
+
             logging.getLogger(__name__).warning(f"Exercise generation failed: {e}")
             return GeneratedExercise(
                 exercise_text=f"Explain the key concepts of {knowledge_item_name}.",
@@ -320,11 +322,12 @@ Return valid JSON:
         try:
             response = self._llm.generate(prompt, json_mode=True)
             # Handle LLMResponse object or string
-            response_text = response.text if hasattr(response, 'text') else str(response)
+            response_text = response.text if hasattr(response, "text") else str(response)
             return self._parse_evaluation_response(response_text, expected_answer, student_answer)
         except Exception as e:
             # Fallback evaluation
             import logging
+
             logging.getLogger(__name__).warning(f"Answer evaluation failed: {e}")
             return self._fallback_evaluation(expected_answer, student_answer)
 
@@ -351,34 +354,34 @@ Return valid JSON:
         # Try to parse the entire response as JSON first
         try:
             data = json.loads(response)
-            if isinstance(data, dict) and 'exercise_text' in data:
+            if isinstance(data, dict) and "exercise_text" in data:
                 return GeneratedExercise(
-                    exercise_text=data.get('exercise_text', ''),
-                    expected_answer=data.get('expected_answer', ''),
-                    exercise_type=data.get('exercise_type', 'explanation'),
+                    exercise_text=data.get("exercise_text", ""),
+                    expected_answer=data.get("expected_answer", ""),
+                    exercise_type=data.get("exercise_type", "explanation"),
                 )
         except json.JSONDecodeError:
             pass
 
         # Try to find JSON object in response (handles markdown code blocks)
         # Find the outermost { } pair by counting braces
-        start_idx = response.find('{')
+        start_idx = response.find("{")
         if start_idx != -1:
             brace_count = 0
             for i, char in enumerate(response[start_idx:], start_idx):
-                if char == '{':
+                if char == "{":
                     brace_count += 1
-                elif char == '}':
+                elif char == "}":
                     brace_count -= 1
                     if brace_count == 0:
-                        json_str = response[start_idx:i+1]
+                        json_str = response[start_idx : i + 1]
                         try:
                             data = json.loads(json_str)
-                            if isinstance(data, dict) and 'exercise_text' in data:
+                            if isinstance(data, dict) and "exercise_text" in data:
                                 return GeneratedExercise(
-                                    exercise_text=data.get('exercise_text', ''),
-                                    expected_answer=data.get('expected_answer', ''),
-                                    exercise_type=data.get('exercise_type', 'explanation'),
+                                    exercise_text=data.get("exercise_text", ""),
+                                    expected_answer=data.get("expected_answer", ""),
+                                    exercise_type=data.get("exercise_type", "explanation"),
                                 )
                         except json.JSONDecodeError:
                             pass
@@ -401,38 +404,38 @@ Return valid JSON:
         # Try to parse the entire response as JSON first
         try:
             data = json.loads(response)
-            if isinstance(data, dict) and 'score' in data:
-                score = float(data.get('score', 0.0))
+            if isinstance(data, dict) and "score" in data:
+                score = float(data.get("score", 0.0))
                 return ReviewEvaluation(
                     score=score,
-                    is_correct=data.get('is_correct', score >= 0.7),
-                    feedback=data.get('feedback', 'Answer evaluated.'),
-                    correct_answer=data.get('correct_answer', expected_answer),
+                    is_correct=data.get("is_correct", score >= 0.7),
+                    feedback=data.get("feedback", "Answer evaluated."),
+                    correct_answer=data.get("correct_answer", expected_answer),
                 )
         except json.JSONDecodeError:
             pass
 
         # Try to find JSON object in response (handles markdown code blocks)
         # Find the outermost { } pair by counting braces
-        start_idx = response.find('{')
+        start_idx = response.find("{")
         if start_idx != -1:
             brace_count = 0
             for i, char in enumerate(response[start_idx:], start_idx):
-                if char == '{':
+                if char == "{":
                     brace_count += 1
-                elif char == '}':
+                elif char == "}":
                     brace_count -= 1
                     if brace_count == 0:
-                        json_str = response[start_idx:i+1]
+                        json_str = response[start_idx : i + 1]
                         try:
                             data = json.loads(json_str)
-                            if isinstance(data, dict) and 'score' in data:
-                                score = float(data.get('score', 0.0))
+                            if isinstance(data, dict) and "score" in data:
+                                score = float(data.get("score", 0.0))
                                 return ReviewEvaluation(
                                     score=score,
-                                    is_correct=data.get('is_correct', score >= 0.7),
-                                    feedback=data.get('feedback', 'Answer evaluated.'),
-                                    correct_answer=data.get('correct_answer', expected_answer),
+                                    is_correct=data.get("is_correct", score >= 0.7),
+                                    feedback=data.get("feedback", "Answer evaluated."),
+                                    correct_answer=data.get("correct_answer", expected_answer),
                                 )
                         except json.JSONDecodeError:
                             pass

@@ -68,18 +68,19 @@ References:
 """
 
 from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
+from typing import Dict, Optional
 from dataclasses import dataclass
 
 
 @dataclass
 class SM2Result:
     """Result of SM-2 calculation."""
+
     easiness_factor: float  # EF: 1.3 to 2.5
     repetition_number: int  # n: number of consecutive correct answers
-    interval_days: int      # I: days until next review
+    interval_days: int  # I: days until next review
     next_review_date: datetime
-    quality: int            # Quality of answer (0-5)
+    quality: int  # Quality of answer (0-5)
 
 
 class SM2Algorithm:
@@ -119,7 +120,7 @@ class SM2Algorithm:
         quality: int,
         current_ef: float = DEFAULT_EF,
         current_interval: int = 0,
-        repetition: int = 0
+        repetition: int = 0,
     ) -> Dict:
         """
         Calculate next review schedule based on recall quality.
@@ -223,15 +224,20 @@ class SM2Algorithm:
         next_review_date = datetime.now() + timedelta(days=new_interval)
 
         return {
-            'new_ef': round(new_ef, 2),
-            'new_interval': new_interval,
-            'new_repetition': new_repetition,
-            'next_review_date': next_review_date
+            "new_ef": round(new_ef, 2),
+            "new_interval": new_interval,
+            "new_repetition": new_repetition,
+            "next_review_date": next_review_date,
         }
 
-    def calculate(self, quality: int, easiness_factor: float = DEFAULT_EF,
-                  repetition_number: int = 0, previous_interval: int = 0,
-                  base_date: Optional[datetime] = None) -> SM2Result:
+    def calculate(
+        self,
+        quality: int,
+        easiness_factor: float = DEFAULT_EF,
+        repetition_number: int = 0,
+        previous_interval: int = 0,
+        base_date: Optional[datetime] = None,
+    ) -> SM2Result:
         """Calculate next review using SM-2 algorithm.
 
         This method is kept for backward compatibility. Use calculate_next_review() for new code.
@@ -278,7 +284,7 @@ class SM2Algorithm:
             repetition_number=new_repetition,
             interval_days=new_interval,
             next_review_date=next_review,
-            quality=quality
+            quality=quality,
         )
 
     def _calculate_easiness_factor(self, current_ef: float, quality: int) -> float:
@@ -303,11 +309,7 @@ class SM2Algorithm:
         return round(new_ef, 2)
 
     def get_review_quality_from_score(
-        self,
-        correct: bool,
-        time_taken: int,
-        hint_used: bool = False,
-        expected_time: int = 180
+        self, correct: bool, time_taken: int, hint_used: bool = False, expected_time: int = 180
     ) -> int:
         """
         Convert quiz performance metrics to SM-2 quality score (0-5).
@@ -395,8 +397,9 @@ class SM2Algorithm:
             # Correct but struggled: Very slow
             return 3
 
-    def convert_score_to_quality(self, score: float, hint_used: bool = False,
-                                 time_ratio: Optional[float] = None) -> int:
+    def convert_score_to_quality(
+        self, score: float, hint_used: bool = False, time_ratio: Optional[float] = None
+    ) -> int:
         """Convert quiz score to SM-2 quality rating.
 
         This method is kept for backward compatibility. Use get_review_quality_from_score() for new code.
@@ -435,8 +438,9 @@ class SM2Algorithm:
 
         return quality
 
-    def is_due_for_review(self, last_review: datetime, interval_days: int,
-                          current_date: Optional[datetime] = None) -> bool:
+    def is_due_for_review(
+        self, last_review: datetime, interval_days: int, current_date: Optional[datetime] = None
+    ) -> bool:
         """Check if an item is due for review.
 
         Args:
@@ -466,11 +470,7 @@ class SM2Algorithm:
         return last_review + timedelta(days=interval_days)
 
     def get_mastery_level(
-        self,
-        repetition: int,
-        interval_days: int,
-        correct_count: int,
-        total_count: int
+        self, repetition: int, interval_days: int, correct_count: int, total_count: int
     ) -> str:
         """
         Determine mastery level based on SM-2 state and performance history.
@@ -555,18 +555,22 @@ class SM2Algorithm:
 
         # New: Never reviewed
         if repetition == 0:
-            return 'new'
+            return "new"
 
         # Mastered: Long-term retention with high accuracy
-        if (repetition >= self.MASTERY_MASTERED_REVIEWS and
-            interval_days > self.MASTERY_REVIEWING_INTERVAL and
-            (total_count < 5 or correct_rate >= self.MASTERY_RATE_THRESHOLD)):
-            return 'mastered'
+        if (
+            repetition >= self.MASTERY_MASTERED_REVIEWS
+            and interval_days > self.MASTERY_REVIEWING_INTERVAL
+            and (total_count < 5 or correct_rate >= self.MASTERY_RATE_THRESHOLD)
+        ):
+            return "mastered"
 
         # Reviewing: Established memory
-        if (repetition >= self.MASTERY_LEARNING_REVIEWS and
-            interval_days >= self.MASTERY_LEARNING_INTERVAL):
-            return 'reviewing'
+        if (
+            repetition >= self.MASTERY_LEARNING_REVIEWS
+            and interval_days >= self.MASTERY_LEARNING_INTERVAL
+        ):
+            return "reviewing"
 
         # Learning: Building initial memory
-        return 'learning'
+        return "learning"

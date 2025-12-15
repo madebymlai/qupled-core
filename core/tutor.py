@@ -65,7 +65,6 @@ State it clearly, like a highlighted note in your notebook. Use $...$ for inline
 "The way I remember it..." - share your personal mnemonic or trick.
 
 Keep it SHORT. Under 150 words. Facts stick through repetition, not long explanations.""",
-
     "conceptual": f"""You are the smartest student in the library, explaining a concept to a friend.
 Tone: Patient, clear, like showing your margin notes. Not a textbook.
 {LATEX_INSTRUCTION}
@@ -91,7 +90,6 @@ Clear statement, like a margin note. Use $...$ for inline math, $$...$$ for equa
 "Don't fall for this..." - friendly warning about what loses points.
 
 Be concise but thorough. You're helping a friend, not writing a textbook.""",
-
     "procedural": f"""You are the smartest student in the library, showing a friend exactly how to solve problems.
 Tone: Calm confidence, like "watch me do it." Not rushed or robotic.
 {LATEX_INSTRUCTION}
@@ -117,7 +115,6 @@ Structure your response with these exact markdown headers:
 "Careful here, most people mess up by..." - gentle warning about point-losing mistakes.
 
 Focus on execution. This is exam prep, not theory class.""",
-
     "analytical": f"""You are the smartest student in the library, showing a friend how to think through hard problems.
 Tone: Strategic, like sharing exam hacks. Not academic or preachy.
 {LATEX_INSTRUCTION}
@@ -142,7 +139,7 @@ Structure your response with these exact markdown headers:
 ## Scoring Tips
 "To get all the points..." - exam hacks for maximizing score.
 
-This is about cracking the exam, not philosophical depth."""
+This is about cracking the exam, not philosophical depth.""",
 }
 
 # Section types per learning_approach
@@ -150,7 +147,7 @@ SECTIONS_BY_APPROACH = {
     "factual": ["overview", "fact", "exam_context", "memory_aid"],
     "conceptual": ["overview", "definition", "exam_patterns", "examples", "common_mistakes"],
     "procedural": ["overview", "when_to_use", "steps", "worked_example", "watch_out"],
-    "analytical": ["overview", "problem_types", "approach", "worked_example", "scoring_tips"]
+    "analytical": ["overview", "problem_types", "approach", "worked_example", "scoring_tips"],
 }
 
 # Prompt version for cache invalidation - bump when prompts change
@@ -172,7 +169,6 @@ Write 50-100 words covering:
 
 Keep it conversational: "You know when you see X? That's when you use this."
 Do NOT include steps yet - just set up WHY this matters.""",
-
         "when_to_use": f"""You are the smartest student in the library, helping a friend before their exam.
 Section 2 of 5: WHEN TO USE
 
@@ -186,7 +182,6 @@ Write 50-100 words covering:
 The student already read the Overview. Don't re-introduce - jump to specifics.
 "When you see X, Y, or Z in the problem, that's your cue to use this."
 """,
-
         "steps": f"""You are the smartest student in the library, helping a friend before their exam.
 Section 3 of 5: STEPS
 
@@ -201,7 +196,6 @@ Write 200-400 words. For EACH step:
 The student knows WHEN to use this. Now teach HOW.
 Be thorough - this is the core learning. Take your time.
 Use proper LaTeX for all math expressions.""",
-
         "worked_example": f"""You are the smartest student in the library, helping a friend before their exam.
 Section 4 of 5: WORKED EXAMPLE
 
@@ -218,7 +212,6 @@ The student knows the steps. Do NOT re-list them before starting.
 But DO reference step numbers as you work: "Now in Step 3, we..."
 
 This should feel like watching someone solve it, not reading a solution manual.""",
-
         "watch_out": f"""You are the smartest student in the library, helping a friend before their exam.
 Section 5 of 5: WATCH OUT
 
@@ -232,9 +225,8 @@ For each mistake:
 - How to avoid it (the fix)
 
 The student knows the steps. Reference specific step numbers when relevant.
-Be specific to THIS procedure, not generic exam advice."""
+Be specific to THIS procedure, not generic exam advice.""",
     },
-
     "conceptual": {
         "overview": f"""You are the smartest student in the library, explaining a concept to a friend.
 Section 1 of 4: OVERVIEW
@@ -245,7 +237,6 @@ Bold **only 1-2 key terms**.
 Write 30-50 words - ONE sentence summary.
 "This is about..." - set up what they're about to learn.
 Keep it ultra-brief. The definition comes next.""",
-
         "definition": f"""You are the smartest student in the library, explaining a concept to a friend.
 Section 2 of 4: DEFINITION
 
@@ -259,7 +250,6 @@ Write 150-250 words covering:
 
 The student read the overview. Now give them the real content.
 Use proper LaTeX for mathematical definitions.""",
-
         "exam_patterns": f"""You are the smartest student in the library, explaining a concept to a friend.
 Section 3 of 4: EXAM PATTERNS
 
@@ -273,7 +263,6 @@ Write 150-250 words covering:
 
 The student knows the definition. Don't redefine it.
 "Prof loves asking..." - share the insider knowledge.""",
-
         "common_mistakes": f"""You are the smartest student in the library, explaining a concept to a friend.
 Section 4 of 4: COMMON MISTAKES
 
@@ -286,9 +275,8 @@ Write 150-250 words covering:
 - How to avoid it
 
 The student knows the definition and exam patterns.
-"Don't fall for this..." - friendly warning about point-losing errors."""
+"Don't fall for this..." - friendly warning about point-losing errors.""",
     },
-
     "factual": {
         "fact": f"""You are the smartest student in the library, sharing notes before an exam.
 Section 1 of 3: THE FACT
@@ -299,7 +287,6 @@ Bold **the key fact itself**.
 Write 20-50 words. State it clearly and memorably.
 Like a highlighted note in your notebook.
 Just the fact - context comes next.""",
-
         "context": f"""You are the smartest student in the library, sharing notes before an exam.
 Section 2 of 3: CONTEXT
 
@@ -313,7 +300,6 @@ Write 50-100 words covering:
 
 The student knows the fact. Now tell them why it's important.
 "This always shows up when..." - the insider tip.""",
-
         "memory_aid": f"""You are the smartest student in the library, sharing notes before an exam.
 Section 3 of 3: MEMORY AID
 
@@ -324,9 +310,8 @@ Write 50-100 words with a mnemonic or memory trick.
 - How YOU remember it
 
 The student knows the fact and context.
-"The way I remember it..." - share your trick."""
+"The way I remember it..." - share your trick.""",
     },
-
     "analytical": {
         "overview": f"""You are the smartest student in the library, showing a friend how to crack hard problems.
 Section 1 of 4: OVERVIEW
@@ -340,7 +325,6 @@ Write 50-100 words covering:
 
 "These questions want you to think about..." - frame the challenge.
 Don't solve anything yet - just set up what they'll face.""",
-
         "approach": f"""You are the smartest student in the library, showing a friend how to crack hard problems.
 Section 2 of 4: APPROACH
 
@@ -354,7 +338,6 @@ Write 150-250 words covering:
 
 The student knows the problem type. Now teach the thinking.
 "The trick is to..." - share the strategic insight.""",
-
         "worked_example": f"""You are the smartest student in the library, showing a friend how to crack hard problems.
 Section 3 of 4: WORKED EXAMPLE
 
@@ -371,7 +354,6 @@ The student knows the approach. Do NOT re-explain it.
 But DO reference it: "Applying our strategy of..."
 
 This is the gold standard - show what excellence looks like.""",
-
         "scoring_tips": f"""You are the smartest student in the library, showing a friend how to crack hard problems.
 Section 4 of 4: SCORING TIPS
 
@@ -384,15 +366,15 @@ Write 100-200 words covering:
 - Partial credit strategies
 
 The student has seen the worked example.
-"To get all the points..." - exam hacks for the win."""
-    }
+"To get all the points..." - exam hacks for the win.""",
+    },
 }
 
 # Map which sections need context from previous sections
 SECTION_CONTEXT_DEPENDENCIES = {
     "procedural": {
         "worked_example": "steps",  # worked example needs steps content
-        "watch_out": "steps",       # watch out references steps
+        "watch_out": "steps",  # watch out references steps
     },
     "analytical": {
         "worked_example": "approach",  # worked example needs approach content
@@ -412,7 +394,7 @@ def parse_markdown_sections(markdown: str, learning_approach: str) -> List[Dict[
         List of {type, content} dicts
     """
     # Split by ## headers
-    parts = re.split(r'^## ', markdown, flags=re.MULTILINE)
+    parts = re.split(r"^## ", markdown, flags=re.MULTILINE)
 
     if len(parts) <= 1:
         # No headers found - return as single content section
@@ -425,17 +407,14 @@ def parse_markdown_sections(markdown: str, learning_approach: str) -> List[Dict[
 
     # Parse each section
     for part in parts[1:]:
-        lines = part.split('\n', 1)
+        lines = part.split("\n", 1)
         header = lines[0].strip()
         content = lines[1].strip() if len(lines) > 1 else ""
 
         # Convert header to section type (e.g., "Worked Example" -> "worked_example")
-        section_type = header.lower().replace(' ', '_')
+        section_type = header.lower().replace(" ", "_")
 
-        sections.append({
-            "type": section_type,
-            "content": content
-        })
+        sections.append({"type": section_type, "content": content})
 
     return sections
 
@@ -443,6 +422,7 @@ def parse_markdown_sections(markdown: str, learning_approach: str) -> List[Dict[
 @dataclass
 class TutorResponse:
     """Response from tutor."""
+
     content: str
     success: bool
     metadata: Optional[Dict[str, Any]] = None
@@ -477,21 +457,24 @@ class Tutor:
         # LLM understands any ISO 639-1 language code
         return f"{action} in {self.language.upper()} language."
 
-    def learn(self, course_code: str,
-              knowledge_item_id: str,
-              explain_concepts: bool = True,
-              depth: str = "medium",
-              adaptive: bool = True,
-              include_study_strategy: bool = False,
-              show_solutions: bool = True,
-              include_metacognitive: bool = True,
-              learning_type: str = "conceptual",  # procedural, conceptual, factual, analytical
-              show_theory: Optional[bool] = None,
-              show_worked_examples: Optional[bool] = None,
-              max_theory_sections: Optional[int] = None,
-              max_worked_examples: Optional[int] = None,
-              knowledge_item_data: Optional[Dict[str, Any]] = None,
-              exercises_data: Optional[List[Dict[str, Any]]] = None) -> TutorResponse:
+    def learn(
+        self,
+        course_code: str,
+        knowledge_item_id: str,
+        explain_concepts: bool = True,
+        depth: str = "medium",
+        adaptive: bool = True,
+        include_study_strategy: bool = False,
+        show_solutions: bool = True,
+        include_metacognitive: bool = True,
+        learning_type: str = "conceptual",  # procedural, conceptual, factual, analytical
+        show_theory: Optional[bool] = None,
+        show_worked_examples: Optional[bool] = None,
+        max_theory_sections: Optional[int] = None,
+        max_worked_examples: Optional[int] = None,
+        knowledge_item_data: Optional[Dict[str, Any]] = None,
+        exercises_data: Optional[List[Dict[str, Any]]] = None,
+    ) -> TutorResponse:
         """Explain a core loop with theory → worked examples → practice flow.
 
         Args:
@@ -530,7 +513,7 @@ class Tutor:
         if knowledge_item_data is not None:
             # Cloud integration: data provided directly (PostgreSQL)
             knowledge_item_dict = knowledge_item_data
-            topic_id = knowledge_item_data.get('topic_id')
+            topic_id = knowledge_item_data.get("topic_id")
             examples = exercises_data[:3] if exercises_data else []
             # Cloud doesn't have theory materials in SQLite, skip them
             theory_materials = []
@@ -538,30 +521,32 @@ class Tutor:
             exercises_with_solutions = []
             if show_solutions and exercises_data:
                 for ex in examples:
-                    if ex.get('solution') and ex.get('solution').strip():
-                        exercises_with_solutions.append({
-                            'exercise_number': ex.get('exercise_number', 'Unknown'),
-                            'solution': ex.get('solution'),
-                            'source_pdf': ex.get('source_pdf', '')
-                        })
+                    if ex.get("solution") and ex.get("solution").strip():
+                        exercises_with_solutions.append(
+                            {
+                                "exercise_number": ex.get("exercise_number", "Unknown"),
+                                "solution": ex.get("solution"),
+                                "source_pdf": ex.get("source_pdf", ""),
+                            }
+                        )
         else:
             # Local SQLite mode
             with Database() as db:
                 # Get core loop details
-                knowledge_item = db.conn.execute("""
+                knowledge_item = db.conn.execute(
+                    """
                     SELECT cl.*, t.name as topic_name, t.id as topic_id
                     FROM knowledge_items cl
                     JOIN topics t ON cl.topic_id = t.id
                     WHERE cl.id = ? AND t.course_code = ?
-                """, (knowledge_item_id, course_code)).fetchone()
+                """,
+                    (knowledge_item_id, course_code),
+                ).fetchone()
 
                 if not knowledge_item:
-                    return TutorResponse(
-                        content="Core loop not found.",
-                        success=False
-                    )
+                    return TutorResponse(content="Core loop not found.", success=False)
 
-                topic_id = knowledge_item['topic_id']
+                topic_id = knowledge_item["topic_id"]
 
                 # Get learning materials for this topic (theory and worked examples)
                 # Always fetch materials (default flow), but respect show flags and limits
@@ -570,40 +555,42 @@ class Tutor:
 
                 if show_theory:
                     theory_materials = db.get_learning_materials_by_topic(
-                        topic_id=topic_id,
-                        material_type='theory',
-                        limit=max_theory_sections
+                        topic_id=topic_id, material_type="theory", limit=max_theory_sections
                     )
 
                 if show_worked_examples:
                     worked_examples = db.get_learning_materials_by_topic(
-                        topic_id=topic_id,
-                        material_type='worked_example',
-                        limit=max_worked_examples
+                        topic_id=topic_id, material_type="worked_example", limit=max_worked_examples
                     )
 
                 # Get example exercises (with solutions if available)
                 exercises = db.get_exercises_by_course(course_code)
-                examples = [ex for ex in exercises if ex.get('knowledge_item_id') == knowledge_item_id][:3]
+                examples = [
+                    ex for ex in exercises if ex.get("knowledge_item_id") == knowledge_item_id
+                ][:3]
 
                 # Track exercises with solutions for later display
                 exercises_with_solutions = []
                 if show_solutions:
                     for ex in examples:
-                        if ex.get('solution') and ex.get('solution').strip():
-                            exercises_with_solutions.append({
-                                'exercise_number': ex.get('exercise_number', 'Unknown'),
-                                'solution': ex.get('solution'),
-                                'source_pdf': ex.get('source_pdf', '')
-                            })
+                        if ex.get("solution") and ex.get("solution").strip():
+                            exercises_with_solutions.append(
+                                {
+                                    "exercise_number": ex.get("exercise_number", "Unknown"),
+                                    "solution": ex.get("solution"),
+                                    "source_pdf": ex.get("source_pdf", ""),
+                                }
+                            )
 
             knowledge_item_dict = dict(knowledge_item)
 
         # Check if this is a proof exercise (check first example)
-        if examples and self.proof_tutor.is_proof_exercise(examples[0].get('text', '')):
+        if examples and self.proof_tutor.is_proof_exercise(examples[0].get("text", "")):
             # Use proof-specific learning
-            return self._learn_proof(course_code, knowledge_item_id, examples[0], explain_concepts, depth, adaptive)
-        knowledge_item_name = knowledge_item_dict.get('name', '')
+            return self._learn_proof(
+                course_code, knowledge_item_id, examples[0], explain_concepts, depth, adaptive
+            )
+        knowledge_item_name = knowledge_item_dict.get("name", "")
 
         # Adaptive teaching: Auto-select depth and prerequisites based on mastery
         adaptive_recommendations = None
@@ -616,8 +603,8 @@ class Tutor:
                 )
 
                 # Override depth and explain_concepts if adaptive
-                depth = adaptive_recommendations['depth']
-                explain_concepts = adaptive_recommendations['show_prerequisites']
+                depth = adaptive_recommendations["depth"]
+                explain_concepts = adaptive_recommendations["show_prerequisites"]
 
         # Get prerequisite concepts
         prerequisite_text = ""
@@ -639,13 +626,12 @@ class Tutor:
             prompt=prompt,
             model=self.llm.primary_model,
             temperature=0.3,
-            max_tokens=3500  # Increased for deeper explanations
+            max_tokens=3500,  # Increased for deeper explanations
         )
 
         if not response.success:
             return TutorResponse(
-                content=f"Failed to generate explanation: {response.error}",
-                success=False
+                content=f"Failed to generate explanation: {response.error}", success=False
             )
 
         # Combine prerequisite concepts with LLM explanation
@@ -672,17 +658,20 @@ class Tutor:
         # Add study strategy if requested
         if include_study_strategy:
             strategy = self.strategy_manager.get_strategy_for_knowledge_item(
-                knowledge_item_name,
-                difficulty=depth
+                knowledge_item_name, difficulty=depth
             )
             if strategy:
                 full_content.append("\n" + "=" * 60 + "\n")
-                full_content.append(self.strategy_manager.format_strategy_output(strategy, knowledge_item_name))
+                full_content.append(
+                    self.strategy_manager.format_strategy_output(strategy, knowledge_item_name)
+                )
 
         # Add metacognitive learning strategies if requested
         if include_metacognitive:
             full_content.append("\n" + "=" * 60 + "\n")
-            full_content.append(self._format_metacognitive_tips(knowledge_item_name, depth, knowledge_item_dict))
+            full_content.append(
+                self._format_metacognitive_tips(knowledge_item_name, depth, knowledge_item_dict)
+            )
 
         # Add adaptive recommendations at end
         if adaptive and adaptive_recommendations:
@@ -711,8 +700,8 @@ class Tutor:
                 "theory_materials_count": len(theory_materials),
                 "worked_examples_count": len(worked_examples),
                 "has_theory": len(theory_materials) > 0,
-                "has_worked_examples": len(worked_examples) > 0
-            }
+                "has_worked_examples": len(worked_examples) > 0,
+            },
         )
 
     def learn_knowledge_item(
@@ -735,12 +724,11 @@ class Tutor:
         Returns:
             Dict with sections array and metadata
         """
-        import json
 
         # Get learning_approach (default to conceptual)
-        learning_approach = knowledge_item.get('learning_approach', 'conceptual')
+        learning_approach = knowledge_item.get("learning_approach", "conceptual")
         if learning_approach not in TEACHING_PROMPTS:
-            learning_approach = 'conceptual'
+            learning_approach = "conceptual"
 
         # Get the teaching strategy prompt
         strategy_prompt = TEACHING_PROMPTS[learning_approach]
@@ -759,22 +747,21 @@ class Tutor:
 
         # Call LLM
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.primary_model,
-            temperature=0.3,
-            max_tokens=2000
+            prompt=prompt, model=self.llm.primary_model, temperature=0.3, max_tokens=2000
         )
 
         if not response.success:
             # Return fallback response
             return {
-                "sections": [{
-                    "type": "fallback",
-                    "content": f"Could not generate explanation: {response.error}"
-                }],
+                "sections": [
+                    {
+                        "type": "fallback",
+                        "content": f"Could not generate explanation: {response.error}",
+                    }
+                ],
                 "raw_content": "",
                 "learning_approach": learning_approach,
-                "error": True
+                "error": True,
             }
 
         # Parse markdown into sections
@@ -786,7 +773,7 @@ class Tutor:
             "learning_approach": learning_approach,
             "using_notes": bool(notes),
             "has_parent_context": bool(parent_exercise_context),
-            "error": False
+            "error": False,
         }
 
     def learn_section(
@@ -815,12 +802,11 @@ class Tutor:
         Returns:
             Dict with section content and metadata
         """
-        import json
 
         # Get learning_approach (default to conceptual)
-        learning_approach = knowledge_item.get('learning_approach', 'conceptual').lower()
+        learning_approach = knowledge_item.get("learning_approach", "conceptual").lower()
         if learning_approach not in SECTION_PROMPTS:
-            learning_approach = 'conceptual'
+            learning_approach = "conceptual"
 
         # Get section prompts for this approach
         approach_prompts = SECTION_PROMPTS.get(learning_approach, {})
@@ -832,7 +818,7 @@ class Tutor:
                 "content": f"Unknown section: {section_name}",
                 "section_name": section_name,
                 "section_index": section_index,
-                "error": True
+                "error": True,
             }
 
         # Get total sections for this approach
@@ -860,7 +846,7 @@ class Tutor:
             prompt=prompt,
             model=self.llm.primary_model,
             temperature=0.3,
-            max_tokens=1500  # Sufficient for individual sections
+            max_tokens=1500,  # Sufficient for individual sections
         )
 
         if not response.success:
@@ -870,7 +856,7 @@ class Tutor:
                 "section_index": section_index,
                 "total_sections": total_sections,
                 "learning_approach": learning_approach,
-                "error": True
+                "error": True,
             }
 
         return {
@@ -880,7 +866,7 @@ class Tutor:
             "total_sections": total_sections,
             "is_last": section_index == total_sections - 1,
             "learning_approach": learning_approach,
-            "error": False
+            "error": False,
         }
 
     def _build_section_prompt(
@@ -912,7 +898,7 @@ class Tutor:
         ]
 
         # Add content if available
-        content = knowledge_item.get('content')
+        content = knowledge_item.get("content")
         if content:
             if isinstance(content, dict):
                 content_str = json.dumps(content, indent=2)
@@ -935,10 +921,10 @@ class Tutor:
             prompt_parts.append("")
             prompt_parts.append("EXAM EXERCISE TO SOLVE:")
             prompt_parts.append(f"Source: {example_exercise.get('source_pdf', 'Unknown')}")
-            prompt_parts.append(example_exercise.get('text', example_exercise.get('content', '')))
+            prompt_parts.append(example_exercise.get("text", example_exercise.get("content", "")))
 
             # Add solution if available (for reference)
-            solution = example_exercise.get('solution')
+            solution = example_exercise.get("solution")
             if solution:
                 prompt_parts.append("")
                 prompt_parts.append("Official solution (use as reference):")
@@ -973,10 +959,12 @@ class Tutor:
         """
         approach = learning_approach.lower()
         if approach not in SECTION_PROMPTS:
-            approach = 'conceptual'
+            approach = "conceptual"
         return list(SECTION_PROMPTS[approach].keys())
 
-    def get_section_context_dependency(self, learning_approach: str, section_name: str) -> Optional[str]:
+    def get_section_context_dependency(
+        self, learning_approach: str, section_name: str
+    ) -> Optional[str]:
         """Check if a section needs content from a previous section.
 
         Args:
@@ -999,14 +987,11 @@ class Tutor:
             return None
 
         priority = {"exam": 1, "exercise_sheet": 2, "homework": 3}
-        sorted_ex = sorted(
-            exercises,
-            key=lambda e: priority.get(e.get('source_type', ''), 99)
-        )
+        sorted_ex = sorted(exercises, key=lambda e: priority.get(e.get("source_type", ""), 99))
 
         # Get top tier (all with same best source_type)
-        best_type = sorted_ex[0].get('source_type')
-        top_tier = [e for e in sorted_ex if e.get('source_type') == best_type]
+        best_type = sorted_ex[0].get("source_type")
+        top_tier = [e for e in sorted_ex if e.get("source_type") == best_type]
 
         # Random pick within top tier for variety
         return random.choice(top_tier)
@@ -1038,7 +1023,7 @@ class Tutor:
         ]
 
         # Add content if available
-        content = knowledge_item.get('content')
+        content = knowledge_item.get("content")
         if content:
             if isinstance(content, dict):
                 content_str = json.dumps(content, indent=2)
@@ -1051,10 +1036,10 @@ class Tutor:
             prompt_parts.append("")
             prompt_parts.append("Example exercise from past exams:")
             prompt_parts.append(f"Source: {example_exercise.get('source_pdf', 'Unknown')}")
-            prompt_parts.append(example_exercise.get('text', example_exercise.get('content', '')))
+            prompt_parts.append(example_exercise.get("text", example_exercise.get("content", "")))
 
             # Add solution if available
-            solution = example_exercise.get('solution')
+            solution = example_exercise.get("solution")
             if solution:
                 prompt_parts.append("")
                 prompt_parts.append("Official solution:")
@@ -1079,8 +1064,9 @@ class Tutor:
 
         return "\n".join(prompt_parts)
 
-    def practice(self, course_code: str, topic: Optional[str] = None,
-                 difficulty: Optional[str] = None) -> TutorResponse:
+    def practice(
+        self, course_code: str, topic: Optional[str] = None, difficulty: Optional[str] = None
+    ) -> TutorResponse:
         """Get a practice exercise.
 
         Args:
@@ -1099,38 +1085,34 @@ class Tutor:
             if topic:
                 topic_id = db.conn.execute(
                     "SELECT id FROM topics WHERE course_code = ? AND name LIKE ?",
-                    (course_code, f"%{topic}%")
+                    (course_code, f"%{topic}%"),
                 ).fetchone()
 
                 if topic_id:
-                    exercises = [ex for ex in exercises if ex.get('topic_id') == topic_id[0]]
+                    exercises = [ex for ex in exercises if ex.get("topic_id") == topic_id[0]]
 
             # Filter by difficulty if specified
             if difficulty:
-                exercises = [ex for ex in exercises if ex.get('difficulty') == difficulty]
+                exercises = [ex for ex in exercises if ex.get("difficulty") == difficulty]
 
             # Filter out exercises without core loops
-            exercises = [ex for ex in exercises if ex.get('knowledge_item_id')]
+            exercises = [ex for ex in exercises if ex.get("knowledge_item_id")]
 
             if not exercises:
-                return TutorResponse(
-                    content="No exercises found matching criteria.",
-                    success=False
-                )
+                return TutorResponse(content="No exercises found matching criteria.", success=False)
 
             # Pick random exercise
             exercise = random.choice(exercises)
-            exercise_id = exercise['id']
+            exercise_id = exercise["id"]
 
             # Check if there are linked worked examples
             linked_materials = db.get_materials_for_exercise(exercise_id)
             worked_example_hints = [
-                m for m in linked_materials
-                if m.get('material_type') == 'worked_example'
+                m for m in linked_materials if m.get("material_type") == "worked_example"
             ]
 
         # Format exercise content with hints
-        content = exercise['text']
+        content = exercise["text"]
         if worked_example_hints:
             content += self._format_worked_example_hints(worked_example_hints, self.language)
 
@@ -1138,17 +1120,18 @@ class Tutor:
             content=content,
             success=True,
             metadata={
-                "exercise_id": exercise['id'],
-                "knowledge_item_id": exercise.get('knowledge_item_id'),
-                "difficulty": exercise.get('difficulty'),
-                "topic_id": exercise.get('topic_id'),
+                "exercise_id": exercise["id"],
+                "knowledge_item_id": exercise.get("knowledge_item_id"),
+                "difficulty": exercise.get("difficulty"),
+                "topic_id": exercise.get("topic_id"),
                 "has_worked_example_hints": len(worked_example_hints) > 0,
-                "worked_example_count": len(worked_example_hints)
-            }
+                "worked_example_count": len(worked_example_hints),
+            },
         )
 
-    def check_answer(self, exercise_id: str, user_answer: str,
-                    provide_hints: bool = False) -> TutorResponse:
+    def check_answer(
+        self, exercise_id: str, user_answer: str, provide_hints: bool = False
+    ) -> TutorResponse:
         """Check user's answer and provide feedback.
 
         Args:
@@ -1161,52 +1144,46 @@ class Tutor:
         """
         with Database() as db:
             # Get exercise and core loop
-            exercise = db.conn.execute("""
+            exercise = db.conn.execute(
+                """
                 SELECT e.*, cl.procedure, cl.name as knowledge_item_name
                 FROM exercises e
                 LEFT JOIN knowledge_items cl ON e.knowledge_item_id = cl.id
                 WHERE e.id = ?
-            """, (exercise_id,)).fetchone()
+            """,
+                (exercise_id,),
+            ).fetchone()
 
             if not exercise:
-                return TutorResponse(
-                    content="Exercise not found.",
-                    success=False
-                )
+                return TutorResponse(content="Exercise not found.", success=False)
 
         # Build evaluation prompt
         prompt = self._build_evaluation_prompt(
-            exercise_text=exercise['text'],
+            exercise_text=exercise["text"],
             user_answer=user_answer,
-            procedure=exercise['procedure'],
-            provide_hints=provide_hints
+            procedure=exercise["procedure"],
+            provide_hints=provide_hints,
         )
 
         # Call LLM
         response = self.llm.generate(
-            prompt=prompt,
-            model=self.llm.primary_model,
-            temperature=0.3,
-            max_tokens=1500
+            prompt=prompt, model=self.llm.primary_model, temperature=0.3, max_tokens=1500
         )
 
         if not response.success:
             return TutorResponse(
-                content=f"Failed to evaluate answer: {response.error}",
-                success=False
+                content=f"Failed to evaluate answer: {response.error}", success=False
             )
 
         return TutorResponse(
             content=response.text,
             success=True,
-            metadata={
-                "exercise_id": exercise_id,
-                "has_hints": provide_hints
-            }
+            metadata={"exercise_id": exercise_id, "has_hints": provide_hints},
         )
 
-    def generate(self, course_code: str, knowledge_item_id: str,
-                difficulty: str = "medium") -> TutorResponse:
+    def generate(
+        self, course_code: str, knowledge_item_id: str, difficulty: str = "medium"
+    ) -> TutorResponse:
         """Generate a new exercise variation.
 
         Args:
@@ -1219,34 +1196,33 @@ class Tutor:
         """
         with Database() as db:
             # Get core loop
-            knowledge_item = db.conn.execute("""
+            knowledge_item = db.conn.execute(
+                """
                 SELECT cl.*, t.name as topic_name
                 FROM knowledge_items cl
                 JOIN topics t ON cl.topic_id = t.id
                 WHERE cl.id = ? AND t.course_code = ?
-            """, (knowledge_item_id, course_code)).fetchone()
+            """,
+                (knowledge_item_id, course_code),
+            ).fetchone()
 
             if not knowledge_item:
-                return TutorResponse(
-                    content="Core loop not found.",
-                    success=False
-                )
+                return TutorResponse(content="Core loop not found.", success=False)
 
             # Get example exercises
             exercises = db.get_exercises_by_course(course_code)
-            examples = [ex for ex in exercises if ex.get('knowledge_item_id') == knowledge_item_id][:5]
+            examples = [ex for ex in exercises if ex.get("knowledge_item_id") == knowledge_item_id][
+                :5
+            ]
 
             if not examples:
                 return TutorResponse(
-                    content="No example exercises found for this core loop.",
-                    success=False
+                    content="No example exercises found for this core loop.", success=False
                 )
 
         # Build generation prompt
         prompt = self._build_generation_prompt(
-            knowledge_item=dict(knowledge_item),
-            examples=examples,
-            difficulty=difficulty
+            knowledge_item=dict(knowledge_item), examples=examples, difficulty=difficulty
         )
 
         # Call LLM
@@ -1254,13 +1230,12 @@ class Tutor:
             prompt=prompt,
             model=self.llm.primary_model,
             temperature=0.7,  # Higher temperature for creativity
-            max_tokens=1500
+            max_tokens=1500,
         )
 
         if not response.success:
             return TutorResponse(
-                content=f"Failed to generate exercise: {response.error}",
-                success=False
+                content=f"Failed to generate exercise: {response.error}", success=False
             )
 
         return TutorResponse(
@@ -1269,22 +1244,23 @@ class Tutor:
             metadata={
                 "knowledge_item": knowledge_item_id,
                 "difficulty": difficulty,
-                "based_on_examples": len(examples)
-            }
+                "based_on_examples": len(examples),
+            },
         )
 
-    def _build_learn_prompt(self, knowledge_item: Dict[str, Any],
-                           examples: List[Dict[str, Any]]) -> str:
+    def _build_learn_prompt(
+        self, knowledge_item: Dict[str, Any], examples: List[Dict[str, Any]]
+    ) -> str:
         """Build prompt for learning explanation."""
         prompt = f"""{self._language_instruction("Respond")}
 
 You are an AI tutor helping students learn problem-solving procedures.
 
-TOPIC: {knowledge_item.get('topic_name', 'Unknown')}
-CORE PROCEDURE: {knowledge_item['name']}
+TOPIC: {knowledge_item.get("topic_name", "Unknown")}
+CORE PROCEDURE: {knowledge_item["name"]}
 
 SOLVING STEPS:
-{self._format_procedure(knowledge_item.get('procedure'))}
+{self._format_procedure(knowledge_item.get("procedure"))}
 
 EXAMPLE EXERCISES:
 {self._format_examples(examples)}
@@ -1299,10 +1275,13 @@ Make it pedagogical and clear for students learning this for the first time.
 """
         return prompt
 
-    def _build_enhanced_learn_prompt(self, knowledge_item: Dict[str, Any],
-                                     examples: List[Dict[str, Any]],
-                                     depth: str = "medium",
-                                     learning_type: str = "conceptual") -> str:
+    def _build_enhanced_learn_prompt(
+        self,
+        knowledge_item: Dict[str, Any],
+        examples: List[Dict[str, Any]],
+        depth: str = "medium",
+        learning_type: str = "conceptual",
+    ) -> str:
         """Build enhanced prompt with type-specific learning approach.
 
         Args:
@@ -1314,7 +1293,7 @@ Make it pedagogical and clear for students learning this for the first time.
         depth_instructions = {
             "basic": "Keep explanations simple and concise. Focus on the core concepts.",
             "medium": "Provide balanced explanations with WHY reasoning and practical examples.",
-            "advanced": "Give comprehensive explanations with deep reasoning, edge cases, and optimization strategies."
+            "advanced": "Give comprehensive explanations with deep reasoning, edge cases, and optimization strategies.",
         }
 
         depth_instruction = depth_instructions.get(depth, depth_instructions["medium"])
@@ -1413,13 +1392,13 @@ What do students often get wrong about this concept?"""
 
 You are an expert educator helping students learn.
 
-TOPIC: {knowledge_item.get('topic_name', 'Unknown')}
-CONCEPT/PROCEDURE: {knowledge_item['name']}
+TOPIC: {knowledge_item.get("topic_name", "Unknown")}
+CONCEPT/PROCEDURE: {knowledge_item["name"]}
 LEARNING TYPE: {learning_type}
 EXPLANATION DEPTH: {depth}
 
 CONTENT OUTLINE:
-{self._format_procedure(knowledge_item.get('procedure'))}
+{self._format_procedure(knowledge_item.get("procedure"))}
 
 EXAMPLE EXERCISES:
 {self._format_examples(examples)}
@@ -1436,8 +1415,9 @@ Guidelines:
 """
         return prompt
 
-    def _build_evaluation_prompt(self, exercise_text: str, user_answer: str,
-                                 procedure: Optional[str], provide_hints: bool) -> str:
+    def _build_evaluation_prompt(
+        self, exercise_text: str, user_answer: str, procedure: Optional[str], provide_hints: bool
+    ) -> str:
         """Build prompt for answer evaluation."""
         hint_instruction = ""
         if provide_hints:
@@ -1465,20 +1445,20 @@ Respond in a friendly, pedagogical tone.
 """
         return prompt
 
-    def _build_generation_prompt(self, knowledge_item: Dict[str, Any],
-                                 examples: List[Dict[str, Any]],
-                                 difficulty: str) -> str:
+    def _build_generation_prompt(
+        self, knowledge_item: Dict[str, Any], examples: List[Dict[str, Any]], difficulty: str
+    ) -> str:
         """Build prompt for exercise generation."""
         prompt = f"""{self._language_instruction("Create an exercise")}
 
 You are creating a new practice exercise.
 
-PROCEDURE TO PRACTICE: {knowledge_item['name']}
-TOPIC: {knowledge_item.get('topic_name', 'Unknown')}
+PROCEDURE TO PRACTICE: {knowledge_item["name"]}
+TOPIC: {knowledge_item.get("topic_name", "Unknown")}
 DIFFICULTY: {difficulty}
 
 SOLVING STEPS:
-{self._format_procedure(knowledge_item.get('procedure'))}
+{self._format_procedure(knowledge_item.get("procedure"))}
 
 EXAMPLE EXERCISES:
 {self._format_examples(examples, limit=3)}
@@ -1495,8 +1475,9 @@ Generate ONLY the exercise text, not the solution.
 """
         return prompt
 
-    def _display_theory_materials(self, theory_materials: List[Dict[str, Any]],
-                                  language: str) -> str:
+    def _display_theory_materials(
+        self, theory_materials: List[Dict[str, Any]], language: str
+    ) -> str:
         """Display theory materials for a topic.
 
         Args:
@@ -1511,26 +1492,26 @@ Generate ONLY the exercise text, not the solution.
                 "title": "MATERIALI TEORICI",
                 "intro": "Prima di iniziare con gli esercizi, esaminiamo la teoria di base:",
                 "source": "Fonte",
-                "page": "pagina"
+                "page": "pagina",
             },
             "en": {
                 "title": "THEORY MATERIALS",
                 "intro": "Before starting with exercises, let's review the foundational theory:",
                 "source": "Source",
-                "page": "page"
-            }
+                "page": "page",
+            },
         }
 
         headers = language_headers.get(language, language_headers["en"])
         lines = [f"\n{headers['title']}\n"]
-        lines.append(headers['intro'])
+        lines.append(headers["intro"])
         lines.append("")
 
         for i, material in enumerate(theory_materials, 1):
-            title = material.get('title', f"Theory Section {i}")
-            content = material.get('content', '')
-            source_pdf = material.get('source_pdf', '')
-            page_number = material.get('page_number')
+            title = material.get("title", f"Theory Section {i}")
+            content = material.get("content", "")
+            source_pdf = material.get("source_pdf", "")
+            page_number = material.get("page_number")
 
             # Add title
             lines.append(f"## {title}")
@@ -1555,8 +1536,7 @@ Generate ONLY the exercise text, not the solution.
 
         return "\n".join(lines)
 
-    def _display_worked_examples(self, worked_examples: List[Dict[str, Any]],
-                                 language: str) -> str:
+    def _display_worked_examples(self, worked_examples: List[Dict[str, Any]], language: str) -> str:
         """Display worked examples for a topic.
 
         Args:
@@ -1573,7 +1553,7 @@ Generate ONLY the exercise text, not the solution.
                 "example": "Esempio Risolto",
                 "source": "Fonte",
                 "page": "pagina",
-                "note": "Nota: Questo e un esempio completo che mostra come risolvere questo tipo di problema."
+                "note": "Nota: Questo e un esempio completo che mostra come risolvere questo tipo di problema.",
             },
             "en": {
                 "title": "WORKED EXAMPLES",
@@ -1581,20 +1561,20 @@ Generate ONLY the exercise text, not the solution.
                 "example": "Worked Example",
                 "source": "Source",
                 "page": "page",
-                "note": "Note: This is a complete example showing how to solve this type of problem."
-            }
+                "note": "Note: This is a complete example showing how to solve this type of problem.",
+            },
         }
 
         headers = language_headers.get(language, language_headers["en"])
         lines = [f"\n{headers['title']}\n"]
-        lines.append(headers['intro'])
+        lines.append(headers["intro"])
         lines.append("")
 
         for i, material in enumerate(worked_examples, 1):
-            title = material.get('title', f"{headers['example']} {i}")
-            content = material.get('content', '')
-            source_pdf = material.get('source_pdf', '')
-            page_number = material.get('page_number')
+            title = material.get("title", f"{headers['example']} {i}")
+            content = material.get("content", "")
+            source_pdf = material.get("source_pdf", "")
+            page_number = material.get("page_number")
 
             # Add title
             lines.append(f"### {title}")
@@ -1623,8 +1603,9 @@ Generate ONLY the exercise text, not the solution.
 
         return "\n".join(lines)
 
-    def _format_worked_example_hints(self, worked_examples: List[Dict[str, Any]],
-                                     language: str) -> str:
+    def _format_worked_example_hints(
+        self, worked_examples: List[Dict[str, Any]], language: str
+    ) -> str:
         """Format hints about available worked examples for an exercise.
 
         Args:
@@ -1638,26 +1619,26 @@ Generate ONLY the exercise text, not the solution.
             "it": {
                 "hint": "Suggerimento: Per un problema simile, consulta",
                 "these_worked_examples": "questi esempi risolti",
-                "this_worked_example": "questo esempio risolto"
+                "this_worked_example": "questo esempio risolto",
             },
             "en": {
                 "hint": "Hint: For a similar problem, see",
                 "these_worked_examples": "these worked examples",
-                "this_worked_example": "this worked example"
-            }
+                "this_worked_example": "this worked example",
+            },
         }
 
         headers = language_headers.get(language, language_headers["en"])
         lines = ["\n\n---"]
 
         if len(worked_examples) == 1:
-            title = worked_examples[0].get('title', 'Worked Example')
-            lines.append(f"\n{headers['hint']} {headers['this_worked_example']}: \"{title}\"")
+            title = worked_examples[0].get("title", "Worked Example")
+            lines.append(f'\n{headers["hint"]} {headers["this_worked_example"]}: "{title}"')
         else:
             lines.append(f"\n{headers['hint']} {headers['these_worked_examples']}:")
             for material in worked_examples:
-                title = material.get('title', 'Worked Example')
-                lines.append(f"  - \"{title}\"")
+                title = material.get("title", "Worked Example")
+                lines.append(f'  - "{title}"')
 
         return "\n".join(lines)
 
@@ -1668,9 +1649,10 @@ Generate ONLY the exercise text, not the solution.
 
         try:
             import json
+
             steps = json.loads(procedure)
             if isinstance(steps, list):
-                return "\n".join([f"{i+1}. {step}" for i, step in enumerate(steps)])
+                return "\n".join([f"{i + 1}. {step}" for i, step in enumerate(steps)])
         except:
             pass
 
@@ -1683,7 +1665,7 @@ Generate ONLY the exercise text, not the solution.
 
         formatted = []
         for i, ex in enumerate(examples[:limit], 1):
-            text = ex['text'][:300] + "..." if len(ex['text']) > 300 else ex['text']
+            text = ex["text"][:300] + "..." if len(ex["text"]) > 300 else ex["text"]
             formatted.append(f"Example {i}:\n{text}\n")
 
         return "\n".join(formatted)
@@ -1703,41 +1685,42 @@ Generate ONLY the exercise text, not the solution.
                 "mastery": "Livello di padronanza attuale",
                 "practice": "Esercizi consigliati per la pratica",
                 "focus": "Aree su cui concentrarsi",
-                "next_review": "Prossima revisione programmata"
+                "next_review": "Prossima revisione programmata",
             },
             "en": {
                 "title": "📚 PERSONALIZED STUDY RECOMMENDATIONS",
                 "mastery": "Current mastery level",
                 "practice": "Recommended practice exercises",
                 "focus": "Focus areas",
-                "next_review": "Next scheduled review"
-            }
+                "next_review": "Next scheduled review",
+            },
         }
 
         headers = language_headers.get(self.language, language_headers["en"])
         lines = [f"\n{headers['title']}\n"]
 
         # Current mastery
-        mastery = recommendations.get('current_mastery', 0.0)
+        mastery = recommendations.get("current_mastery", 0.0)
         mastery_pct = int(mastery * 100)
         mastery_emoji = "🟢" if mastery >= 0.7 else "🟡" if mastery >= 0.3 else "🔴"
         lines.append(f"{mastery_emoji} {headers['mastery']}: {mastery_pct}%")
 
         # Practice recommendations
-        practice_count = recommendations.get('practice_count', 3)
+        practice_count = recommendations.get("practice_count", 3)
         lines.append(f"\n✍️  {headers['practice']}: {practice_count}")
 
         # Focus areas
-        focus_areas = recommendations.get('focus_areas', [])
+        focus_areas = recommendations.get("focus_areas", [])
         if focus_areas:
             lines.append(f"\n🎯 {headers['focus']}:")
             for area in focus_areas:
                 lines.append(f"   • {area}")
 
         # Next review
-        next_review = recommendations.get('next_review')
+        next_review = recommendations.get("next_review")
         if next_review:
             from datetime import datetime
+
             try:
                 review_date = datetime.fromisoformat(next_review)
                 lines.append(f"\n📅 {headers['next_review']}: {review_date.strftime('%Y-%m-%d')}")
@@ -1761,26 +1744,26 @@ Generate ONLY the exercise text, not the solution.
                 "available": "Sono disponibili soluzioni ufficiali per alcuni esercizi di esempio:",
                 "exercise": "Esercizio",
                 "from": "da",
-                "note": "Nota: Questa soluzione e stata estratta automaticamente dal PDF dell'esame."
+                "note": "Nota: Questa soluzione e stata estratta automaticamente dal PDF dell'esame.",
             },
             "en": {
                 "title": "OFFICIAL SOLUTIONS",
                 "available": "Official solutions are available for some example exercises:",
                 "exercise": "Exercise",
                 "from": "from",
-                "note": "Note: This solution was automatically extracted from the exam PDF."
-            }
+                "note": "Note: This solution was automatically extracted from the exam PDF.",
+            },
         }
 
         headers = language_headers.get(self.language, language_headers["en"])
         lines = [f"\n{headers['title']}\n"]
-        lines.append(headers['available'])
+        lines.append(headers["available"])
         lines.append("")
 
         for i, ex_sol in enumerate(exercises_with_solutions, 1):
-            exercise_num = ex_sol.get('exercise_number', f'#{i}')
-            source_pdf = ex_sol.get('source_pdf', '')
-            solution = ex_sol.get('solution', '')
+            exercise_num = ex_sol.get("exercise_number", f"#{i}")
+            source_pdf = ex_sol.get("source_pdf", "")
+            solution = ex_sol.get("solution", "")
 
             lines.append(f"{headers['exercise']} {exercise_num}")
             if source_pdf:
@@ -1797,8 +1780,9 @@ Generate ONLY the exercise text, not the solution.
 
         return "\n".join(lines)
 
-    def _format_metacognitive_tips(self, knowledge_item_name: str, depth: str,
-                                   knowledge_item_dict: Dict[str, Any]) -> str:
+    def _format_metacognitive_tips(
+        self, knowledge_item_name: str, depth: str, knowledge_item_dict: Dict[str, Any]
+    ) -> str:
         """Format metacognitive learning strategies section.
 
         Args:
@@ -1815,15 +1799,15 @@ Generate ONLY the exercise text, not the solution.
                 "framework": "Strategia consigliata per problemi di questo tipo",
                 "tips": "Consigli per studiare efficacemente",
                 "self_assessment": "Domande di autovalutazione",
-                "retrieval": "Tecniche di recupero per rafforzare la memoria"
+                "retrieval": "Tecniche di recupero per rafforzare la memoria",
             },
             "en": {
                 "title": "LEARNING STRATEGIES",
                 "framework": "Recommended problem-solving framework",
                 "tips": "Study tips for effective learning",
                 "self_assessment": "Self-assessment prompts",
-                "retrieval": "Retrieval practice techniques"
-            }
+                "retrieval": "Retrieval practice techniques",
+            },
         }
 
         headers = language_headers.get(self.language, language_headers["en"])
@@ -1833,7 +1817,7 @@ Generate ONLY the exercise text, not the solution.
         difficulty_map = {
             "basic": DifficultyLevel.EASY,
             "medium": DifficultyLevel.MEDIUM,
-            "advanced": DifficultyLevel.HARD
+            "advanced": DifficultyLevel.HARD,
         }
         difficulty = difficulty_map.get(depth, DifficultyLevel.MEDIUM)
 
@@ -1873,8 +1857,7 @@ Generate ONLY the exercise text, not the solution.
         # 4. Retrieval practice suggestions
         # Assume 0 hours since last review (immediate)
         retrieval_techniques = self.metacognitive.get_retrieval_practice_suggestions(
-            time_since_last_review=0,
-            mastery=mastery
+            time_since_last_review=0, mastery=mastery
         )
         if retrieval_techniques:
             lines.append(f"### {headers['retrieval']}:\n")
@@ -1896,21 +1879,30 @@ Generate ONLY the exercise text, not the solution.
         """
         name_lower = knowledge_item_name.lower()
 
-        if any(keyword in name_lower for keyword in ['prove', 'proof', 'theorem', 'lemma']):
+        if any(keyword in name_lower for keyword in ["prove", "proof", "theorem", "lemma"]):
             return "proof"
-        elif any(keyword in name_lower for keyword in ['design', 'construct', 'build', 'create']):
+        elif any(keyword in name_lower for keyword in ["design", "construct", "build", "create"]):
             return "design"
-        elif any(keyword in name_lower for keyword in ['debug', 'verify', 'check', 'validate']):
+        elif any(keyword in name_lower for keyword in ["debug", "verify", "check", "validate"]):
             return "debugging"
-        elif any(keyword in name_lower for keyword in ['theory', 'concept', 'definition', 'explain']):
+        elif any(
+            keyword in name_lower for keyword in ["theory", "concept", "definition", "explain"]
+        ):
             return "theory"
-        elif any(keyword in name_lower for keyword in ['implement', 'code', 'program']):
+        elif any(keyword in name_lower for keyword in ["implement", "code", "program"]):
             return "implementation"
         else:
             return "general"
 
-    def _learn_proof(self, course_code: str, knowledge_item_id: str, example_exercise: Dict[str, Any],
-                     explain_concepts: bool, depth: str, adaptive: bool) -> TutorResponse:
+    def _learn_proof(
+        self,
+        course_code: str,
+        knowledge_item_id: str,
+        example_exercise: Dict[str, Any],
+        explain_concepts: bool,
+        depth: str,
+        adaptive: bool,
+    ) -> TutorResponse:
         """Handle proof-specific learning.
 
         Args:
@@ -1924,8 +1916,8 @@ Generate ONLY the exercise text, not the solution.
         Returns:
             TutorResponse with proof explanation
         """
-        exercise_text = example_exercise.get('text', '')
-        exercise_id = example_exercise.get('id', '')
+        exercise_text = example_exercise.get("text", "")
+        exercise_id = example_exercise.get("id", "")
 
         # Get proof-specific explanation
         proof_explanation = self.proof_tutor.learn_proof(course_code, exercise_id, exercise_text)
@@ -1937,11 +1929,10 @@ Generate ONLY the exercise text, not the solution.
             # Extract core loop name for concept explanation
             with Database() as db:
                 knowledge_item = db.conn.execute(
-                    "SELECT name FROM knowledge_items WHERE id = ?",
-                    (knowledge_item_id,)
+                    "SELECT name FROM knowledge_items WHERE id = ?", (knowledge_item_id,)
                 ).fetchone()
                 if knowledge_item:
-                    knowledge_item_name = knowledge_item['name']
+                    knowledge_item_name = knowledge_item["name"]
                     prerequisite_text = self.concept_explainer.explain_prerequisites(
                         knowledge_item_name, depth=depth
                     )
@@ -1958,6 +1949,6 @@ Generate ONLY the exercise text, not the solution.
                 "knowledge_item": knowledge_item_id,
                 "is_proof": True,
                 "depth": depth,
-                "includes_prerequisites": explain_concepts
-            }
+                "includes_prerequisites": explain_concepts,
+            },
         )

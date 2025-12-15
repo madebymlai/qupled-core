@@ -16,7 +16,7 @@ Test categories:
 import sys
 import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 # Test data representing real-world scenarios
 # Format: {"name": str, "exercises": [str], "learning_approach": str}
@@ -32,7 +32,7 @@ FCFS_FULL = {
     "exercises": [
         "Given processes P1(arrival=0, burst=5), P2(arrival=1, burst=3), P3(arrival=2, burst=8). Calculate the average waiting time using FCFS scheduling.",
         "Five processes arrive at times 0, 2, 4, 6, 8 with burst times 3, 6, 4, 5, 2. Draw the Gantt chart for FCFS and compute turnaround time.",
-    ]
+    ],
 }
 
 FCFS_ABBREV = {
@@ -41,7 +41,7 @@ FCFS_ABBREV = {
     "exercises": [
         "Process table: P1(0,4), P2(1,3), P3(2,1), P4(3,5). Apply first-come-first-served and calculate average waiting time.",
         "Three jobs with arrival times [0,0,0] and burst times [10,5,8]. Compute completion times under FCFS.",
-    ]
+    ],
 }
 
 # Case 2: Different context, same skill - FSM design
@@ -51,7 +51,7 @@ FSM_TRAMWAY = {
     "exercises": [
         "Design a Moore FSM for a tramway crossing controller. States: Idle, Warning, Blocked. Inputs: train_approaching, train_passed. Output: barrier_down.",
         "Draw the state diagram for a tramway signal controller with states S0, S1, S2 and transitions based on sensor inputs.",
-    ]
+    ],
 }
 
 FSM_WEBCAM = {
@@ -60,7 +60,7 @@ FSM_WEBCAM = {
     "exercises": [
         "Design a Mealy FSM for a webcam motion detector. States: Monitoring, Detected, Recording. Inputs: motion, timeout. Output: start_recording.",
         "Create a state transition table for a security camera controller that switches between idle, alert, and recording states.",
-    ]
+    ],
 }
 
 # Case 3: Synonym naming - same concept
@@ -70,7 +70,7 @@ DEADLOCK_AVOIDANCE_FULL = {
     "exercises": [
         "Given Available=[3,3,2], Max matrix and Allocation matrix for 5 processes, determine if the system is in a safe state using Banker's algorithm.",
         "Apply the Banker's algorithm: Available=[2,1,0], processes P0-P3 with given Max and Allocation. Find a safe sequence if one exists.",
-    ]
+    ],
 }
 
 BANKERS_ALGO = {
@@ -79,7 +79,7 @@ BANKERS_ALGO = {
     "exercises": [
         "System has 3 resource types with Available=[1,5,2]. Five processes have the following Need and Allocation matrices. Is the state safe?",
         "Using Banker's algorithm, check if granting request [1,0,2] from P1 would leave the system in a safe state.",
-    ]
+    ],
 }
 
 # Case 4: Different verbosity - eigenvalues
@@ -89,7 +89,7 @@ EIGENVALUES_SHORT = {
     "exercises": [
         "Find the eigenvalues of matrix A = [[4,2],[1,3]].",
         "Compute eigenvalues and eigenvectors for the 2x2 matrix [[1,-1],[2,4]].",
-    ]
+    ],
 }
 
 EIGENVALUES_LONG = {
@@ -98,7 +98,7 @@ EIGENVALUES_LONG = {
     "exercises": [
         "Given matrix B = [[2,1],[1,2]], find its eigenvalues and use them to diagonalize the matrix.",
         "Calculate the eigenvalues of [[3,1],[0,2]] and verify by computing the characteristic polynomial.",
-    ]
+    ],
 }
 
 # ============================================================================
@@ -112,7 +112,7 @@ DEADLOCK_DETECTION = {
     "exercises": [
         "Given the current allocation and request matrices, apply the deadlock detection algorithm to find which processes are deadlocked.",
         "System has resources R1=7, R2=2, R3=6. With the given allocation and request matrices, identify any deadlocked processes.",
-    ]
+    ],
 }
 
 DEADLOCK_PREVENTION = {
@@ -121,7 +121,7 @@ DEADLOCK_PREVENTION = {
     "exercises": [
         "Explain how the hold-and-wait condition can be prevented in a resource allocation system. Give two practical approaches.",
         "Compare and contrast the four necessary conditions for deadlock and describe how each can be prevented.",
-    ]
+    ],
 }
 
 # Case 6: Same name, different skills (explain vs calculate)
@@ -131,7 +131,7 @@ CPU_SCHEDULING_CONCEPTUAL = {
     "exercises": [
         "Explain the difference between preemptive and non-preemptive CPU scheduling. When would you prefer one over the other?",
         "Compare Round Robin and Priority Scheduling in terms of response time, throughput, and fairness. Which is better for interactive systems?",
-    ]
+    ],
 }
 
 CPU_SCHEDULING_PROCEDURAL = {
@@ -140,7 +140,7 @@ CPU_SCHEDULING_PROCEDURAL = {
     "exercises": [
         "Given 5 processes with arrival and burst times, calculate average waiting time and turnaround time using SJF scheduling.",
         "Apply Round Robin (quantum=4) to processes P1(0,10), P2(1,4), P3(2,5). Draw the Gantt chart and compute average waiting time.",
-    ]
+    ],
 }
 
 # Case 7: Related but different - Moore vs Mealy
@@ -150,7 +150,7 @@ MOORE_MACHINE = {
     "exercises": [
         "Design a Moore machine that outputs 1 when the input sequence contains '101'. Show state diagram with outputs on states.",
         "Convert the given Mealy machine to an equivalent Moore machine. Draw the resulting state diagram.",
-    ]
+    ],
 }
 
 MEALY_MACHINE = {
@@ -159,7 +159,7 @@ MEALY_MACHINE = {
     "exercises": [
         "Design a Mealy machine that outputs 1 on the transition that completes the pattern '110'. Show outputs on transitions.",
         "Given a Moore machine, convert it to a Mealy machine with the same input-output behavior.",
-    ]
+    ],
 }
 
 # Case 8: Different matrix sizes - should NOT merge
@@ -169,7 +169,7 @@ EIGENVALUES_2X2 = {
     "exercises": [
         "Find eigenvalues of the 2x2 matrix [[1,2],[3,4]] using the characteristic equation.",
         "For A = [[a,b],[c,d]], derive the formula for eigenvalues in terms of trace and determinant.",
-    ]
+    ],
 }
 
 EIGENVALUES_3X3 = {
@@ -178,7 +178,7 @@ EIGENVALUES_3X3 = {
     "exercises": [
         "Find eigenvalues of the 3x3 matrix [[1,0,0],[0,2,1],[0,1,2]] using cofactor expansion.",
         "Given a 3x3 upper triangular matrix, explain why the eigenvalues are the diagonal entries and verify with an example.",
-    ]
+    ],
 }
 
 # Case 9: SoP vs PoS (opposites)
@@ -188,7 +188,7 @@ SOP_MINIMIZATION = {
     "exercises": [
         "Minimize the Boolean function F(A,B,C,D) = Σm(0,1,2,5,6,7,8,9,10,14) using a Karnaugh map. Express result in SoP form.",
         "Using K-map, find the minimal SoP expression for f(w,x,y,z) with minterms 1,3,5,7,9,11,13,15.",
-    ]
+    ],
 }
 
 POS_MINIMIZATION = {
@@ -197,7 +197,7 @@ POS_MINIMIZATION = {
     "exercises": [
         "Minimize F(A,B,C,D) = ΠM(0,1,2,5,8,9,10) using K-map. Express the result in Product of Sums form.",
         "Find the minimal PoS expression for the function with maxterms 0,2,4,6,8,10,12,14.",
-    ]
+    ],
 }
 
 # ============================================================================
@@ -205,11 +205,7 @@ POS_MINIMIZATION = {
 # ============================================================================
 
 # Case 10: Empty exercises
-EMPTY_EXERCISES = {
-    "name": "some_concept",
-    "learning_approach": "conceptual",
-    "exercises": []
-}
+EMPTY_EXERCISES = {"name": "some_concept", "learning_approach": "conceptual", "exercises": []}
 
 # Case 11: Single very long exercise
 SINGLE_LONG_EXERCISE = {
@@ -229,7 +225,7 @@ SINGLE_LONG_EXERCISE = {
         b) Determine the happens-before relationship between events
         c) Identify any concurrent events
         d) Could this sequence of events happen in a real distributed system? Explain."""
-    ]
+    ],
 }
 
 # Case 12: Items with identical exercises (should definitely merge)
@@ -239,7 +235,7 @@ IDENTICAL_1 = {
     "exercises": [
         "Implement a solution to the producer-consumer problem using semaphores.",
         "Write pseudocode for the readers-writers problem with writer preference.",
-    ]
+    ],
 }
 
 IDENTICAL_2 = {
@@ -248,7 +244,7 @@ IDENTICAL_2 = {
     "exercises": [
         "Implement a solution to the producer-consumer problem using semaphores.",
         "Write pseudocode for the readers-writers problem with writer preference.",
-    ]
+    ],
 }
 
 # Case 13: Learning approach tie scenario
@@ -257,7 +253,7 @@ TIE_ITEM_1 = {
     "learning_approach": "procedural",
     "exercises": [
         "Implement binary search to find element 42 in sorted array [1,5,12,42,67,89,100].",
-    ]
+    ],
 }
 
 TIE_ITEM_2 = {
@@ -265,7 +261,7 @@ TIE_ITEM_2 = {
     "learning_approach": "conceptual",
     "exercises": [
         "Explain why binary search has O(log n) time complexity. What assumptions must hold?",
-    ]
+    ],
 }
 
 # Case 14: Non-CS domain (law - to test course-agnostic)
@@ -275,7 +271,7 @@ CONTRACT_LAW_1 = {
     "exercises": [
         "Explain the four essential elements required for a valid contract formation under common law.",
         "Distinguish between an offer and an invitation to treat. Provide two examples of each.",
-    ]
+    ],
 }
 
 CONTRACT_LAW_2 = {
@@ -284,7 +280,7 @@ CONTRACT_LAW_2 = {
     "exercises": [
         "What are the necessary conditions for a contract to be legally binding? Discuss consideration and capacity.",
         "Analyze whether the following scenario constitutes a valid contract: A advertises a car for $5000, B says 'I'll take it'.",
-    ]
+    ],
 }
 
 # Case 15: Medicine domain (course-agnostic test)
@@ -294,7 +290,7 @@ CARDIOLOGY_1 = {
     "exercises": [
         "Given ECG showing ST elevation in leads II, III, aVF, identify the type of MI and affected coronary artery.",
         "Patient presents with chest pain, elevated troponins, and ST depression in V1-V4. What is your diagnosis and immediate management?",
-    ]
+    ],
 }
 
 CARDIOLOGY_2 = {
@@ -303,7 +299,7 @@ CARDIOLOGY_2 = {
     "exercises": [
         "Interpret the following ECG: ST elevation in V1-V4, reciprocal depression in II, III, aVF. Name the infarct territory.",
         "A 55-year-old male with crushing chest pain has troponin I of 5.2 ng/mL. List the diagnostic criteria for STEMI.",
-    ]
+    ],
 }
 
 
@@ -437,13 +433,17 @@ MULTI_ITEM_CASES = [
     {
         "name": "three_way_merge",
         "description": "Three items that should all merge",
-        "items": [FCFS_FULL, FCFS_ABBREV, {
-            "name": "first_come_first_served",
-            "learning_approach": "procedural",
-            "exercises": [
-                "Calculate FCFS waiting times for process set {P1(0,8), P2(1,4), P3(2,9), P4(3,5)}.",
-            ]
-        }],
+        "items": [
+            FCFS_FULL,
+            FCFS_ABBREV,
+            {
+                "name": "first_come_first_served",
+                "learning_approach": "procedural",
+                "exercises": [
+                    "Calculate FCFS waiting times for process set {P1(0,8), P2(1,4), P3(2,9), P4(3,5)}.",
+                ],
+            },
+        ],
         "expected_groups": 1,
         "reason": "All three test the same FCFS scheduling skill",
     },
@@ -469,11 +469,12 @@ MULTI_ITEM_CASES = [
 # Test Functions
 # ============================================================================
 
+
 def test_should_merge_cases():
     """Test cases where items SHOULD be merged."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SHOULD MERGE CASES")
-    print("="*70)
+    print("=" * 70)
 
     for case in SHOULD_MERGE_CASES:
         print(f"\n[{case['name']}] {case['description']}")
@@ -482,20 +483,21 @@ def test_should_merge_cases():
         print(f"  Reason: {case['reason']}")
 
         # Validate test data
-        for item in case['items']:
-            assert 'name' in item, f"Item missing 'name'"
-            assert 'exercises' in item, f"Item {item['name']} missing 'exercises'"
-            assert len(item['exercises']) > 0 or case['name'] == 'empty_exercises', \
+        for item in case["items"]:
+            assert "name" in item, f"Item missing 'name'"
+            assert "exercises" in item, f"Item {item['name']} missing 'exercises'"
+            assert len(item["exercises"]) > 0 or case["name"] == "empty_exercises", (
                 f"Item {item['name']} has no exercises"
+            )
 
         print(f"  [DATA VALID]")
 
 
 def test_should_not_merge_cases():
     """Test cases where items should NOT be merged."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SHOULD NOT MERGE CASES")
-    print("="*70)
+    print("=" * 70)
 
     for case in SHOULD_NOT_MERGE_CASES:
         print(f"\n[{case['name']}] {case['description']}")
@@ -504,18 +506,20 @@ def test_should_not_merge_cases():
         print(f"  Reason: {case['reason']}")
 
         # Show exercise snippets for comparison
-        for item in case['items']:
-            ex_preview = item['exercises'][0][:80] + "..." if item['exercises'] else "(no exercises)"
-            print(f"    - {item['name']}: \"{ex_preview}\"")
+        for item in case["items"]:
+            ex_preview = (
+                item["exercises"][0][:80] + "..." if item["exercises"] else "(no exercises)"
+            )
+            print(f'    - {item["name"]}: "{ex_preview}"')
 
         print(f"  [DATA VALID]")
 
 
 def test_edge_cases():
     """Test edge cases and boundary conditions."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("EDGE CASES")
-    print("="*70)
+    print("=" * 70)
 
     for case in EDGE_CASES:
         print(f"\n[{case['name']}] {case['description']}")
@@ -523,7 +527,7 @@ def test_edge_cases():
         print(f"  Expected: {case['expected_groups']} group(s)")
         print(f"  Reason: {case['reason']}")
 
-        if 'post_merge_approach' in case:
+        if "post_merge_approach" in case:
             print(f"  Post-merge approach: {case['post_merge_approach']}")
 
         print(f"  [DATA VALID]")
@@ -531,15 +535,15 @@ def test_edge_cases():
 
 def test_multi_item_cases():
     """Test cases with more than 2 items."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("MULTI-ITEM CASES")
-    print("="*70)
+    print("=" * 70)
 
     for case in MULTI_ITEM_CASES:
         print(f"\n[{case['name']}] {case['description']}")
         print(f"  Items ({len(case['items'])}): {[i['name'] for i in case['items']]}")
         print(f"  Expected merged groups: {case['expected_groups']}")
-        if 'expected_separate' in case:
+        if "expected_separate" in case:
             print(f"  Expected separate items: {case['expected_separate']}")
         print(f"  Reason: {case['reason']}")
 
@@ -583,9 +587,9 @@ Return [] if no items test the same skill.
 
 def preview_prompts():
     """Preview what prompts would be generated for key test cases."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("PROMPT PREVIEWS")
-    print("="*70)
+    print("=" * 70)
 
     preview_cases = [
         ("abbreviation_fcfs", [FCFS_FULL, FCFS_ABBREV]),
@@ -603,9 +607,9 @@ def preview_prompts():
 
 def run_all_tests():
     """Run all test validations."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("ANONYMOUS SYNONYM DETECTION TEST SUITE")
-    print("="*70)
+    print("=" * 70)
     print("\nThis test suite validates the test DATA for the anonymous approach.")
     print("Actual LLM-based testing requires running with detect_synonyms().\n")
 
@@ -617,19 +621,19 @@ def run_all_tests():
 
     # Summary
     total_cases = (
-        len(SHOULD_MERGE_CASES) +
-        len(SHOULD_NOT_MERGE_CASES) +
-        len(EDGE_CASES) +
-        len(MULTI_ITEM_CASES)
+        len(SHOULD_MERGE_CASES)
+        + len(SHOULD_NOT_MERGE_CASES)
+        + len(EDGE_CASES)
+        + len(MULTI_ITEM_CASES)
     )
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print(f"SUMMARY: {total_cases} test cases defined")
     print(f"  - Should merge: {len(SHOULD_MERGE_CASES)}")
     print(f"  - Should NOT merge: {len(SHOULD_NOT_MERGE_CASES)}")
     print(f"  - Edge cases: {len(EDGE_CASES)}")
     print(f"  - Multi-item: {len(MULTI_ITEM_CASES)}")
-    print("="*70)
+    print("=" * 70)
 
     return total_cases
 
@@ -637,6 +641,7 @@ def run_all_tests():
 # ============================================================================
 # LLM Integration Test (requires actual LLM)
 # ============================================================================
+
 
 def test_with_llm(llm_manager=None):
     """
@@ -654,9 +659,9 @@ def test_with_llm(llm_manager=None):
 
     from core.merger import detect_synonyms
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("LLM-BASED SYNONYM DETECTION TESTS")
-    print("="*70)
+    print("=" * 70)
 
     passed = 0
     failed = 0
@@ -674,7 +679,9 @@ def test_with_llm(llm_manager=None):
             print(f"PASS [{case['name']}]: Got {len(result)} group(s)")
             passed += 1
         else:
-            print(f"FAIL [{case['name']}]: Expected {case['expected_groups']} group(s), got {len(result)}")
+            print(
+                f"FAIL [{case['name']}]: Expected {case['expected_groups']} group(s), got {len(result)}"
+            )
             failed += 1
 
     # Test should-not-merge cases
@@ -697,5 +704,5 @@ def test_with_llm(llm_manager=None):
     return passed, failed
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     run_all_tests()

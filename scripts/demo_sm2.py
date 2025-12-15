@@ -5,15 +5,14 @@ This script demonstrates how the SM-2 spaced repetition algorithm works
 with various quality scores and shows example progressions.
 """
 
-from datetime import datetime, timedelta
 from core.sm2 import SM2Algorithm
 
 
 def print_header(title):
     """Print a formatted header."""
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"{title:^70}")
-    print(f"{'='*70}\n")
+    print(f"{'=' * 70}\n")
 
 
 def print_review(review_num, quality, result):
@@ -42,9 +41,9 @@ def demo_perfect_recall():
         result = sm2.calculate_next_review(quality, ef, interval, rep)
         print_review(i, quality, result)
 
-        ef = result['new_ef']
-        interval = result['new_interval']
-        rep = result['new_repetition']
+        ef = result["new_ef"]
+        interval = result["new_interval"]
+        rep = result["new_repetition"]
 
     print(f"Summary after {len(qualities)} reviews:")
     print(f"  - Started with 0 days interval")
@@ -74,9 +73,9 @@ def demo_mixed_quality():
         print(f"  New Repetition: {result['new_repetition']}")
         print()
 
-        ef = result['new_ef']
-        interval = result['new_interval']
-        rep = result['new_repetition']
+        ef = result["new_ef"]
+        interval = result["new_interval"]
+        rep = result["new_repetition"]
 
     print(f"Summary:")
     print(f"  - Quality 3 reduced EF from 2.5 to {ef}")
@@ -109,9 +108,9 @@ def demo_failure_and_recovery():
 
         print()
 
-        ef = result['new_ef']
-        interval = result['new_interval']
-        rep = result['new_repetition']
+        ef = result["new_ef"]
+        interval = result["new_interval"]
+        rep = result["new_repetition"]
 
     print(f"Summary:")
     print(f"  - Quality < 3 resets progress back to day 1")
@@ -130,10 +129,7 @@ def demo_quality_to_interval_mapping():
 
     for quality in range(6):
         result = sm2.calculate_next_review(
-            quality=quality,
-            current_ef=2.5,
-            current_interval=6,
-            repetition=2
+            quality=quality, current_ef=2.5, current_interval=6, repetition=2
         )
 
         quality_names = {
@@ -142,7 +138,7 @@ def demo_quality_to_interval_mapping():
             2: "Incorrect, remembered after seeing",
             3: "Correct with difficulty",
             4: "Correct with hesitation",
-            5: "Perfect recall"
+            5: "Perfect recall",
         }
 
         print(f"Quality {quality} ({quality_names[quality]}):")
@@ -170,36 +166,36 @@ def demo_performance_to_quality():
             "correct": True,
             "time_taken": 60,
             "hint_used": False,
-            "expected_time": 180
+            "expected_time": 180,
         },
         {
             "name": "Good - Normal Speed",
             "correct": True,
             "time_taken": 150,
             "hint_used": False,
-            "expected_time": 180
+            "expected_time": 180,
         },
         {
             "name": "Good - With Hint",
             "correct": True,
             "time_taken": 150,
             "hint_used": True,
-            "expected_time": 180
+            "expected_time": 180,
         },
         {
             "name": "Fair - Slow but Correct",
             "correct": True,
             "time_taken": 300,
             "hint_used": False,
-            "expected_time": 180
+            "expected_time": 180,
         },
         {
             "name": "Poor - Incorrect",
             "correct": False,
             "time_taken": 120,
             "hint_used": False,
-            "expected_time": 180
-        }
+            "expected_time": 180,
+        },
     ]
 
     for scenario in scenarios:
@@ -207,14 +203,16 @@ def demo_performance_to_quality():
             correct=scenario["correct"],
             time_taken=scenario["time_taken"],
             hint_used=scenario["hint_used"],
-            expected_time=scenario["expected_time"]
+            expected_time=scenario["expected_time"],
         )
 
         time_ratio = scenario["time_taken"] / scenario["expected_time"]
 
         print(f"{scenario['name']}:")
         print(f"  Correct:      {scenario['correct']}")
-        print(f"  Time:         {scenario['time_taken']}s / {scenario['expected_time']}s ({time_ratio:.1%})")
+        print(
+            f"  Time:         {scenario['time_taken']}s / {scenario['expected_time']}s ({time_ratio:.1%})"
+        )
         print(f"  Hint Used:    {scenario['hint_used']}")
         print(f"  → Quality:    {quality} / 5")
         print()
@@ -227,30 +225,18 @@ def demo_mastery_levels():
     sm2 = SM2Algorithm()
 
     scenarios = [
-        {
-            "name": "Brand New",
-            "rep": 0, "interval": 0, "correct": 0, "total": 0
-        },
-        {
-            "name": "First Review",
-            "rep": 1, "interval": 1, "correct": 1, "total": 1
-        },
-        {
-            "name": "Learning Phase",
-            "rep": 2, "interval": 6, "correct": 2, "total": 2
-        },
-        {
-            "name": "Reviewing Phase",
-            "rep": 5, "interval": 15, "correct": 5, "total": 6
-        },
-        {
-            "name": "Mastered",
-            "rep": 12, "interval": 45, "correct": 12, "total": 13
-        },
+        {"name": "Brand New", "rep": 0, "interval": 0, "correct": 0, "total": 0},
+        {"name": "First Review", "rep": 1, "interval": 1, "correct": 1, "total": 1},
+        {"name": "Learning Phase", "rep": 2, "interval": 6, "correct": 2, "total": 2},
+        {"name": "Reviewing Phase", "rep": 5, "interval": 15, "correct": 5, "total": 6},
+        {"name": "Mastered", "rep": 12, "interval": 45, "correct": 12, "total": 13},
         {
             "name": "Many Reviews, Low Accuracy",
-            "rep": 12, "interval": 45, "correct": 6, "total": 12
-        }
+            "rep": 12,
+            "interval": 45,
+            "correct": 6,
+            "total": 12,
+        },
     ]
 
     for scenario in scenarios:
@@ -258,7 +244,7 @@ def demo_mastery_levels():
             repetition=scenario["rep"],
             interval_days=scenario["interval"],
             correct_count=scenario["correct"],
-            total_count=scenario["total"]
+            total_count=scenario["total"],
         )
 
         if scenario["total"] > 0:
@@ -293,18 +279,20 @@ def demo_long_term_retention():
     for i, quality in enumerate(qualities, 1):
         result = sm2.calculate_next_review(quality, ef, interval, rep)
 
-        total_days += result['new_interval']
+        total_days += result["new_interval"]
 
         quality_emoji = {5: "🌟", 4: "✓", 3: "~", 2: "✗", 1: "✗", 0: "✗"}
 
-        print(f"Review {i:2d} (Day {total_days:3d}): "
-              f"Quality {quality} {quality_emoji[quality]}  →  "
-              f"Next in {result['new_interval']:3d} days "
-              f"(EF: {result['new_ef']})")
+        print(
+            f"Review {i:2d} (Day {total_days:3d}): "
+            f"Quality {quality} {quality_emoji[quality]}  →  "
+            f"Next in {result['new_interval']:3d} days "
+            f"(EF: {result['new_ef']})"
+        )
 
-        ef = result['new_ef']
-        interval = result['new_interval']
-        rep = result['new_repetition']
+        ef = result["new_ef"]
+        interval = result["new_interval"]
+        rep = result["new_repetition"]
 
         if total_days > 180:  # 6 months
             break
@@ -319,10 +307,10 @@ def demo_long_term_retention():
 
 def main():
     """Run all demonstrations."""
-    print("\n" + "="*70)
-    print(" "*15 + "SM-2 SPACED REPETITION ALGORITHM")
-    print(" "*20 + "Interactive Demonstration")
-    print("="*70)
+    print("\n" + "=" * 70)
+    print(" " * 15 + "SM-2 SPACED REPETITION ALGORITHM")
+    print(" " * 20 + "Interactive Demonstration")
+    print("=" * 70)
 
     demo_perfect_recall()
     demo_mixed_quality()
@@ -332,9 +320,9 @@ def main():
     demo_mastery_levels()
     demo_long_term_retention()
 
-    print("\n" + "="*70)
-    print(" "*20 + "Demonstration Complete!")
-    print("="*70)
+    print("\n" + "=" * 70)
+    print(" " * 20 + "Demonstration Complete!")
+    print("=" * 70)
     print("\nKey Takeaways:")
     print("  1. Perfect recall (5) → Exponential interval growth")
     print("  2. Good recall (4) → Steady progress")

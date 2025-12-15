@@ -10,7 +10,7 @@ import sys
 import os
 
 # Add parent directory to path for imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from core.answer_evaluator import (
     AnswerEvaluator,
@@ -23,6 +23,7 @@ from core.answer_evaluator import (
 # ============================================================================
 # Mock LLM for Testing
 # ============================================================================
+
 
 class MockLLM:
     """Mock LLM that returns predefined responses."""
@@ -43,6 +44,7 @@ class MockLLM:
 # Test EvaluationMode Enum
 # ============================================================================
 
+
 def test_evaluation_mode_values():
     """Test EvaluationMode enum values."""
     assert EvaluationMode.QUIZ.value == "quiz"
@@ -54,6 +56,7 @@ def test_evaluation_mode_values():
 # ============================================================================
 # Test QUIZ Mode Evaluation
 # ============================================================================
+
 
 def test_evaluate_quiz_correct_json():
     """Test QUIZ mode with valid JSON response."""
@@ -117,9 +120,7 @@ def test_evaluate_quiz_json_with_extra_text():
 
 def test_evaluate_quiz_invalid_json_fallback():
     """Test QUIZ mode falls back to keyword matching on invalid JSON."""
-    mock_llm = MockLLM(
-        response="This is not valid JSON at all"
-    )
+    mock_llm = MockLLM(response="This is not valid JSON at all")
     evaluator = AnswerEvaluator(mock_llm)
 
     result = evaluator.evaluate(
@@ -176,11 +177,10 @@ def test_evaluate_quiz_no_solution():
 # Test LEARN Mode Evaluation
 # ============================================================================
 
+
 def test_evaluate_learn_basic():
     """Test LEARN mode returns pedagogical feedback."""
-    mock_llm = MockLLM(
-        response="Great attempt! Your answer shows understanding of the concept."
-    )
+    mock_llm = MockLLM(response="Great attempt! Your answer shows understanding of the concept.")
     evaluator = AnswerEvaluator(mock_llm)
 
     result = evaluator.evaluate(
@@ -198,9 +198,7 @@ def test_evaluate_learn_basic():
 
 def test_evaluate_learn_with_hints():
     """Test LEARN mode includes hint instruction when requested."""
-    mock_llm = MockLLM(
-        response="Close! Hint: Think about what else plants need besides sunlight."
-    )
+    mock_llm = MockLLM(response="Close! Hint: Think about what else plants need besides sunlight.")
     evaluator = AnswerEvaluator(mock_llm)
 
     result = evaluator.evaluate(
@@ -238,16 +236,17 @@ def test_evaluate_learn_llm_failure():
 # Test RECALL Mode Evaluation
 # ============================================================================
 
+
 def test_evaluate_recall_valid_json():
     """Test RECALL mode with valid JSON response."""
     mock_llm = MockLLM(
-        response='''{
+        response="""{
             "recall_score": 0.85,
             "correct_points": ["Mentioned key concept A", "Explained process B"],
             "missed_points": ["Did not mention condition C"],
             "misconceptions": [],
             "feedback": "Good recall overall! You covered most key points."
-        }'''
+        }"""
     )
     evaluator = AnswerEvaluator(mock_llm)
 
@@ -269,13 +268,13 @@ def test_evaluate_recall_valid_json():
 def test_evaluate_recall_with_misconceptions():
     """Test RECALL mode identifies misconceptions."""
     mock_llm = MockLLM(
-        response='''{
+        response="""{
             "recall_score": 0.3,
             "correct_points": ["Mentioned triangles"],
             "missed_points": ["Did not explain the relationship", "Missing formula"],
             "misconceptions": ["Said it applies to all triangles (only right triangles)"],
             "feedback": "You have the basic idea but misunderstood when it applies."
-        }'''
+        }"""
     )
     evaluator = AnswerEvaluator(mock_llm)
 
@@ -295,7 +294,7 @@ def test_evaluate_recall_with_misconceptions():
 def test_evaluate_recall_json_with_extra_text():
     """Test RECALL mode extracts JSON from response with extra text."""
     mock_llm = MockLLM(
-        response='''Let me evaluate this:
+        response="""Let me evaluate this:
         {
             "recall_score": 0.9,
             "correct_points": ["All key points covered"],
@@ -303,7 +302,7 @@ def test_evaluate_recall_json_with_extra_text():
             "misconceptions": [],
             "feedback": "Excellent recall!"
         }
-        That's my assessment.'''
+        That's my assessment."""
     )
     evaluator = AnswerEvaluator(mock_llm)
 
@@ -320,9 +319,7 @@ def test_evaluate_recall_json_with_extra_text():
 
 def test_evaluate_recall_invalid_json_fallback():
     """Test RECALL mode falls back to keyword matching on invalid JSON."""
-    mock_llm = MockLLM(
-        response="This is not valid JSON at all"
-    )
+    mock_llm = MockLLM(response="This is not valid JSON at all")
     evaluator = AnswerEvaluator(mock_llm)
 
     result = evaluator.evaluate_recall(
@@ -429,7 +426,9 @@ def test_recall_evaluation_result_defaults():
 
 def test_recall_prompt_includes_all_fields():
     """Test RECALL prompt includes all required information."""
-    mock_llm = MockLLM(response='{"recall_score": 0.5, "correct_points": [], "missed_points": [], "misconceptions": [], "feedback": "OK"}')
+    mock_llm = MockLLM(
+        response='{"recall_score": 0.5, "correct_points": [], "missed_points": [], "misconceptions": [], "feedback": "OK"}'
+    )
     evaluator = AnswerEvaluator(mock_llm)
 
     evaluator.evaluate_recall(
@@ -447,6 +446,7 @@ def test_recall_prompt_includes_all_fields():
 # ============================================================================
 # Test Fallback Evaluation
 # ============================================================================
+
 
 def test_fallback_keyword_match_full():
     """Test keyword matching with multiple matches."""
@@ -498,6 +498,7 @@ def test_simple_keyword_match():
 # Test EvaluationResult
 # ============================================================================
 
+
 def test_evaluation_result_frozen():
     """Test EvaluationResult is immutable."""
     result = EvaluationResult(
@@ -529,6 +530,7 @@ def test_evaluation_result_default_hint():
 # ============================================================================
 # Test Prompt Generation
 # ============================================================================
+
 
 def test_quiz_prompt_includes_question():
     """Test QUIZ prompt includes all required information."""
@@ -568,6 +570,7 @@ def test_learn_prompt_no_hints_by_default():
 # ============================================================================
 # Main runner
 # ============================================================================
+
 
 def run_all_tests():
     """Run all tests."""

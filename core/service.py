@@ -27,7 +27,7 @@ Design Goals:
     5. Easy to test and mock for unit tests
 """
 
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, Dict, Any
 from pathlib import Path
 from dataclasses import dataclass
 
@@ -52,6 +52,7 @@ class ServiceResult:
     Provides consistent response format across all service methods.
     Suitable for serialization to JSON in web APIs.
     """
+
     success: bool
     message: str = ""
     data: Optional[Dict[str, Any]] = None
@@ -85,8 +86,13 @@ class ExaminaService:
             return result
     """
 
-    def __init__(self, provider: Optional[str] = None, language: str = "en",
-                 use_routing: bool = False, provider_profile: Optional[str] = None):
+    def __init__(
+        self,
+        provider: Optional[str] = None,
+        language: str = "en",
+        use_routing: bool = False,
+        provider_profile: Optional[str] = None,
+    ):
         """Initialize service with LLM provider.
 
         Args:
@@ -168,11 +174,13 @@ class ExaminaService:
     # INGESTION & ANALYSIS OPERATIONS
     # =========================================================================
 
-    def ingest_notes(self,
-                     course_code: str,
-                     file_path: Path,
-                     material_type: str = "exercises",
-                     smart_split: bool = False) -> ServiceResult:
+    def ingest_notes(
+        self,
+        course_code: str,
+        file_path: Path,
+        material_type: str = "exercises",
+        smart_split: bool = False,
+    ) -> ServiceResult:
         """Ingest PDF notes/exercises for a course.
 
         Args:
@@ -189,10 +197,7 @@ class ExaminaService:
             with Database() as db:
                 course = db.get_course(course_code)
                 if not course:
-                    return ServiceResult(
-                        success=False,
-                        error=f"Course '{course_code}' not found"
-                    )
+                    return ServiceResult(success=False, error=f"Course '{course_code}' not found")
 
             # Process PDF
             processor = PDFProcessor()
@@ -207,11 +212,11 @@ class ExaminaService:
                 stored_count = 0
                 for exercise in exercises:
                     exercise_data = {
-                        'course_code': course_code,
-                        'text': exercise.get('text', ''),
-                        'page_number': exercise.get('page', 0),
-                        'material_type': exercise.get('material_type', material_type),
-                        'metadata': exercise.get('metadata')
+                        "course_code": course_code,
+                        "text": exercise.get("text", ""),
+                        "page_number": exercise.get("page", 0),
+                        "material_type": exercise.get("material_type", material_type),
+                        "metadata": exercise.get("metadata"),
                     }
                     exercise_id = db.add_exercise(exercise_data)
                     if exercise_id:
@@ -225,22 +230,21 @@ class ExaminaService:
                     "file_name": file_path.name,
                     "items_stored": stored_count,
                     "material_type": material_type,
-                    "smart_split_enabled": smart_split
-                }
+                    "smart_split_enabled": smart_split,
+                },
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
-    def analyze_exercises(self,
-                         course_code: str,
-                         limit: Optional[int] = None,
-                         force: bool = False,
-                         parallel: bool = True,
-                         batch_size: int = 10) -> ServiceResult:
+    def analyze_exercises(
+        self,
+        course_code: str,
+        limit: Optional[int] = None,
+        force: bool = False,
+        parallel: bool = True,
+        batch_size: int = 10,
+    ) -> ServiceResult:
         """Analyze exercises to discover topics and core loops.
 
         Args:
@@ -264,24 +268,18 @@ class ExaminaService:
 
                 # Filter unanalyzed if not forcing
                 if not force:
-                    exercises = [ex for ex in exercises if not ex.get('analyzed', False)]
+                    exercises = [ex for ex in exercises if not ex.get("analyzed", False)]
 
                 if limit:
                     exercises = exercises[:limit]
 
                 if not exercises:
                     return ServiceResult(
-                        success=True,
-                        message="No exercises to analyze",
-                        data={"analyzed_count": 0}
+                        success=True, message="No exercises to analyze", data={"analyzed_count": 0}
                     )
 
             # Analyze exercises
-            results = analyzer.analyze_batch(
-                exercises,
-                parallel=parallel,
-                batch_size=batch_size
-            )
+            results = analyzer.analyze_batch(exercises, parallel=parallel, batch_size=batch_size)
 
             # Store results
             with Database() as db:
@@ -295,20 +293,16 @@ class ExaminaService:
                     "course_code": course_code,
                     "analyzed_count": len(results),
                     "parallel": parallel,
-                    "batch_size": batch_size
-                }
+                    "batch_size": batch_size,
+                },
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
-    def link_learning_materials(self,
-                               course_code: str,
-                               topic_threshold: float = 0.85,
-                               exercise_threshold: float = 0.70) -> ServiceResult:
+    def link_learning_materials(
+        self, course_code: str, topic_threshold: float = 0.85, exercise_threshold: float = 0.70
+    ) -> ServiceResult:
         """Link theory and worked examples to topics and exercises.
 
         Args:
@@ -332,27 +326,26 @@ class ExaminaService:
                 data={
                     "course_code": course_code,
                     "topic_threshold": topic_threshold,
-                    "exercise_threshold": exercise_threshold
-                }
+                    "exercise_threshold": exercise_threshold,
+                },
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
     # =========================================================================
     # LEARNING OPERATIONS
     # =========================================================================
 
-    def learn_knowledge_item(self,
-                       course_code: str,
-                       knowledge_item_id: str,
-                       explain_concepts: bool = True,
-                       depth: str = "medium",
-                       adaptive: bool = True,
-                       include_study_strategy: bool = False) -> ServiceResult:
+    def learn_knowledge_item(
+        self,
+        course_code: str,
+        knowledge_item_id: str,
+        explain_concepts: bool = True,
+        depth: str = "medium",
+        adaptive: bool = True,
+        include_study_strategy: bool = False,
+    ) -> ServiceResult:
         """Get AI tutor explanation for a core loop.
 
         Args:
@@ -378,14 +371,11 @@ class ExaminaService:
                 explain_concepts=explain_concepts,
                 depth=depth,
                 adaptive=adaptive,
-                include_study_strategy=include_study_strategy
+                include_study_strategy=include_study_strategy,
             )
 
             if not result.success:
-                return ServiceResult(
-                    success=False,
-                    error=result.content
-                )
+                return ServiceResult(success=False, error=result.content)
 
             return ServiceResult(
                 success=True,
@@ -395,24 +385,20 @@ class ExaminaService:
                     "knowledge_item_id": knowledge_item_id,
                     "depth": depth,
                     "adaptive": adaptive,
-                    "metadata": result.metadata
-                }
+                    "metadata": result.metadata,
+                },
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
     # =========================================================================
     # PRACTICE OPERATIONS
     # =========================================================================
 
-    def practice_exercise(self,
-                         course_code: str,
-                         topic: Optional[str] = None,
-                         difficulty: Optional[str] = None) -> ServiceResult:
+    def practice_exercise(
+        self, course_code: str, topic: Optional[str] = None, difficulty: Optional[str] = None
+    ) -> ServiceResult:
         """Get a practice exercise with guidance.
 
         Args:
@@ -428,40 +414,29 @@ class ExaminaService:
             llm = self._get_llm_for_task(TaskType.INTERACTIVE)
             tutor = Tutor(llm_manager=llm, language=self.language)
 
-            result = tutor.practice(
-                course_code=course_code,
-                topic=topic,
-                difficulty=difficulty
-            )
+            result = tutor.practice(course_code=course_code, topic=topic, difficulty=difficulty)
 
             if not result.success:
-                return ServiceResult(
-                    success=False,
-                    error=result.content
-                )
+                return ServiceResult(success=False, error=result.content)
 
             return ServiceResult(
                 success=True,
                 message="Practice exercise retrieved",
                 data={
                     "content": result.content,
-                    "exercise_id": result.metadata.get('exercise_id'),
+                    "exercise_id": result.metadata.get("exercise_id"),
                     "topic": topic,
                     "difficulty": difficulty,
-                    "metadata": result.metadata
-                }
+                    "metadata": result.metadata,
+                },
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
-    def check_answer(self,
-                    exercise_id: str,
-                    user_answer: str,
-                    provide_hints: bool = True) -> ServiceResult:
+    def check_answer(
+        self, exercise_id: str, user_answer: str, provide_hints: bool = True
+    ) -> ServiceResult:
         """Check user's answer to an exercise.
 
         Args:
@@ -476,16 +451,11 @@ class ExaminaService:
             tutor = Tutor(llm_manager=self.llm, language=self.language)
 
             result = tutor.check_answer(
-                exercise_id=exercise_id,
-                user_answer=user_answer,
-                provide_hints=provide_hints
+                exercise_id=exercise_id, user_answer=user_answer, provide_hints=provide_hints
             )
 
             if not result.success:
-                return ServiceResult(
-                    success=False,
-                    error=result.content
-                )
+                return ServiceResult(success=False, error=result.content)
 
             return ServiceResult(
                 success=True,
@@ -493,24 +463,20 @@ class ExaminaService:
                 data={
                     "feedback": result.content,
                     "exercise_id": exercise_id,
-                    "metadata": result.metadata
-                }
+                    "metadata": result.metadata,
+                },
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
     # =========================================================================
     # PROOF PRACTICE OPERATIONS
     # =========================================================================
 
-    def practice_proof(self,
-                      course_code: str,
-                      exercise_id: Optional[int] = None,
-                      technique: Optional[str] = None) -> ServiceResult:
+    def practice_proof(
+        self, course_code: str, exercise_id: Optional[int] = None, technique: Optional[str] = None
+    ) -> ServiceResult:
         """Get proof practice with step-by-step guidance.
 
         Args:
@@ -531,60 +497,57 @@ class ExaminaService:
                 else:
                     # Get random proof exercise
                     proof_exercises = db.get_exercises_by_course(course_code)
-                    proof_exercises = [ex for ex in proof_exercises
-                                      if ex.get('exercise_type') in ['proof', 'theory']]
+                    proof_exercises = [
+                        ex
+                        for ex in proof_exercises
+                        if ex.get("exercise_type") in ["proof", "theory"]
+                    ]
                     if proof_exercises:
                         import random
+
                         exercise = random.choice(proof_exercises)
                     else:
                         exercise = None
 
                 if not exercise:
-                    return ServiceResult(
-                        success=False,
-                        error="No proof exercises found"
-                    )
+                    return ServiceResult(success=False, error="No proof exercises found")
 
             # Get technique suggestion if not specified
             if not technique:
-                technique = proof_tutor.suggest_technique(exercise['text'])
+                technique = proof_tutor.suggest_technique(exercise["text"])
 
             # Get step-by-step guidance
-            guidance = proof_tutor.get_proof_guidance(exercise['text'], technique)
+            guidance = proof_tutor.get_proof_guidance(exercise["text"], technique)
 
-            if not guidance or not guidance.get('success'):
-                return ServiceResult(
-                    success=False,
-                    error="Failed to generate proof guidance"
-                )
+            if not guidance or not guidance.get("success"):
+                return ServiceResult(success=False, error="Failed to generate proof guidance")
 
             return ServiceResult(
                 success=True,
                 message="Proof guidance generated",
                 data={
-                    "exercise_id": exercise['id'],
-                    "exercise_text": exercise['text'],
+                    "exercise_id": exercise["id"],
+                    "exercise_text": exercise["text"],
                     "technique": technique,
-                    "steps": guidance.get('steps', []),
-                    "hints": guidance.get('hints', [])
-                }
+                    "steps": guidance.get("steps", []),
+                    "hints": guidance.get("hints", []),
+                },
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
     # =========================================================================
     # QUIZ OPERATIONS
     # =========================================================================
 
-    def start_quiz(self,
-                   course_code: str,
-                   topic_id: Optional[int] = None,
-                   length: int = 10,
-                   spaced_repetition: bool = True) -> ServiceResult:
+    def start_quiz(
+        self,
+        course_code: str,
+        topic_id: Optional[int] = None,
+        length: int = 10,
+        spaced_repetition: bool = True,
+    ) -> ServiceResult:
         """Start a new quiz session.
 
         Args:
@@ -603,7 +566,7 @@ class ExaminaService:
                 course_code=course_code,
                 topic_id=topic_id,
                 length=length,
-                spaced_repetition=spaced_repetition
+                spaced_repetition=spaced_repetition,
             )
 
             return ServiceResult(
@@ -614,20 +577,14 @@ class ExaminaService:
                     "course_code": course_code,
                     "topic_id": topic_id,
                     "length": length,
-                    "questions": session.questions
-                }
+                    "questions": session.questions,
+                },
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
-    def submit_quiz_answer(self,
-                          session_id: str,
-                          question_id: str,
-                          answer: str) -> ServiceResult:
+    def submit_quiz_answer(self, session_id: str, question_id: str, answer: str) -> ServiceResult:
         """Submit answer to quiz question.
 
         Args:
@@ -642,32 +599,21 @@ class ExaminaService:
             quiz_engine = QuizEngine()
 
             result = quiz_engine.submit_answer(
-                session_id=session_id,
-                question_id=question_id,
-                answer=answer,
-                llm_manager=self.llm
+                session_id=session_id, question_id=question_id, answer=answer, llm_manager=self.llm
             )
 
-            return ServiceResult(
-                success=True,
-                message="Answer submitted",
-                data=result
-            )
+            return ServiceResult(success=True, message="Answer submitted", data=result)
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
     # =========================================================================
     # GENERATION OPERATIONS
     # =========================================================================
 
-    def generate_exercise(self,
-                         course_code: str,
-                         knowledge_item_id: str,
-                         difficulty: str = "medium") -> ServiceResult:
+    def generate_exercise(
+        self, course_code: str, knowledge_item_id: str, difficulty: str = "medium"
+    ) -> ServiceResult:
         """Generate new practice exercise for a core loop.
 
         Args:
@@ -682,16 +628,11 @@ class ExaminaService:
             tutor = Tutor(llm_manager=self.llm, language=self.language)
 
             result = tutor.generate(
-                course_code=course_code,
-                knowledge_item_id=knowledge_item_id,
-                difficulty=difficulty
+                course_code=course_code, knowledge_item_id=knowledge_item_id, difficulty=difficulty
             )
 
             if not result.success:
-                return ServiceResult(
-                    success=False,
-                    error=result.content
-                )
+                return ServiceResult(success=False, error=result.content)
 
             return ServiceResult(
                 success=True,
@@ -700,15 +641,12 @@ class ExaminaService:
                     "content": result.content,
                     "knowledge_item_id": knowledge_item_id,
                     "difficulty": difficulty,
-                    "metadata": result.metadata
-                }
+                    "metadata": result.metadata,
+                },
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
     # =========================================================================
     # UTILITY OPERATIONS
@@ -736,20 +674,13 @@ class ExaminaService:
                     "total_topics": len(topics),
                     "total_knowledge_items": len(knowledge_items),
                     "analyzed_exercises": len(analyzed_exercises),
-                    "mastery_progress": db.get_all_topic_mastery(course_code) if topics else []
+                    "mastery_progress": db.get_all_topic_mastery(course_code) if topics else [],
                 }
 
-            return ServiceResult(
-                success=True,
-                message="Statistics retrieved",
-                data=stats
-            )
+            return ServiceResult(success=True, message="Statistics retrieved", data=stats)
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
     def get_study_recommendations(self, course_code: str) -> ServiceResult:
         """Get personalized study recommendations.
@@ -769,25 +700,17 @@ class ExaminaService:
 
                 # Get recommendations
                 recommendations = strategy_manager.generate_recommendations(
-                    course_code=course_code,
-                    mastery_data=mastery_data,
-                    llm_manager=self.llm
+                    course_code=course_code, mastery_data=mastery_data, llm_manager=self.llm
                 )
 
             return ServiceResult(
                 success=True,
                 message="Recommendations generated",
-                data={
-                    "course_code": course_code,
-                    "recommendations": recommendations
-                }
+                data={"course_code": course_code, "recommendations": recommendations},
             )
 
         except Exception as e:
-            return ServiceResult(
-                success=False,
-                error=str(e)
-            )
+            return ServiceResult(success=False, error=str(e))
 
 
 # =============================================================================

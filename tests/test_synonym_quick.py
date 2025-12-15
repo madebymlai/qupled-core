@@ -11,7 +11,7 @@ import sys
 import os
 import json
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models.llm_manager import LLMManager
 
@@ -26,14 +26,14 @@ CRITICAL_TESTS = [
                 "name": "fcfs_scheduling",
                 "exercises": [
                     "Calculate FCFS waiting time for P1(0,5), P2(1,3), P3(2,8).",
-                ]
+                ],
             },
             {
                 "name": "first_come_first_served_scheduling",
                 "exercises": [
                     "Apply first-come-first-served to P1(0,4), P2(1,3), P3(2,1). Find avg wait.",
-                ]
-            }
+                ],
+            },
         ],
         "should_merge": True,
     },
@@ -45,14 +45,14 @@ CRITICAL_TESTS = [
                 "name": "deadlock_detection",
                 "exercises": [
                     "Apply deadlock detection algorithm to find deadlocked processes.",
-                ]
+                ],
             },
             {
                 "name": "deadlock_prevention",
                 "exercises": [
                     "Explain how to prevent the hold-and-wait condition.",
-                ]
-            }
+                ],
+            },
         ],
         "should_merge": False,
     },
@@ -64,14 +64,14 @@ CRITICAL_TESTS = [
                 "name": "cpu_scheduling",
                 "exercises": [
                     "Explain preemptive vs non-preemptive scheduling differences.",
-                ]
+                ],
             },
             {
                 "name": "cpu_scheduling",
                 "exercises": [
                     "Calculate SJF schedule for 5 processes with given burst times.",
-                ]
-            }
+                ],
+            },
         ],
         "should_merge": False,
     },
@@ -83,14 +83,14 @@ CRITICAL_TESTS = [
                 "name": "fsm_tramway",
                 "exercises": [
                     "Design Moore FSM for tramway crossing. States: Idle, Warning, Blocked.",
-                ]
+                ],
             },
             {
                 "name": "fsm_webcam",
                 "exercises": [
                     "Design Mealy FSM for webcam motion detector. States: Monitoring, Recording.",
-                ]
-            }
+                ],
+            },
         ],
         "should_merge": True,
     },
@@ -126,7 +126,7 @@ def run_quick_test():
     failed = 0
 
     for test in CRITICAL_TESTS:
-        print(f"\n{'='*50}")
+        print(f"\n{'=' * 50}")
         print(f"TEST: {test['name']}")
         print(f"  {test['description']}")
 
@@ -151,11 +151,13 @@ def run_quick_test():
             print(f"  PASS: Got {'merge' if has_merge else 'no merge'} as expected")
             passed += 1
         else:
-            print(f"  FAIL: Expected {'merge' if test['should_merge'] else 'no merge'}, got {'merge' if has_merge else 'no merge'}")
+            print(
+                f"  FAIL: Expected {'merge' if test['should_merge'] else 'no merge'}, got {'merge' if has_merge else 'no merge'}"
+            )
             print(f"  Response: {response.text if response else 'None'}")
             failed += 1
 
-    print(f"\n{'='*50}")
+    print(f"\n{'=' * 50}")
     print(f"RESULTS: {passed}/4 passed")
 
     if failed == 0:

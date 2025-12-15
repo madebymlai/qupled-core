@@ -11,7 +11,7 @@ in PDF files where both appear together. Works for ANY:
 NO HARDCODING - fully adaptive to content.
 """
 
-from typing import Dict, Optional, Tuple, List
+from typing import Dict, Optional, List
 from dataclasses import dataclass
 from models.llm_manager import LLMManager
 
@@ -19,6 +19,7 @@ from models.llm_manager import LLMManager
 @dataclass
 class QuestionAnswerPair:
     """Separated question and answer."""
+
     question: str
     answer: Optional[str]
     confidence: float  # 0.0-1.0, how confident we are about the separation
@@ -64,7 +65,7 @@ class SolutionSeparator:
 
 TEXT:
 {text[:2000]}
-{'...(truncated)' if len(text) > 2000 else ''}
+{"...(truncated)" if len(text) > 2000 else ""}
 
 Answer with ONLY "yes" or "no".
 
@@ -79,7 +80,7 @@ Answer:"""
             prompt=prompt,
             system="You are an expert at analyzing educational content structure. Be accurate and concise.",
             temperature=0.0,
-            max_tokens=10
+            max_tokens=10,
         )
 
         if response.success:
@@ -105,10 +106,7 @@ Answer:"""
         # First check if there's actually a solution to separate
         if not self.has_solution(text):
             return QuestionAnswerPair(
-                question=text,
-                answer=None,
-                confidence=0.9,
-                separation_method="none"
+                question=text, answer=None, confidence=0.9, separation_method="none"
             )
 
         # Use LLM to find the separation point
@@ -139,16 +137,13 @@ Guidelines:
             system="You are an expert at analyzing educational content. Be precise and preserve all original text.",
             temperature=0.0,
             max_tokens=4000,
-            json_mode=True
+            json_mode=True,
         )
 
         if not response.success:
             # Fallback: return as-is
             return QuestionAnswerPair(
-                question=text,
-                answer=None,
-                confidence=0.0,
-                separation_method="none"
+                question=text, answer=None, confidence=0.0, separation_method="none"
             )
 
         # Parse JSON response
@@ -157,21 +152,21 @@ Guidelines:
 
             # Strip markdown code fences if present
             response_text = response.text.strip()
-            if response_text.startswith('```'):
+            if response_text.startswith("```"):
                 # Remove opening fence (```json or ```)
-                lines = response_text.split('\n')
-                if lines[0].startswith('```'):
+                lines = response_text.split("\n")
+                if lines[0].startswith("```"):
                     lines = lines[1:]
                 # Remove closing fence (```)
-                if lines and lines[-1].strip() == '```':
+                if lines and lines[-1].strip() == "```":
                     lines = lines[:-1]
-                response_text = '\n'.join(lines)
+                response_text = "\n".join(lines)
 
             result = json.loads(response_text)
 
-            question = result.get('question', '').strip()
-            answer = result.get('answer', '').strip()
-            confidence = float(result.get('confidence', 0.5))
+            question = result.get("question", "").strip()
+            answer = result.get("answer", "").strip()
+            confidence = float(result.get("confidence", 0.5))
 
             # Validation: question + answer should cover most of original text
             combined_length = len(question) + len(answer)
@@ -181,26 +176,17 @@ Guidelines:
             # If coverage is poor, return original
             if coverage_ratio < 0.7:
                 return QuestionAnswerPair(
-                    question=text,
-                    answer=None,
-                    confidence=0.0,
-                    separation_method="none"
+                    question=text, answer=None, confidence=0.0, separation_method="none"
                 )
 
             return QuestionAnswerPair(
-                question=question,
-                answer=answer,
-                confidence=confidence,
-                separation_method="llm"
+                question=question, answer=answer, confidence=confidence, separation_method="llm"
             )
 
         except (json.JSONDecodeError, KeyError, ValueError) as e:
             # Fallback: return as-is
             return QuestionAnswerPair(
-                question=text,
-                answer=None,
-                confidence=0.0,
-                separation_method="none"
+                question=text, answer=None, confidence=0.0, separation_method="none"
             )
 
     def batch_separate(self, exercises: List[Dict]) -> List[QuestionAnswerPair]:
@@ -215,7 +201,7 @@ Guidelines:
         """
         results = []
         for ex in exercises:
-            text = ex.get('text', '')
+            text = ex.get("text", "")
             result = self.separate(text)
             results.append(result)
 
@@ -233,7 +219,8 @@ Guidelines:
 
         with Database() as db:
             # Update exercise text (question only) and solution field
-            db.conn.execute('''
+            db.conn.execute(
+                """
                 UPDATE exercises
                 SET text = ?,
                     solution = ?,
@@ -243,17 +230,15 @@ Guidelines:
                         ?
                     )
                 WHERE id = ?
-            ''', (
-                qa_pair.question,
-                qa_pair.answer,
-                qa_pair.separation_method,
-                exercise_id
-            ))
+            """,
+                (qa_pair.question, qa_pair.answer, qa_pair.separation_method, exercise_id),
+            )
             db.conn.commit()
 
 
-def process_course_solutions(course_code: str, llm_manager: Optional[LLMManager] = None,
-                             dry_run: bool = True) -> Dict:
+def process_course_solutions(
+    course_code: str, llm_manager: Optional[LLMManager] = None, dry_run: bool = True
+) -> Dict:
     """
     Process all exercises in a course to separate questions from answers.
 
@@ -272,24 +257,27 @@ def process_course_solutions(course_code: str, llm_manager: Optional[LLMManager]
 
     separator = SolutionSeparator(llm_manager=llm_manager)
     stats = {
-        'total_exercises': 0,
-        'has_solution': 0,
-        'separated': 0,
-        'failed': 0,
-        'high_confidence': 0
+        "total_exercises": 0,
+        "has_solution": 0,
+        "separated": 0,
+        "failed": 0,
+        "high_confidence": 0,
     }
 
     with Database() as db:
         # Get all exercises for course
-        cursor = db.conn.execute('''
+        cursor = db.conn.execute(
+            """
             SELECT id, text, solution
             FROM exercises
             WHERE course_code = ?
             ORDER BY id
-        ''', (course_code,))
+        """,
+            (course_code,),
+        )
 
         exercises = cursor.fetchall()
-        stats['total_exercises'] = len(exercises)
+        stats["total_exercises"] = len(exercises)
 
         for ex_id, text, existing_solution in exercises:
             # Skip if already has solution
@@ -298,21 +286,21 @@ def process_course_solutions(course_code: str, llm_manager: Optional[LLMManager]
 
             # Check if text contains Q+A
             if separator.has_solution(text):
-                stats['has_solution'] += 1
+                stats["has_solution"] += 1
 
                 # Separate
                 qa_pair = separator.separate(text)
 
                 if qa_pair.answer and qa_pair.confidence > 0.5:
-                    stats['separated'] += 1
+                    stats["separated"] += 1
 
                     if qa_pair.confidence >= 0.8:
-                        stats['high_confidence'] += 1
+                        stats["high_confidence"] += 1
 
                     # Update database if not dry run
                     if not dry_run:
                         separator.update_database(ex_id, qa_pair)
                 else:
-                    stats['failed'] += 1
+                    stats["failed"] += 1
 
     return stats

@@ -4,7 +4,7 @@ Dynamically discovers prerequisite relationships between concepts using LLM.
 Fully generic - works for ANY subject (CS, Math, Physics, Chemistry, etc.).
 """
 
-from typing import Dict, List, Set, Optional, Tuple
+from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass, field
 import json
 import logging
@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 @dataclass
 class Concept:
     """Represents a theory concept."""
+
     id: str  # e.g., "eigenvalues"
     name: str  # e.g., "Eigenvalues and Eigenvectors"
     description: Optional[str] = None
@@ -31,6 +32,7 @@ class Concept:
 @dataclass
 class ConceptGraph:
     """Directed acyclic graph of concept dependencies."""
+
     concepts: Dict[str, Concept] = field(default_factory=dict)
     edges: List[Tuple[str, str]] = field(default_factory=list)  # (prerequisite_id, concept_id)
 
@@ -155,12 +157,15 @@ class ConceptGraphBuilder:
 
         with Database() as db:
             # Get all theory exercises
-            cursor = db.conn.execute('''
+            cursor = db.conn.execute(
+                """
                 SELECT id, text, theory_metadata, exercise_type
                 FROM exercises
                 WHERE course_code = ?
                 AND (exercise_type = 'theory' OR exercise_type = 'proof' OR exercise_type = 'hybrid')
-            ''', (course_code,))
+            """,
+                (course_code,),
+            )
 
             exercises = cursor.fetchall()
             concept_exercises = {}
@@ -173,27 +178,31 @@ class ConceptGraphBuilder:
                     continue
 
                 try:
-                    metadata = json.loads(metadata_json) if isinstance(metadata_json, str) else metadata_json
+                    metadata = (
+                        json.loads(metadata_json)
+                        if isinstance(metadata_json, str)
+                        else metadata_json
+                    )
 
                     # Try to extract concept information from metadata
-                    concept_id = metadata.get('concept_id')
-                    concept_name = metadata.get('concept_name')
+                    concept_id = metadata.get("concept_id")
+                    concept_name = metadata.get("concept_name")
 
                     # If not in metadata, try to extract from exercise text using LLM
                     if not concept_id or not concept_name:
                         concept_info = self._extract_concept_from_text(text, course_code)
                         if concept_info:
-                            concept_id = concept_info['id']
-                            concept_name = concept_info['name']
+                            concept_id = concept_info["id"]
+                            concept_name = concept_info["name"]
 
                     if concept_id and concept_name:
                         if concept_id not in concept_exercises:
                             concept_exercises[concept_id] = {
-                                'name': concept_name,
-                                'exercises': [],
-                                'description': metadata.get('description')
+                                "name": concept_name,
+                                "exercises": [],
+                                "description": metadata.get("description"),
                             }
-                        concept_exercises[concept_id]['exercises'].append((ex_id, text))
+                        concept_exercises[concept_id]["exercises"].append((ex_id, text))
                 except json.JSONDecodeError as e:
                     logger.warning(f"Failed to parse metadata for exercise {ex_id}: {e}")
                     continue
@@ -204,9 +213,9 @@ class ConceptGraphBuilder:
             for concept_id, data in concept_exercises.items():
                 concept = Concept(
                     id=concept_id,
-                    name=data['name'],
-                    description=data.get('description'),
-                    exercise_count=len(data['exercises'])
+                    name=data["name"],
+                    description=data.get("description"),
+                    exercise_count=len(data["exercises"]),
                 )
                 graph.add_concept(concept)
 
@@ -214,8 +223,7 @@ class ConceptGraphBuilder:
             logger.info("Discovering prerequisites using LLM...")
             for concept_id, concept in graph.concepts.items():
                 prerequisites = self._discover_prerequisites(
-                    concept.name,
-                    list(graph.concepts.values())
+                    concept.name, list(graph.concepts.values())
                 )
 
                 for prereq_id in prerequisites:
@@ -223,10 +231,14 @@ class ConceptGraphBuilder:
                         graph.add_dependency(prereq_id, concept_id)
                         logger.debug(f"Added dependency: {prereq_id} -> {concept_id}")
 
-        logger.info(f"Built graph with {len(graph.concepts)} concepts and {len(graph.edges)} dependencies")
+        logger.info(
+            f"Built graph with {len(graph.concepts)} concepts and {len(graph.edges)} dependencies"
+        )
         return graph
 
-    def _extract_concept_from_text(self, exercise_text: str, course_code: str) -> Optional[Dict[str, str]]:
+    def _extract_concept_from_text(
+        self, exercise_text: str, course_code: str
+    ) -> Optional[Dict[str, str]]:
         """
         Extract concept information from exercise text using LLM.
         Fallback for exercises without proper metadata.
@@ -251,11 +263,7 @@ Exercise:
 Respond with ONLY the concept name (e.g., "Eigenvalues", "Boolean Algebra", "State Machines").
 If no clear concept, respond with "Unknown"."""
 
-        response = self.llm.generate(
-            prompt=prompt,
-            temperature=0.0,
-            max_tokens=50
-        )
+        response = self.llm.generate(prompt=prompt, temperature=0.0, max_tokens=50)
 
         if not response.success or response.text.strip().lower() == "unknown":
             return None
@@ -263,7 +271,7 @@ If no clear concept, respond with "Unknown"."""
         concept_name = response.text.strip()
         concept_id = concept_name.lower().replace(" ", "_").replace("-", "_")
 
-        result = {'id': concept_id, 'name': concept_name}
+        result = {"id": concept_id, "name": concept_name}
         self._cache[cache_key] = result
         return result
 
@@ -308,23 +316,19 @@ Rules:
 
 Prerequisites:"""
 
-        response = self.llm.generate(
-            prompt=prompt,
-            temperature=0.0,
-            max_tokens=200
-        )
+        response = self.llm.generate(prompt=prompt, temperature=0.0, max_tokens=200)
 
         if not response.success:
             logger.warning(f"Failed to get prerequisites for {concept_name}")
             return []
 
         # Parse response
-        lines = response.text.strip().split('\n')
+        lines = response.text.strip().split("\n")
         prerequisites = []
 
         for line in lines:
-            line = line.strip(' -•*').strip()
-            if line.lower() == 'none':
+            line = line.strip(" -•*").strip()
+            if line.lower() == "none":
                 break
 
             # Find matching concept (fuzzy matching)

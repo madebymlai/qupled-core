@@ -45,7 +45,7 @@ import json
 import hashlib
 import numpy as np
 from typing import List, Dict, Any, Optional
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from difflib import SequenceMatcher
 from datetime import datetime
 
@@ -55,12 +55,13 @@ from config import Config
 @dataclass
 class CacheHit:
     """Result of a cache lookup."""
+
     procedures: List[Dict[str, Any]]  # List of procedure dicts
     topic: Optional[str]
     difficulty: Optional[str]
     variations: Optional[List[str]]
     confidence: float  # 0.0-1.0
-    match_type: str   # 'exact', 'embedding', 'hybrid'
+    match_type: str  # 'exact', 'embedding', 'hybrid'
     source_entry_id: int
     embedding_similarity: float = 0.0
     text_similarity: float = 0.0
@@ -69,6 +70,7 @@ class CacheHit:
 @dataclass
 class CacheStats:
     """Statistics for procedure cache."""
+
     hits: int = 0
     misses: int = 0
 
@@ -127,10 +129,7 @@ class ProcedureCache:
             self.db.connect()
 
         # Use database method with user_id isolation (web-ready)
-        rows = self.db.get_procedure_cache_entries(
-            course_code=course_code,
-            user_id=self.user_id
-        )
+        rows = self.db.get_procedure_cache_entries(course_code=course_code, user_id=self.user_id)
 
         # Load entries into memory
         # Note: rows from get_procedure_cache_entries have JSON already parsed
@@ -139,27 +138,27 @@ class ProcedureCache:
 
         for row in rows:
             entry = {
-                'id': row['id'],
-                'exercise_text': row.get('exercise_text_sample'),
-                'normalized_text': row.get('normalized_text'),
-                'pattern_hash': row.get('pattern_hash'),
-                'topic': row.get('topic'),
-                'difficulty': row.get('difficulty'),
-                'variations': row.get('variations_json') or [],  # Already parsed by DB method
-                'procedures': row.get('procedures_json') or [],  # Already parsed by DB method
-                'confidence': row.get('confidence_avg', 1.0),
-                'course_code': row.get('course_code'),
-                'hit_count': row.get('match_count', 0),
-                'created_at': row.get('created_at')
+                "id": row["id"],
+                "exercise_text": row.get("exercise_text_sample"),
+                "normalized_text": row.get("normalized_text"),
+                "pattern_hash": row.get("pattern_hash"),
+                "topic": row.get("topic"),
+                "difficulty": row.get("difficulty"),
+                "variations": row.get("variations_json") or [],  # Already parsed by DB method
+                "procedures": row.get("procedures_json") or [],  # Already parsed by DB method
+                "confidence": row.get("confidence_avg", 1.0),
+                "course_code": row.get("course_code"),
+                "hit_count": row.get("match_count", 0),
+                "created_at": row.get("created_at"),
             }
 
             # Parse embedding if available
-            if row.get('embedding'):
-                embedding = np.frombuffer(row['embedding'], dtype=np.float32)
-                entry['embedding'] = embedding
+            if row.get("embedding"):
+                embedding = np.frombuffer(row["embedding"], dtype=np.float32)
+                entry["embedding"] = embedding
                 embeddings_list.append(embedding)
             else:
-                entry['embedding'] = None
+                entry["embedding"] = None
 
             self._entries.append(entry)
 
@@ -220,9 +219,7 @@ class ProcedureCache:
 
                     # Stage 2: Text validation
                     text_sim = SequenceMatcher(
-                        None,
-                        normalized,
-                        candidate['normalized_text']
+                        None, normalized, candidate["normalized_text"]
                     ).ratio()
 
                     # Hybrid confidence score
@@ -237,15 +234,11 @@ class ProcedureCache:
         if best_match is None:
             for entry in self._entries:
                 # Skip if course filter specified and doesn't match
-                if course_code and entry['course_code'] and entry['course_code'] != course_code:
+                if course_code and entry["course_code"] and entry["course_code"] != course_code:
                     continue
 
                 # Compute text similarity
-                text_sim = SequenceMatcher(
-                    None,
-                    normalized,
-                    entry['normalized_text']
-                ).ratio()
+                text_sim = SequenceMatcher(None, normalized, entry["normalized_text"]).ratio()
 
                 if text_sim >= self._text_threshold and text_sim > best_score:
                     best_match = entry
@@ -257,34 +250,41 @@ class ProcedureCache:
             self.stats.hits += 1
 
             # Update hit count in database
-            self._update_hit_count(best_match['id'])
+            self._update_hit_count(best_match["id"])
 
             # Determine match type
             if embedding_sim > 0 and text_sim > 0:
-                match_type = 'hybrid'
+                match_type = "hybrid"
             elif embedding_sim > 0:
-                match_type = 'embedding'
+                match_type = "embedding"
             else:
-                match_type = 'exact'
+                match_type = "exact"
 
             return CacheHit(
-                procedures=best_match['procedures'],
-                topic=best_match['topic'],
-                difficulty=best_match['difficulty'],
-                variations=best_match['variations'],
+                procedures=best_match["procedures"],
+                topic=best_match["topic"],
+                difficulty=best_match["difficulty"],
+                variations=best_match["variations"],
                 confidence=best_score,
                 match_type=match_type,
-                source_entry_id=best_match['id'],
+                source_entry_id=best_match["id"],
                 embedding_similarity=embedding_sim,
-                text_similarity=text_sim
+                text_similarity=text_sim,
             )
         else:
             self.stats.misses += 1
             return None
 
-    def add(self, exercise_text: str, topic: str, difficulty: str,
-            variations: List[str], procedures: List[Dict[str, Any]],
-            confidence: float, course_code: Optional[str] = None):
+    def add(
+        self,
+        exercise_text: str,
+        topic: str,
+        difficulty: str,
+        variations: List[str],
+        procedures: List[Dict[str, Any]],
+        confidence: float,
+        course_code: Optional[str] = None,
+    ):
         """
         Add new pattern to cache after LLM analysis.
         Thread-safe: creates its own db connection.
@@ -312,42 +312,46 @@ class ProcedureCache:
 
         # Thread-safe: create new connection for db operations
         from storage.database import Database
+
         try:
             with Database() as thread_db:
                 # Check if pattern already exists (avoid duplicates) - web-ready: scope by user_id
                 if self.user_id is None:
                     cursor = thread_db.conn.execute(
                         "SELECT id FROM procedure_cache_entries WHERE pattern_hash = ? AND user_id IS NULL",
-                        (pattern_hash,)
+                        (pattern_hash,),
                     )
                 else:
                     cursor = thread_db.conn.execute(
                         "SELECT id FROM procedure_cache_entries WHERE pattern_hash = ? AND user_id = ?",
-                        (pattern_hash, self.user_id)
+                        (pattern_hash, self.user_id),
                     )
                 if cursor.fetchone():
                     # Pattern already cached - skip
                     return
 
                 # Insert into database (web-ready: include user_id)
-                thread_db.conn.execute("""
+                thread_db.conn.execute(
+                    """
                     INSERT INTO procedure_cache_entries
                     (user_id, exercise_text_sample, normalized_text, pattern_hash, topic, difficulty,
                      variations_json, procedures_json, confidence_avg, course_code, embedding, match_count)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)
-                """, (
-                    self.user_id,  # Web-ready: NULL for CLI, set for web
-                    exercise_text,
-                    normalized_text,
-                    pattern_hash,
-                    topic,
-                    difficulty,
-                    json.dumps(variations),
-                    json.dumps(procedures),
-                    confidence,
-                    course_code,
-                    embedding_bytes
-                ))
+                """,
+                    (
+                        self.user_id,  # Web-ready: NULL for CLI, set for web
+                        exercise_text,
+                        normalized_text,
+                        pattern_hash,
+                        topic,
+                        difficulty,
+                        json.dumps(variations),
+                        json.dumps(procedures),
+                        confidence,
+                        course_code,
+                        embedding_bytes,
+                    ),
+                )
                 thread_db.conn.commit()
 
                 # Get the new entry ID
@@ -360,19 +364,19 @@ class ProcedureCache:
 
         # Add to in-memory cache
         new_entry = {
-            'id': entry_id,
-            'exercise_text': exercise_text,
-            'normalized_text': normalized_text,
-            'pattern_hash': pattern_hash,
-            'topic': topic,
-            'difficulty': difficulty,
-            'variations': variations,
-            'procedures': procedures,
-            'confidence': confidence,
-            'course_code': course_code,
-            'embedding': embedding_array,
-            'hit_count': 0,
-            'created_at': datetime.now().isoformat()
+            "id": entry_id,
+            "exercise_text": exercise_text,
+            "normalized_text": normalized_text,
+            "pattern_hash": pattern_hash,
+            "topic": topic,
+            "difficulty": difficulty,
+            "variations": variations,
+            "procedures": procedures,
+            "confidence": confidence,
+            "course_code": course_code,
+            "embedding": embedding_array,
+            "hit_count": 0,
+            "created_at": datetime.now().isoformat(),
         }
         self._entries.append(new_entry)
 
@@ -396,14 +400,14 @@ class ProcedureCache:
         # Update in-memory cache
         if course_code:
             # Remove matching entries from memory
-            self._entries = [e for e in self._entries if e['course_code'] != course_code]
+            self._entries = [e for e in self._entries if e["course_code"] != course_code]
         else:
             self._entries = []
             self._embeddings = None
 
         # Rebuild embedding matrix if needed
         if self._entries and self.semantic_matcher:
-            embeddings_list = [e['embedding'] for e in self._entries if e['embedding'] is not None]
+            embeddings_list = [e["embedding"] for e in self._entries if e["embedding"] is not None]
             if embeddings_list:
                 self._embeddings = np.vstack(embeddings_list)
             else:
@@ -412,12 +416,12 @@ class ProcedureCache:
     def get_stats(self) -> Dict[str, Any]:
         """Get cache statistics."""
         return {
-            'hits': self.stats.hits,
-            'misses': self.stats.misses,
-            'hit_rate': self.stats.hit_rate,
-            'total_entries': len(self._entries),
-            'loaded': self._loaded,
-            'embeddings_enabled': self._embeddings is not None
+            "hits": self.stats.hits,
+            "misses": self.stats.misses,
+            "hit_rate": self.stats.hit_rate,
+            "total_entries": len(self._entries),
+            "loaded": self._loaded,
+            "embeddings_enabled": self._embeddings is not None,
         }
 
     # Helper methods
@@ -440,10 +444,10 @@ class ProcedureCache:
         normalized = text.lower().strip()
 
         # Replace specific patterns with placeholders
-        normalized = re.sub(r'\b[01]{3,}\b', '[PATTERN]', normalized)  # Binary patterns
-        normalized = re.sub(r'\b0x[0-9a-fA-F]+\b', '[HEX]', normalized)  # Hex values
-        normalized = re.sub(r'\b\d{2,}\b', '[NUM]', normalized)  # Multi-digit numbers
-        normalized = re.sub(r'\s+', ' ', normalized)  # Normalize whitespace
+        normalized = re.sub(r"\b[01]{3,}\b", "[PATTERN]", normalized)  # Binary patterns
+        normalized = re.sub(r"\b0x[0-9a-fA-F]+\b", "[HEX]", normalized)  # Hex values
+        normalized = re.sub(r"\b\d{2,}\b", "[NUM]", normalized)  # Multi-digit numbers
+        normalized = re.sub(r"\s+", " ", normalized)  # Normalize whitespace
 
         return normalized
 
@@ -497,10 +501,11 @@ class ProcedureCache:
         try:
             # Create new connection for thread safety
             from storage.database import Database
+
             with Database() as thread_db:
                 thread_db.conn.execute(
                     "UPDATE procedure_cache_entries SET match_count = match_count + 1, last_matched_at = CURRENT_TIMESTAMP WHERE id = ?",
-                    (entry_id,)
+                    (entry_id,),
                 )
                 thread_db.conn.commit()
         except Exception:
@@ -509,6 +514,6 @@ class ProcedureCache:
 
         # Update in-memory entry
         for entry in self._entries:
-            if entry['id'] == entry_id:
-                entry['hit_count'] = entry.get('hit_count', 0) + 1
+            if entry["id"] == entry_id:
+                entry["hit_count"] = entry.get("hit_count", 0) + 1
                 break
