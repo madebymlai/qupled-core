@@ -13,7 +13,6 @@ from config import Config
 
 from core.concept_explainer import ConceptExplainer
 from core.study_strategies import StudyStrategyManager
-from core.proof_tutor import ProofTutor
 from core.metacognitive import MetacognitiveStrategies, DifficultyLevel, MasteryLevel
 
 
@@ -442,7 +441,6 @@ class Tutor:
         self.language = language
         self.concept_explainer = ConceptExplainer(llm_manager=self.llm, language=language)
         self.strategy_manager = StudyStrategyManager(language=language)
-        self.proof_tutor = ProofTutor(llm_manager=self.llm, language=language)
         self.metacognitive = MetacognitiveStrategies()
 
     def _language_instruction(self, action: str = "Respond") -> str:
@@ -585,12 +583,6 @@ class Tutor:
 
             knowledge_item_dict = dict(knowledge_item)
 
-        # Check if this is a proof exercise (check first example)
-        if examples and self.proof_tutor.is_proof_exercise(examples[0].get("text", "")):
-            # Use proof-specific learning
-            return self._learn_proof(
-                course_code, knowledge_item_id, examples[0], explain_concepts, depth, adaptive
-            )
         knowledge_item_name = knowledge_item_dict.get("name", "")
 
         # Adaptive teaching: Auto-select depth and prerequisites based on mastery
@@ -1897,63 +1889,3 @@ Generate ONLY the exercise text, not the solution.
             return "implementation"
         else:
             return "general"
-
-    def _learn_proof(
-        self,
-        course_code: str,
-        knowledge_item_id: str,
-        example_exercise: Dict[str, Any],
-        explain_concepts: bool,
-        depth: str,
-        adaptive: bool,
-    ) -> TutorResponse:
-        """Handle proof-specific learning.
-
-        Args:
-            course_code: Course code
-            knowledge_item_id: Core loop ID
-            example_exercise: Example proof exercise
-            explain_concepts: Whether to include prerequisites
-            depth: Explanation depth
-            adaptive: Whether to use adaptive teaching
-
-        Returns:
-            TutorResponse with proof explanation
-        """
-        exercise_text = example_exercise.get("text", "")
-        exercise_id = example_exercise.get("id", "")
-
-        # Get proof-specific explanation
-        proof_explanation = self.proof_tutor.learn_proof(course_code, exercise_id, exercise_text)
-
-        # Optionally add prerequisite concepts
-        full_content = []
-
-        if explain_concepts:
-            # Extract core loop name for concept explanation
-            from storage.database import Database
-            with Database() as db:
-                knowledge_item = db.conn.execute(
-                    "SELECT name FROM knowledge_items WHERE id = ?", (knowledge_item_id,)
-                ).fetchone()
-                if knowledge_item:
-                    knowledge_item_name = knowledge_item["name"]
-                    prerequisite_text = self.concept_explainer.explain_prerequisites(
-                        knowledge_item_name, depth=depth
-                    )
-                    if prerequisite_text:
-                        full_content.append(prerequisite_text)
-                        full_content.append("\n" + "=" * 60 + "\n")
-
-        full_content.append(proof_explanation)
-
-        return TutorResponse(
-            content="\n".join(full_content),
-            success=True,
-            metadata={
-                "knowledge_item": knowledge_item_id,
-                "is_proof": True,
-                "depth": depth,
-                "includes_prerequisites": explain_concepts,
-            },
-        )

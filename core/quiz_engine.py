@@ -10,7 +10,6 @@ from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional
 
 from config import Config
-from core.proof_tutor import ProofTutor
 from core.sm2 import SM2Algorithm
 from core.tutor import Tutor
 from models.llm_manager import LLMManager
@@ -65,7 +64,6 @@ class QuizEngine:
         """
         self.llm = llm_manager or LLMManager(provider="anthropic")
         self.tutor = Tutor(llm_manager=self.llm, language=language)
-        self.proof_tutor = ProofTutor(llm_manager=self.llm, language=language)
         self.language = language
 
     def create_quiz_session(
@@ -313,21 +311,13 @@ class QuizEngine:
             if exercise_type:
                 filtered = []
                 for ex in exercises:
-                    text = ex.get("text", "")
-                    is_proof = self.proof_tutor.is_proof_exercise(text)
-
-                    if exercise_type == "proof" and is_proof:
-                        filtered.append(ex)
-                    elif exercise_type == "procedural" and not is_proof:
-                        # Check if it has procedural tags (design, transformation, etc.)
-                        ex_tags = ex.get("tags", "[]")
+                    ex_tags = ex.get("tags", "[]")
+                    if exercise_type == "procedural":
                         if any(
                             tag in ex_tags for tag in ["design", "transformation", "implementation"]
                         ):
                             filtered.append(ex)
-                    elif exercise_type == "theory" and not is_proof:
-                        # Theory exercises are typically analysis or verification without proof keywords
-                        ex_tags = ex.get("tags", "[]")
+                    elif exercise_type == "theory":
                         if any(tag in ex_tags for tag in ["analysis", "verification"]):
                             filtered.append(ex)
 

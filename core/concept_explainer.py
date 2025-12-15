@@ -443,39 +443,3 @@ Structure your response as:
         if not steps:
             return "No steps provided."
         return "\n".join([f"{i + 1}. {step}" for i, step in enumerate(steps)])
-
-
-def test_concept_explainer():
-    """Test concept explainer functionality."""
-    explainer = ConceptExplainer(language="en")
-
-    # Test 1: Get prerequisites
-    print("=" * 60)
-    print("TEST 1: Prerequisites for Moore Machine Design")
-    print("=" * 60)
-    prereqs = explainer.get_prerequisites("moore_machine_design")
-    print(f"Found {len(prereqs)} prerequisites:")
-    for p in prereqs:
-        print(f"  - {p.name} (importance: {p.importance})")
-    print()
-
-    # Test 2: Explain prerequisites
-    print("=" * 60)
-    print("TEST 2: Formatted Prerequisite Explanations")
-    print("=" * 60)
-    explanation = explainer.explain_prerequisites("moore_machine_design", depth="medium")
-    print(explanation)
-    print()
-
-    # Test 3: Single concept explanation
-    print("=" * 60)
-    print("TEST 3: Single Concept Explanation")
-    print("=" * 60)
-    if prereqs:
-        concept_exp = explainer.explain_concept(prereqs[0], depth="advanced", include_examples=True)
-        print(concept_exp)
-    print()
-
-
-if __name__ == "__main__":
-    test_concept_explainer()
