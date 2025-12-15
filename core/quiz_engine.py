@@ -77,7 +77,6 @@ class QuizEngine:
         procedure_type: Optional[str] = None,
         multi_only: bool = False,
         tags: Optional[str] = None,
-        exercise_type: Optional[str] = None,
         adaptive: bool = False,
     ) -> QuizSession:
         """Create a new quiz session.
@@ -92,7 +91,6 @@ class QuizEngine:
             procedure_type: Optional procedure type (transformation, design, etc.)
             multi_only: If True, only include exercises with multiple procedures
             tags: Optional tag filter (comma-separated)
-            exercise_type: Optional exercise type filter (procedural, theory, proof)
             adaptive: If True, select exercises based on mastery distribution
                       (40% weak, 40% learning, 20% strong)
 
@@ -137,7 +135,6 @@ class QuizEngine:
                 procedure_type=procedure_type,
                 multi_only=multi_only,
                 tags=tags,
-                exercise_type=exercise_type,
             )
 
         if not exercises:
@@ -212,7 +209,6 @@ class QuizEngine:
         procedure_type: Optional[str] = None,
         multi_only: bool = False,
         tags: Optional[str] = None,
-        exercise_type: Optional[str] = None,
     ) -> List[Dict[str, Any]]:
         """Select exercises for the quiz.
 
@@ -226,7 +222,6 @@ class QuizEngine:
             procedure_type: Optional procedure type filter (transformation, design, etc.)
             multi_only: Only exercises with multiple procedures
             tags: Optional tag filter (comma-separated)
-            exercise_type: Optional exercise type filter (procedural, theory, proof)
 
         Returns:
             List of exercise dictionaries
@@ -306,22 +301,6 @@ class QuizEngine:
 
             # Convert to dictionaries
             exercises = [dict(row) for row in results]
-
-            # Filter by exercise type if specified
-            if exercise_type:
-                filtered = []
-                for ex in exercises:
-                    ex_tags = ex.get("tags", "[]")
-                    if exercise_type == "procedural":
-                        if any(
-                            tag in ex_tags for tag in ["design", "transformation", "implementation"]
-                        ):
-                            filtered.append(ex)
-                    elif exercise_type == "theory":
-                        if any(tag in ex_tags for tag in ["analysis", "verification"]):
-                            filtered.append(ex)
-
-                exercises = filtered
 
             # Prioritize review exercises if available
             if review_only or (len(exercises) > num_questions):
