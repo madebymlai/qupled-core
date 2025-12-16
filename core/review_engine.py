@@ -87,7 +87,13 @@ def score_to_quality(score: float) -> int:
 def calculate_mastery(average_score: float, review_count: int) -> float:
     """Calculate mastery for a single concept.
 
-    Formula: mastery = average_score * min(review_count / 3, 1.0)
+    Formula: mastery = average_score * min(review_count / 6, 1.0)
+
+    Progression (for exam prep):
+    - 3 reviews at 70% = 35% mastery (bronze)
+    - 4 reviews at 75% = 50% mastery (silver)
+    - 5 reviews at 80% = 67% mastery (gold)
+    - 6 reviews at 90% = 90% mastery (diamond)
 
     Args:
         average_score: Average score from all reviews (0.0 - 1.0)
@@ -98,7 +104,7 @@ def calculate_mastery(average_score: float, review_count: int) -> float:
     """
     if review_count == 0:
         return 0.0
-    confidence = min(review_count / 3, 1.0)
+    confidence = min(review_count / 6, 1.0)
     return average_score * confidence
 
 
@@ -136,13 +142,16 @@ class ReviewEngine:
         "analytical": "Generate a SCENARIO exercise. Student must analyze a situation.",
     }
 
-    def __init__(self, llm: LLMInterface):
+    def __init__(self, llm: LLMInterface, use_reasoner: bool = False):
         """Initialize with LLM interface.
 
         Args:
             llm: LLM manager implementing generate() method
+            use_reasoner: If True, use deepseek-reasoner for better reasoning
         """
         self._llm = llm
+        self._use_reasoner = use_reasoner
+        self._reasoner_model = "deepseek-reasoner"
 
     def generate_exercise(
         self,
@@ -243,7 +252,11 @@ Return valid JSON:
 }}"""
 
         try:
-            response = self._llm.generate(prompt, json_mode=True)
+            # Use reasoner model if enabled (no json_mode support)
+            if self._use_reasoner:
+                response = self._llm.generate(prompt, model=self._reasoner_model)
+            else:
+                response = self._llm.generate(prompt, json_mode=True)
             # Handle LLMResponse object or string
             response_text = response.text if hasattr(response, "text") else str(response)
             return self._parse_exercise_response(response_text, knowledge_item_name)
@@ -326,7 +339,11 @@ Return valid JSON:
 }}"""
 
         try:
-            response = self._llm.generate(prompt, json_mode=True)
+            # Use reasoner model if enabled (no json_mode support)
+            if self._use_reasoner:
+                response = self._llm.generate(prompt, model=self._reasoner_model)
+            else:
+                response = self._llm.generate(prompt, json_mode=True)
             # Handle LLMResponse object or string
             response_text = response.text if hasattr(response, "text") else str(response)
             return self._parse_evaluation_response(response_text, expected_answer, student_answer)
