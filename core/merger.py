@@ -107,10 +107,10 @@ def regenerate_description(
     llm: LLMManager,
 ) -> str:
     """
-    Pick the most representative description from multiple descriptions.
+    Write the most representative description from multiple descriptions.
 
-    Uses R1 reasoning to select (not synthesize) the best quality one.
-    This prevents description growth over repeated merges.
+    Uses R1 with textbook editor mindset to write concise chapter subtitles.
+    Stabilizes at ~100 chars and condenses verbose descriptions.
 
     Args:
         descriptions: List of description strings from merged items
@@ -131,7 +131,7 @@ def regenerate_description(
     if len(descriptions) == 1:
         return descriptions[0]
 
-    prompt = f"""Pick the most representative text for a chapter subtitle:
+    prompt = f"""Write the most representative text for a chapter subtitle:
 
 {chr(10).join(f"- {d}" for d in descriptions)}
 
