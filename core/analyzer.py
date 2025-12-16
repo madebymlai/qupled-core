@@ -229,14 +229,16 @@ def generate_item_description(
     llm: LLMManager,
 ) -> str:
     """
-    Generate a skill description from exercises using deepseek-reasoner.
+    Generate a chapter subtitle from exercises using R1.
+
+    Uses textbook editor mindset for concise, clear descriptions (~100 chars).
 
     Args:
         exercises: List of exercise dicts with keys: text, is_sub, context
         llm: LLMManager instance
 
     Returns:
-        Description string (falls back to first exercise text on error)
+        Chapter subtitle string (falls back to first exercise text on error)
     """
     if not exercises:
         return ""
@@ -254,19 +256,19 @@ def generate_item_description(
     if not exercises_text:
         return ""
 
-    system = "You are a teacher identifying what concept students need to learn."
+    system = "You are a textbook editor."
 
-    prompt = f"""What skill/concept is being tested? Take your time and think carefully.
+    prompt = f"""Write a chapter subtitle for these exercises:
 
 {chr(10).join(f"- {t}" for t in exercises_text)}
 
-Return JSON: {{"description": "short description"}}"""
+Return JSON: {{"subtitle": "..."}}"""
 
     try:
         response = llm.generate(prompt=prompt, model="deepseek-reasoner", system=system)
         if response and response.text:
             result = json.loads(response.text)
-            return result.get("description", exercises_text[0][:100])
+            return result.get("subtitle", exercises_text[0][:100])
         return exercises_text[0][:100]
     except Exception as e:
         logger.warning(f"Description generation failed: {e}")
