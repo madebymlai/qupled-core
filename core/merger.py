@@ -131,7 +131,7 @@ def regenerate_description(
     if len(descriptions) == 1:
         return descriptions[0]
 
-    prompt = f"""Write the most representative skill description in English (start with a verb, no colons):
+    prompt = f"""Pick the most representative skill description:
 
 {chr(10).join(f"- {d}" for d in descriptions)}
 
