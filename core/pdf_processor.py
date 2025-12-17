@@ -392,6 +392,103 @@ class PDFProcessor:
             file_path=pdf_path, total_pages=total_pages, pages=pages, metadata=metadata
         )
 
+    def process_image_with_mathpix(self, image_path: Path) -> str:
+        """Process a single image (PNG/JPG) using Mathpix OCR.
+
+        Uses Mathpix /v3/text endpoint for high-quality math OCR from images.
+
+        Args:
+            image_path: Path to image file (PNG, JPG, JPEG)
+
+        Returns:
+            Extracted text with LaTeX formatting
+
+        Raises:
+            ImportError: If Mathpix not configured
+            FileNotFoundError: If image not found
+            ValueError: If unsupported image format
+        """
+        if not MATHPIX_AVAILABLE:
+            raise ImportError(
+                "Mathpix not configured. Set MATHPIX_APP_ID and MATHPIX_APP_KEY."
+            )
+
+        if not image_path.exists():
+            raise FileNotFoundError(f"Image not found: {image_path}")
+
+        # Validate file extension
+        suffix = image_path.suffix.lower()
+        if suffix not in {".png", ".jpg", ".jpeg"}:
+            raise ValueError(f"Unsupported image format: {suffix}. Use PNG or JPG.")
+
+        import requests
+        import base64
+
+        # Read and encode image
+        with open(image_path, "rb") as f:
+            image_bytes = f.read()
+
+        # Determine content type
+        content_type = "image/png" if suffix == ".png" else "image/jpeg"
+        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
+        data_uri = f"data:{content_type};base64,{image_b64}"
+
+        # Send to Mathpix /v3/text API
+        url = "https://api.mathpix.com/v3/text"
+        headers = {
+            "app_id": Config.MATHPIX_APP_ID,
+            "app_key": Config.MATHPIX_APP_KEY,
+            "Content-type": "application/json",
+        }
+
+        payload = {
+            "src": data_uri,
+            "formats": ["text", "latex_styled"],
+            "math_inline_delimiters": ["$", "$"],
+            "math_display_delimiters": ["$$", "$$"],
+        }
+
+        response = requests.post(url, headers=headers, json=payload, timeout=60)
+        response.raise_for_status()
+        result = response.json()
+
+        # Prefer latex_styled if available, otherwise use text
+        text = result.get("latex_styled") or result.get("text", "")
+
+        return text
+
+    def process_file_with_mathpix(self, file_path: Path) -> str:
+        """Process any supported file (PDF or image) using Mathpix.
+
+        Routes to appropriate Mathpix endpoint based on file type:
+        - PDF: Uses /v3/pdf (async polling)
+        - Images: Uses /v3/text (sync)
+
+        Args:
+            file_path: Path to file (PDF, PNG, JPG)
+
+        Returns:
+            Extracted text with LaTeX formatting
+
+        Raises:
+            ImportError: If Mathpix not configured
+            FileNotFoundError: If file not found
+            ValueError: If unsupported file format
+        """
+        suffix = file_path.suffix.lower()
+
+        if suffix == ".pdf":
+            # Use PDF endpoint - returns PDFContent, extract text from pages
+            content = self.process_pdf_with_mathpix(file_path)
+            return "\n\n".join(page.text for page in content.pages if page.text)
+        elif suffix in {".png", ".jpg", ".jpeg"}:
+            # Use image endpoint
+            return self.process_image_with_mathpix(file_path)
+        else:
+            raise ValueError(
+                f"Unsupported file format: {suffix}. Supported: PDF, PNG, JPG."
+            )
+
     def process_pdf_with_vision(
         self,
         pdf_path: Path,
