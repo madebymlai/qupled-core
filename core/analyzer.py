@@ -102,7 +102,8 @@ class ExerciseAnalyzer:
 
         response = self.llm.generate(
             prompt=prompt,
-            model="deepseek-reasoner",
+            model=self.llm.primary_model,
+            temperature=0.3,
             json_mode=True,
         )
 

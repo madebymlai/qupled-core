@@ -1104,6 +1104,7 @@ class LLMManager:
                     messages.append({"role": "system", "content": system})
                 messages.append({"role": "user", "content": prompt})
 
+                # Reasoner model doesn't support temperature or json_mode
                 is_reasoner = model == "deepseek-reasoner"
 
                 payload = {
@@ -1113,9 +1114,8 @@ class LLMManager:
 
                 if not is_reasoner:
                     payload["temperature"] = temperature
-
-                if json_mode:
-                    payload["response_format"] = {"type": "json_object"}
+                    if json_mode:
+                        payload["response_format"] = {"type": "json_object"}
 
                 if max_tokens:
                     payload["max_tokens"] = max_tokens
