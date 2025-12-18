@@ -248,15 +248,12 @@ class Tutor:
         # System prompt: role only (R1 best practice)
         system = "You are the smartest student in the library helping a friend before their exam."
 
-        # Get max tokens for this section type
-        max_tokens = SECTION_MAX_TOKENS.get(section_name, 1000)
-
         # Call LLM with R1 for better teaching quality
+        # Note: no max_tokens - deepseek-reasoner self-regulates output length
         response = self.llm.generate(
             prompt=prompt,
             system=system,
             model="deepseek-reasoner",
-            max_tokens=max_tokens,
         )
 
         if not response.success:
