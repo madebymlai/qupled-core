@@ -14,6 +14,184 @@ from core.analyzer import LEARNING_APPROACHES
 logger = logging.getLogger(__name__)
 
 
+def classify_item(
+    new_item: dict,
+    existing_groups: list[dict],
+    llm: LLMManager,
+    confidence_threshold: float = 0.7,
+) -> dict:
+    """
+    Classify a new item into an existing group or mark as NEW.
+
+    O(1) per item instead of O(N) pairwise comparisons.
+
+    Args:
+        new_item: Dict with 'name' and 'description'
+        existing_groups: List of dicts with 'id', 'name', 'description'
+        llm: LLMManager instance
+        confidence_threshold: Minimum confidence to accept match (default 0.7)
+
+    Returns:
+        {
+            "group_id": int or None (if NEW),
+            "is_new": bool,
+            "confidence": float (0.0-1.0)
+        }
+    """
+    if not existing_groups:
+        return {"group_id": None, "is_new": True, "confidence": 1.0}
+
+    # Format groups for prompt
+    groups_text = "\n".join(
+        f"{i + 1}. {g['name']} - {g['description']}"
+        for i, g in enumerate(existing_groups)
+    )
+
+    system = "You are a teacher organizing study materials."
+
+    prompt = f"""Classify this item into an existing group or mark as NEW.
+
+Existing groups:
+{groups_text}
+
+New item: {new_item['description']}
+
+Same group = tests the **SAME** skill, would go on the same flashcard.
+NEW = tests a **DIFFERENT** skill, needs separate study.
+
+Return JSON: {{"group": 1, "confidence": 0.95}}
+Or if new concept: {{"group": "NEW", "confidence": 0.95}}"""
+
+    try:
+        response = llm.generate(
+            prompt=prompt,
+            model="deepseek-reasoner",
+            system=system,
+            temperature=0.0,
+            json_mode=True,
+        )
+
+        if not response or not response.text:
+            logger.warning("Empty response from classify_item")
+            return {"group_id": None, "is_new": True, "confidence": 0.5}
+
+        result = json.loads(response.text)
+        group = result.get("group")
+        confidence = float(result.get("confidence", 0.5))
+
+        # Handle NEW
+        if group == "NEW" or group is None:
+            return {"group_id": None, "is_new": True, "confidence": confidence}
+
+        # Handle group match
+        group_idx = int(group) - 1  # Convert 1-indexed to 0-indexed
+        if 0 <= group_idx < len(existing_groups):
+            # Check confidence threshold
+            if confidence >= confidence_threshold:
+                return {
+                    "group_id": existing_groups[group_idx]["id"],
+                    "is_new": False,
+                    "confidence": confidence,
+                }
+            else:
+                # Low confidence, treat as new
+                logger.info(f"Low confidence {confidence} < {confidence_threshold}, treating as new")
+                return {"group_id": None, "is_new": True, "confidence": confidence}
+
+        return {"group_id": None, "is_new": True, "confidence": confidence}
+
+    except Exception as e:
+        logger.warning(f"classify_item failed: {e}")
+        return {"group_id": None, "is_new": True, "confidence": 0.5}
+
+
+def classify_items(
+    new_items: list[dict],
+    existing_groups: list[dict],
+    llm: LLMManager,
+    confidence_threshold: float = 0.7,
+) -> tuple[list[dict], list[tuple[int, int]]]:
+    """
+    Classify new items into existing groups using O(N) classification.
+
+    Processes items incrementally, then regenerates names/descriptions
+    for groups that changed at end of batch.
+
+    Args:
+        new_items: List of dicts with 'id', 'name', 'description'
+        existing_groups: List of dicts with 'id', 'name', 'description', 'items'
+        llm: LLMManager instance
+        confidence_threshold: Minimum confidence to accept match
+
+    Returns:
+        Tuple of:
+        - Updated groups list (with new items added and descriptions regenerated)
+        - List of (item_id, group_id) assignments for merging
+    """
+    if not new_items:
+        return existing_groups, []
+
+    # Track which groups changed
+    changed_group_ids: set[int] = set()
+    assignments: list[tuple[int, int]] = []
+
+    # Build working copy of groups
+    groups = [
+        {
+            "id": g["id"],
+            "name": g["name"],
+            "description": g["description"],
+            "items": g.get("items", []).copy(),
+        }
+        for g in existing_groups
+    ]
+    group_by_id = {g["id"]: g for g in groups}
+
+    # Process each new item
+    for item in new_items:
+        result = classify_item(item, groups, llm, confidence_threshold)
+
+        if result["is_new"]:
+            # Create new group with this item
+            new_group = {
+                "id": item["id"],  # Use item's ID as group ID
+                "name": item["name"],
+                "description": item["description"],
+                "items": [item],
+            }
+            groups.append(new_group)
+            group_by_id[new_group["id"]] = new_group
+            logger.info(f"New group created: {item['name']}")
+        else:
+            # Add to existing group
+            group_id = result["group_id"]
+            group = group_by_id.get(group_id)
+            if group:
+                group["items"].append(item)
+                changed_group_ids.add(group_id)
+                assignments.append((item["id"], group_id))
+                logger.info(f"Item '{item['name']}' -> group '{group['name']}' (conf: {result['confidence']:.2f})")
+
+    # Regenerate name/description for changed groups
+    for group_id in changed_group_ids:
+        group = group_by_id.get(group_id)
+        if not group or len(group["items"]) < 2:
+            continue
+
+        # Get canonical name
+        item_names = [item["name"] for item in group["items"]]
+        group["name"] = get_canonical_name(item_names, llm)
+
+        # Regenerate description
+        item_descriptions = [item["description"] for item in group["items"] if item.get("description")]
+        if item_descriptions:
+            group["description"] = regenerate_description(item_descriptions, llm)
+
+        logger.info(f"Regenerated group: {group['name']} ({len(group['items'])} items)")
+
+    return groups, assignments
+
+
 def group_items(
     items: list[dict],
     llm: LLMManager,
