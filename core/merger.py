@@ -3,6 +3,7 @@ Post-processor for knowledge item merging.
 
 Groups equivalent knowledge items by skill and picks canonical names.
 Uses description-based approach for better accuracy.
+Supports hierarchical categories to prevent sibling merging.
 """
 
 import json
@@ -12,6 +13,180 @@ from models.llm_manager import LLMManager
 from core.analyzer import LEARNING_APPROACHES
 
 logger = logging.getLogger(__name__)
+
+
+def assign_category(
+    item: dict,
+    existing_categories: list[str],
+    llm: LLMManager,
+) -> tuple[str, bool]:
+    """
+    Assign item to existing category or create new one.
+
+    Categories are discovered from content, not hardcoded.
+
+    Args:
+        item: Dict with 'name' and 'description'
+        existing_categories: List of category names already in this course
+        llm: LLMManager instance
+
+    Returns:
+        Tuple of (category_name, is_new)
+    """
+    if not existing_categories:
+        # First item - generate category from description
+        return _generate_category(item, llm), True
+
+    categories_text = "\n".join(f"- {c}" for c in existing_categories)
+
+    prompt = f"""Assign this item to a category.
+
+Existing categories:
+{categories_text}
+
+Item: {item.get('description', item.get('name', ''))}
+
+Pick the best fitting category, or suggest NEW if none fit.
+NEW categories should be 2-3 words, broad topic area.
+
+Return JSON: {{"category": "Category Name", "is_new": false}}
+Or: {{"category": "New Category Name", "is_new": true}}"""
+
+    try:
+        response = llm.generate(
+            prompt=prompt,
+            model="deepseek-reasoner",
+            system="You are organizing study materials.",
+            temperature=0.0,
+            json_mode=True,
+        )
+
+        if response and response.text:
+            result = json.loads(response.text)
+            category = result.get("category", existing_categories[0])
+            is_new = result.get("is_new", False)
+
+            # Validate existing category
+            if not is_new and category not in existing_categories:
+                # LLM hallucinated, pick closest or create new
+                is_new = True
+
+            return category, is_new
+
+        return existing_categories[0], False
+
+    except Exception as e:
+        logger.warning(f"Category assignment failed: {e}")
+        return existing_categories[0] if existing_categories else "General", False
+
+
+def _generate_category(item: dict, llm: LLMManager) -> str:
+    """Generate category for first item in course."""
+    prompt = f"""What broad topic category does this belong to?
+
+Item: {item.get('description', item.get('name', ''))}
+
+Return a 2-3 word category name (e.g., "Kinematics", "Data Structures", "Contract Law").
+
+Return JSON: {{"category": "Category Name"}}"""
+
+    try:
+        response = llm.generate(
+            prompt=prompt,
+            model="deepseek-reasoner",
+            system="You are organizing study materials.",
+            temperature=0.0,
+            json_mode=True,
+        )
+
+        if response and response.text:
+            result = json.loads(response.text)
+            return result.get("category", "General")
+
+        return "General"
+
+    except Exception as e:
+        logger.warning(f"Category generation failed: {e}")
+        return "General"
+
+
+def bootstrap_categories(
+    groups: list[dict],
+    llm: LLMManager,
+) -> dict[str, str]:
+    """
+    Generate categories for initial batch of groups.
+
+    Used for first PDF in a course when no categories exist.
+
+    Args:
+        groups: List of dicts with 'name' and 'description'
+        llm: LLMManager instance
+
+    Returns:
+        Dict mapping item name to category
+    """
+    if not groups:
+        return {}
+
+    if len(groups) == 1:
+        category = _generate_category(groups[0], llm)
+        return {groups[0]["name"]: category}
+
+    items_text = "\n".join(
+        f"- {g['name']}: {g.get('description', '')}" for g in groups
+    )
+
+    prompt = f"""Organize these items into broad topic categories.
+
+Items:
+{items_text}
+
+Categories should be:
+- 2-3 words each
+- Broad topic areas (not too specific)
+- Mutually exclusive (each item in one category only)
+
+Return JSON: {{
+  "categories": [
+    {{"name": "Category Name", "items": ["item1", "item2"]}},
+    ...
+  ]
+}}"""
+
+    try:
+        response = llm.generate(
+            prompt=prompt,
+            model="deepseek-reasoner",
+            system="You are organizing study materials.",
+            temperature=0.0,
+            json_mode=True,
+        )
+
+        if response and response.text:
+            result = json.loads(response.text)
+            categories = result.get("categories", [])
+
+            # Build item -> category mapping
+            item_to_category: dict[str, str] = {}
+            for cat in categories:
+                cat_name = cat.get("name", "General")
+                for item_name in cat.get("items", []):
+                    item_to_category[item_name] = cat_name
+
+            # Fill in any missing items
+            for g in groups:
+                if g["name"] not in item_to_category:
+                    item_to_category[g["name"]] = "General"
+
+            return item_to_category
+
+        # Fallback: all same category
+        return {g["name"]: "General" for g in groups}
+
+    except Exception as e:
+        logger.warning(f"Category bootstrap failed: {e}")
+        return {g["name"]: "General" for g in groups}
 
 
 def classify_item(
@@ -114,12 +289,14 @@ def classify_items(
     """
     Classify new items into existing groups using O(N) classification.
 
-    Processes items incrementally, then regenerates names/descriptions
-    for groups that changed at end of batch.
+    Supports category-aware classification to prevent sibling merging:
+    - Items are first assigned to a category
+    - Classification happens only within the same category
+    - Low confidence within category = sibling, don't merge
 
     Args:
-        new_items: List of dicts with 'id', 'name', 'description'
-        existing_groups: List of dicts with 'id', 'name', 'description', 'items'
+        new_items: List of dicts with 'id', 'name', 'description', optional 'category'
+        existing_groups: List of dicts with 'id', 'name', 'description', 'items', optional 'category'
         llm: LLMManager instance
         confidence_threshold: Minimum confidence to accept match
 
@@ -141,27 +318,47 @@ def classify_items(
             "id": g["id"],
             "name": g["name"],
             "description": g["description"],
+            "category": g.get("category"),
             "items": g.get("items", []).copy(),
         }
         for g in existing_groups
     ]
     group_by_id = {g["id"]: g for g in groups}
 
+    # Get existing categories
+    existing_categories = list(set(g["category"] for g in groups if g.get("category")))
+
     # Process each new item
     for item in new_items:
-        result = classify_item(item, groups, llm, confidence_threshold)
+        # Step 1: Assign category (if not already set)
+        item_category = item.get("category")
+        if not item_category:
+            item_category, _ = assign_category(item, existing_categories, llm)
+            item["category"] = item_category
+            if item_category not in existing_categories:
+                existing_categories.append(item_category)
+
+        # Step 2: Filter groups to same category
+        same_category_groups = [g for g in groups if g.get("category") == item_category]
+
+        # Step 3: Classify within category
+        if same_category_groups:
+            result = classify_item(item, same_category_groups, llm, confidence_threshold)
+        else:
+            result = {"is_new": True, "group_id": None, "confidence": 1.0}
 
         if result["is_new"]:
-            # Create new group with this item
+            # Create new group with this item (in this category)
             new_group = {
-                "id": item["id"],  # Use item's ID as group ID
+                "id": item["id"],
                 "name": item["name"],
                 "description": item["description"],
+                "category": item_category,
                 "items": [item],
             }
             groups.append(new_group)
             group_by_id[new_group["id"]] = new_group
-            logger.info(f"New group created: {item['name']}")
+            logger.info(f"New group created: {item['name']} (category: {item_category})")
         else:
             # Add to existing group
             group_id = result["group_id"]
@@ -170,7 +367,10 @@ def classify_items(
                 group["items"].append(item)
                 changed_group_ids.add(group_id)
                 assignments.append((item["id"], group_id))
-                logger.info(f"Item '{item['name']}' -> group '{group['name']}' (conf: {result['confidence']:.2f})")
+                logger.info(
+                    f"Item '{item['name']}' -> group '{group['name']}' "
+                    f"(category: {item_category}, conf: {result['confidence']:.2f})"
+                )
 
     # Regenerate name/description for changed groups
     for group_id in changed_group_ids:
