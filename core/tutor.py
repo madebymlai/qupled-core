@@ -36,23 +36,6 @@ SECTIONS_BY_APPROACH = {
     "analytical": ["overview", "approach", "worked_example", "scoring_tips"],
 }
 
-# Max tokens per section type (safety caps - R1 auto-regulates length)
-SECTION_MAX_TOKENS = {
-    "overview": 500,
-    "fact": 500,
-    "definition": 800,
-    "when_to_use": 800,
-    "context": 800,
-    "steps": 1500,
-    "approach": 1500,
-    "worked_example": 2500,
-    "watch_out": 800,
-    "common_mistakes": 800,
-    "memory_aid": 800,
-    "scoring_tips": 800,
-    "exam_patterns": 800,
-}
-
 # Prompt version for cache invalidation - bump when prompts change
 SECTION_PROMPT_VERSION = 2
 
