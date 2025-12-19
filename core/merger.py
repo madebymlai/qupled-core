@@ -53,7 +53,7 @@ Existing sub-topics:
 Item: {item.get('description', item.get('name', ''))}
 
 Pick the best fitting sub-topic, or suggest NEW if none fit.
-NEW must be specific (2-3 words), not a course name.
+NEW must be broad (1-2 words), not a course name.
 
 Return JSON: {{"category": "sub-topic name (lowercase)", "is_new": false}}
 Or: {{"category": "new sub-topic name (lowercase)", "is_new": true}}"""
@@ -92,7 +92,7 @@ def _generate_category(item: dict, llm: LLMManager) -> str:
 
 Item: {item.get('description', item.get('name', ''))}
 
-Return a specific sub-topic (2-3 words), NOT the course or subject name.
+Return a broad sub-topic (1-2 words), NOT the course or subject name.
 
 Return JSON: {{"category": "sub-topic name (lowercase)"}}"""
 
