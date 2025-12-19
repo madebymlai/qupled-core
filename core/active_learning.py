@@ -8,6 +8,7 @@ Uses Query by Committee (QBC) for uncertainty estimation.
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from threading import Lock
 
 import numpy as np
 from sklearn.ensemble import RandomForestClassifier
@@ -158,6 +159,7 @@ class ActiveClassifier:
     transitive: TransitiveInference = field(default_factory=TransitiveInference)
     stats: ActiveClassifierStats = field(default_factory=ActiveClassifierStats)
     _training_records: list[TrainingRecord] = field(default_factory=list)
+    _lock: Lock = field(default_factory=Lock)  # Thread safety for parallel processing
 
     def load_training_data(self, records: list[dict]) -> None:
         """
@@ -276,32 +278,36 @@ class ActiveClassifier:
         """
         Record LLM decision for future training.
 
+        Thread-safe: uses lock for shared state modification.
+
         Returns:
             True if added to training data, False if filtered by quality gate
         """
-        # Quality gate
+        # Quality gate (read-only, no lock needed)
         if not should_add_to_training(features, llm_confidence):
             return False
 
-        # Add to training records
-        record = TrainingRecord(
-            features=features.to_list(),
-            label=1 if is_match else 0,
-        )
-        self._training_records.append(record)
+        # Lock for all mutable operations
+        with self._lock:
+            # Add to training records
+            record = TrainingRecord(
+                features=features.to_list(),
+                label=1 if is_match else 0,
+            )
+            self._training_records.append(record)
 
-        # Add to transitive graph
-        item_a_id = str(item_a.get("id", id(item_a)))
-        item_b_id = str(item_b.get("id", id(item_b)))
-        self.transitive.add_edge(item_a_id, item_b_id, is_match, llm_confidence)
+            # Add to transitive graph
+            item_a_id = str(item_a.get("id", id(item_a)))
+            item_b_id = str(item_b.get("id", id(item_b)))
+            self.transitive.add_edge(item_a_id, item_b_id, is_match, llm_confidence)
 
-        # Retrain if we have enough data
-        if len(self._training_records) >= self.min_training_samples:
-            X = np.array([r.features for r in self._training_records])
-            y = np.array([r.label for r in self._training_records])
-            self.learner.fit(X, y)
+            # Retrain if we have enough data
+            if len(self._training_records) >= self.min_training_samples:
+                X = np.array([r.features for r in self._training_records])
+                y = np.array([r.label for r in self._training_records])
+                self.learner.fit(X, y)
 
-        self.stats.training_samples = len(self._training_records)
+            self.stats.training_samples = len(self._training_records)
         return True
 
     def classify(
