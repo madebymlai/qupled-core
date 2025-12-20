@@ -161,8 +161,8 @@ New item: {new_item['description']}
 Same group = tests the **SAME** skill, would go on the same flashcard.
 NEW = tests a **DIFFERENT** skill, needs separate study.
 
-Return JSON: {{"group": 1, "confidence": 0.95}}
-Or if new concept: {{"group": "NEW", "confidence": 0.95}}"""
+Return JSON: {{"group": <group_number>, "confidence": <0.0-1.0>}}
+Or: {{"group": "NEW", "confidence": <0.0-1.0>}}"""
 
     try:
         response = llm.generate(
