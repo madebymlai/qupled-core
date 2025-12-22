@@ -374,6 +374,39 @@ Return JSON:
         # Fallback
         return self._fallback_evaluation(expected_answer, student_answer)
 
+    async def evaluate_stream(
+        self,
+        exercise_text: str,
+        expected_answer: str,
+        student_answer: str,
+        exercise_type: str = "explanation",
+    ):
+        """Stream evaluation feedback.
+
+        Yields chunks of feedback text as they are generated.
+
+        Args:
+            exercise_text: The exercise question
+            expected_answer: Expected solution
+            student_answer: Student's submitted answer
+            exercise_type: Type of exercise (unused, kept for API compatibility)
+
+        Yields:
+            String chunks of feedback
+        """
+        system = "You are a teacher correcting your student's work."
+        prompt = f"""Exercise: {exercise_text}
+Expected: {expected_answer}
+Student: {student_answer}
+
+IMPORTANT: Respond in {self._language_instruction()}.
+
+Provide feedback on the student's answer. Be encouraging but accurate.
+Start with whether the answer is correct or not, then explain what was good or what needs improvement."""
+
+        async for chunk in self._llm.generate_stream(prompt, model=self._reasoner_model, system=system):
+            yield chunk
+
     def _fallback_evaluation(
         self,
         expected_answer: str,

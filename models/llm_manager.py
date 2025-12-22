@@ -2044,6 +2044,127 @@ class LLMManager:
 
         return LLMResponse(text="", model=model, success=False, error="Max retries exceeded")
 
+    async def generate_stream(
+        self,
+        prompt: str,
+        model: Optional[str] = None,
+        system: Optional[str] = None,
+        temperature: float = 0.7,
+        max_tokens: Optional[int] = None,
+    ):
+        """Generate text from LLM with streaming.
+
+        Yields chunks of text as they are generated.
+
+        Args:
+            prompt: User prompt
+            model: Model to use (defaults to fast_model)
+            system: System prompt
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+
+        Yields:
+            String chunks as they are generated
+        """
+        model = model or self.fast_model
+
+        # Apply rate limiting before making request
+        wait_time = self.rate_limiter.wait_if_needed(self.provider)
+        if wait_time > 0:
+            import asyncio
+            await asyncio.sleep(wait_time)
+
+        if self.provider == "deepseek":
+            async for chunk in self._deepseek_generate_stream(
+                prompt, model, system, temperature, max_tokens
+            ):
+                yield chunk
+        else:
+            # Fallback: non-streaming for other providers
+            response = self.generate(prompt, model, system, temperature, max_tokens, False)
+            if response.success:
+                yield response.text
+
+    async def _deepseek_generate_stream(
+        self,
+        prompt: str,
+        model: str,
+        system: Optional[str],
+        temperature: float,
+        max_tokens: Optional[int],
+    ):
+        """Stream using DeepSeek API.
+
+        Args:
+            prompt: User prompt
+            model: Model name
+            system: System prompt
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens
+
+        Yields:
+            Text chunks as they are generated
+        """
+        import aiohttp
+
+        if not Config.DEEPSEEK_API_KEY:
+            yield "Error: DEEPSEEK_API_KEY not set"
+            return
+
+        url = "https://api.deepseek.com/v1/chat/completions"
+
+        messages = []
+        if system:
+            messages.append({"role": "system", "content": system})
+        messages.append({"role": "user", "content": prompt})
+
+        is_reasoner = model == "deepseek-reasoner"
+
+        payload = {
+            "model": model,
+            "messages": messages,
+            "stream": True,
+        }
+
+        if not is_reasoner:
+            payload["temperature"] = temperature
+
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
+
+        headers = {
+            "Authorization": f"Bearer {Config.DEEPSEEK_API_KEY}",
+            "Content-Type": "application/json",
+        }
+
+        try:
+            timeout = aiohttp.ClientTimeout(total=300 if is_reasoner else 120)
+            async with aiohttp.ClientSession(timeout=timeout) as session:
+                async with session.post(url, json=payload, headers=headers) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        yield f"Error: {error_text}"
+                        return
+
+                    async for line in response.content:
+                        line = line.decode("utf-8").strip()
+                        if not line or not line.startswith("data: "):
+                            continue
+                        if line == "data: [DONE]":
+                            break
+
+                        try:
+                            data = json.loads(line[6:])  # Skip "data: " prefix
+                            delta = data.get("choices", [{}])[0].get("delta", {})
+                            content = delta.get("content", "")
+                            if content:
+                                yield content
+                        except json.JSONDecodeError:
+                            continue
+
+        except Exception as e:
+            yield f"Error: {str(e)}"
+
     def embed(self, text: str, model: Optional[str] = None) -> Optional[List[float]]:
         """Generate embeddings for text.
 
