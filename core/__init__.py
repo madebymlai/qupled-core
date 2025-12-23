@@ -7,18 +7,18 @@ Main components:
 - ReviewEngine: Answer evaluation and exercise generation
 """
 
-from core.analyzer import ExerciseAnalyzer, AnalysisResult
-from core.tutor import Tutor
+from core.analyzer import AnalysisResult, ExerciseAnalyzer
 from core.answer_evaluator import RecallEvaluationResult
-from core.note_splitter import NoteSplitter, NoteSection
+from core.note_splitter import NoteSection, NoteSplitter
 from core.review_engine import (
-    ReviewEngine,
-    GeneratedExercise,
-    ReviewEvaluation,
     ExerciseExample,
-    score_to_quality,
+    GeneratedExercise,
+    ReviewEngine,
+    ReviewEvaluation,
     calculate_mastery,
+    score_to_quality,
 )
+from core.tutor import Tutor
 
 __all__ = [
     "ExerciseAnalyzer",

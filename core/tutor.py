@@ -3,12 +3,11 @@ Interactive AI tutor for Examina.
 Provides learning features for KnowledgeItems.
 """
 
-import re
 import random
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
-from models.llm_manager import LLMManager
 from config import Config
+from models.llm_manager import LLMManager
 
 
 def get_language_name(code: str) -> str:
@@ -270,7 +269,6 @@ class Tutor:
         parent_exercise_context: Optional[str],
     ) -> str:
         """Build LLM prompt for a single section."""
-        import json
 
         # Build language instruction
         if self.language and self.language.lower() != "en":

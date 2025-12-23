@@ -13,8 +13,9 @@ NO HARDCODING - fully adaptive to content.
 TODO: Work in progress - not yet integrated into the main pipeline.
 """
 
-from typing import Dict, Optional, List
 from dataclasses import dataclass
+from typing import Dict, List, Optional
+
 from models.llm_manager import LLMManager
 
 
@@ -185,7 +186,7 @@ Guidelines:
                 question=question, answer=answer, confidence=confidence, separation_method="llm"
             )
 
-        except (json.JSONDecodeError, KeyError, ValueError) as e:
+        except (json.JSONDecodeError, KeyError, ValueError):
             # Fallback: return as-is
             return QuestionAnswerPair(
                 question=text, answer=None, confidence=0.0, separation_method="none"

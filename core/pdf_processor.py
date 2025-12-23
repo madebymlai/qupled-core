@@ -5,9 +5,9 @@ Supports Mathpix and Vision LLM for math-heavy and scanned PDFs.
 """
 
 import re
-from pathlib import Path
-from typing import List, Dict, Any, Optional, Tuple
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Tuple
 
 try:
     import fitz  # PyMuPDF
@@ -17,7 +17,7 @@ except ImportError:
     PYMUPDF_AVAILABLE = False
 
 try:
-    from PIL import Image
+    from PIL import Image  # noqa: F401
 
     PIL_AVAILABLE = True
 except ImportError:
@@ -285,8 +285,9 @@ class PDFProcessor:
         if not pdf_path.exists():
             raise FileNotFoundError(f"PDF not found: {pdf_path}")
 
-        import requests
         import time
+
+        import requests
 
         # Read PDF file
         with open(pdf_path, "rb") as f:
@@ -421,8 +422,9 @@ class PDFProcessor:
         if suffix not in {".png", ".jpg", ".jpeg"}:
             raise ValueError(f"Unsupported image format: {suffix}. Use PNG or JPG.")
 
-        import requests
         import base64
+
+        import requests
 
         # Read and encode image
         with open(image_path, "rb") as f:

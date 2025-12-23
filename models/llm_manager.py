@@ -3,14 +3,15 @@ LLM Manager for Examina.
 Handles interactions with Ollama and other LLM providers.
 """
 
-import json
-import requests
-import hashlib
-import time
-import logging
 import asyncio
-from typing import Optional, Dict, Any, List
+import hashlib
+import json
+import logging
+import time
 from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
+import requests
 
 try:
     import aiohttp
@@ -20,6 +21,7 @@ except ImportError:
     AIOHTTP_AVAILABLE = False
 
 from config import Config
+
 # NOTE: RateLimitTracker imported lazily in __init__ to avoid circular import
 # Chain: models.llm_manager → core.rate_limiter → core/__init__ → core.analyzer → models.llm_manager
 
@@ -182,7 +184,7 @@ class LLMManager:
             # Cache hit!
             self.cache_hits += 1
             if not self.quiet:
-                print(f"  [CACHE HIT] Using cached response")
+                print("  [CACHE HIT] Using cached response")
 
             return LLMResponse(
                 text=cache_data.get("text", ""),
@@ -222,7 +224,7 @@ class LLMManager:
                 json.dump(cache_data, f, indent=2)
 
             if not self.quiet:
-                print(f"  [CACHE MISS] Response cached for future use")
+                print("  [CACHE MISS] Response cached for future use")
             self.cache_misses += 1
 
         except Exception as e:
@@ -619,7 +621,7 @@ class LLMManager:
                     try:
                         error_detail = e.response.json()
                         error_msg = f"Groq API error: {error_detail}"
-                    except:
+                    except Exception:
                         error_msg = f"Groq API error: {e} - {e.response.text}"
 
                 # Return error if not retrying
@@ -737,7 +739,7 @@ class LLMManager:
                         try:
                             error_detail = await response.json()
                             error_msg = f"Groq API error: {error_detail}"
-                        except:
+                        except Exception:
                             text = await response.text()
                             error_msg = f"Groq API error: {response.status} - {text}"
                         return LLMResponse(text="", model=model, success=False, error=error_msg)
@@ -891,7 +893,7 @@ class LLMManager:
                     try:
                         error_detail = e.response.json()
                         error_msg = f"Anthropic API error: {error_detail}"
-                    except:
+                    except Exception:
                         error_msg = f"Anthropic API error: {e} - {e.response.text}"
 
                 # Return error if not retrying
@@ -1007,7 +1009,7 @@ class LLMManager:
                         try:
                             error_detail = await response.json()
                             error_msg = f"Anthropic API error: {error_detail}"
-                        except:
+                        except Exception:
                             text = await response.text()
                             error_msg = f"Anthropic API error: {response.status} - {text}"
                         return LLMResponse(text="", model=model, success=False, error=error_msg)
@@ -1169,7 +1171,7 @@ class LLMManager:
                     try:
                         error_detail = e.response.json()
                         error_msg = f"DeepSeek API error: {error_detail}"
-                    except:
+                    except Exception:
                         error_msg = f"DeepSeek API error: {e} - {e.response.text}"
 
                 # Return error if not retrying
@@ -1287,7 +1289,7 @@ class LLMManager:
                         try:
                             error_detail = await response.json()
                             error_msg = f"DeepSeek API error: {error_detail}"
-                        except:
+                        except Exception:
                             text = await response.text()
                             error_msg = f"DeepSeek API error: {response.status} - {text}"
                         return LLMResponse(text="", model=model, success=False, error=error_msg)
@@ -1445,7 +1447,7 @@ class LLMManager:
                     try:
                         error_detail = e.response.json()
                         error_msg = f"OpenRouter API error: {error_detail}"
-                    except:
+                    except Exception:
                         error_msg = f"OpenRouter API error: {e} - {e.response.text}"
 
                 # Return error if not retrying
@@ -1565,7 +1567,7 @@ class LLMManager:
                         try:
                             error_detail = await response.json()
                             error_msg = f"OpenRouter API error: {error_detail}"
-                        except:
+                        except Exception:
                             text = await response.text()
                             error_msg = f"OpenRouter API error: {response.status} - {text}"
                         return LLMResponse(text="", model=model, success=False, error=error_msg)
@@ -1791,7 +1793,7 @@ class LLMManager:
                     try:
                         error_detail = e.response.json()
                         error_msg = f"DeepSeek Vision API error: {error_detail}"
-                    except:
+                    except Exception:
                         error_msg = f"DeepSeek Vision API error: {e} - {e.response.text}"
 
                 return LLMResponse(text="", model=model, success=False, error=error_msg)
@@ -1925,7 +1927,7 @@ class LLMManager:
                     try:
                         error_detail = e.response.json()
                         error_msg = f"OpenRouter Vision API error: {error_detail}"
-                    except:
+                    except Exception:
                         error_msg = f"OpenRouter Vision API error: {e} - {e.response.text}"
 
                 return LLMResponse(text="", model=model, success=False, error=error_msg)
@@ -2033,7 +2035,7 @@ class LLMManager:
                     try:
                         error_detail = e.response.json()
                         error_msg = f"OpenRouter Image API error: {error_detail}"
-                    except:
+                    except Exception:
                         error_msg = f"OpenRouter Image API error: {e} - {e.response.text}"
 
                 return LLMResponse(text="", model=model, success=False, error=error_msg)

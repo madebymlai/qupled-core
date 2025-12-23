@@ -3,10 +3,10 @@ Database management for Examina.
 Handles SQLite operations and schema management.
 """
 
-import sqlite3
 import json
+import sqlite3
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Any, Dict, List, Optional
 
 from config import Config
 
@@ -2520,7 +2520,7 @@ class Database:
                 - global_entries: Number of global entries
         """
         # Build user filter clause (web-ready)
-        user_filter = "user_id IS NULL" if user_id is None else f"user_id = ?"
+        user_filter = "user_id IS NULL" if user_id is None else "user_id = ?"
         user_params = () if user_id is None else (user_id,)
 
         if course_code is None:

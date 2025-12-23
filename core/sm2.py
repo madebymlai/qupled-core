@@ -67,9 +67,9 @@ References:
 - Algorithm details: https://en.wikipedia.org/wiki/SuperMemo#Description_of_SM-2_algorithm
 """
 
+from dataclasses import dataclass
 from datetime import datetime, timedelta
 from typing import Dict, Optional
-from dataclasses import dataclass
 
 
 @dataclass

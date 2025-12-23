@@ -36,7 +36,8 @@ import textwrap
 import threading
 import time
 import webbrowser
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import TimeoutError as FuturesTimeoutError
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -65,7 +66,7 @@ from models.llm_manager import LLMManager
 # Optional: Active learning imports (may not be installed)
 try:
     from core.active_learning import ActiveClassifier
-    from core.features import extract_features, compute_embedding, cosine_similarity
+    from core.features import compute_embedding, cosine_similarity
     ACTIVE_LEARNING_AVAILABLE = True
 except ImportError:
     ACTIVE_LEARNING_AVAILABLE = False
@@ -1069,7 +1070,7 @@ class TestRunner:
         # Time comparison
         time_diff = time_without - time_with
         time_pct = (time_diff / time_without * 100) if time_without > 0 else 0
-        print(f"Time:")
+        print("Time:")
         print(f"  Without AL: {time_without:.1f}s")
         print(f"  With AL:    {time_with:.1f}s")
         if time_diff > 0:
@@ -1081,7 +1082,7 @@ class TestRunner:
         if llm_without > 0:
             llm_diff = llm_without - llm_with
             llm_pct = (llm_diff / llm_without * 100) if llm_without > 0 else 0
-            print(f"\nLLM Calls (classification):")
+            print("\nLLM Calls (classification):")
             print(f"  Without AL: {llm_without}")
             print(f"  With AL:    {llm_with}")
             print(f"  Reduction:  {green(f'{llm_pct:.0f}%')} ({llm_diff} calls saved)")
@@ -1089,7 +1090,7 @@ class TestRunner:
         # Merge quality comparison
         merges_without = sum(len(r.skill_groups) for r in results_without)
         merges_with = sum(len(r.skill_groups) for r in results_with)
-        print(f"\nMerge Groups Found:")
+        print("\nMerge Groups Found:")
         print(f"  Without AL: {merges_without}")
         print(f"  With AL:    {merges_with}")
         if merges_without != merges_with:
@@ -1101,7 +1102,7 @@ class TestRunner:
         # KI counts
         kis_without = sum(len(r.knowledge_items) for r in results_without)
         kis_with = sum(len(r.knowledge_items) for r in results_with)
-        print(f"\nKnowledge Items:")
+        print("\nKnowledge Items:")
         print(f"  Without AL: {kis_without}")
         print(f"  With AL:    {kis_with}")
 

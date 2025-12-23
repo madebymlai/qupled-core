@@ -2,7 +2,6 @@
 Tests for active learning classification system.
 """
 
-import pytest
 import numpy as np
 
 

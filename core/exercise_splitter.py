@@ -3,14 +3,14 @@ Exercise splitting for Examina.
 Splits PDF content into individual exercises based on patterns.
 """
 
-import re
-import json
-import hashlib
-import logging
 import asyncio
-from typing import List, Dict, Optional, Tuple, TYPE_CHECKING
+import hashlib
+import json
+import logging
+import re
 from dataclasses import dataclass, field
 from enum import Enum
+from typing import TYPE_CHECKING, Dict, List, Optional, Tuple
 
 from core.pdf_processor import PDFContent, PDFPage
 

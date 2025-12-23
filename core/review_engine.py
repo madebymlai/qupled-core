@@ -12,8 +12,6 @@ import json
 from dataclasses import dataclass
 from typing import Optional, Protocol
 
-from core.analyzer import LEARNING_APPROACHES
-
 
 class LLMInterface(Protocol):
     """Protocol for LLM generation."""

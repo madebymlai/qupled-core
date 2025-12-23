@@ -7,14 +7,13 @@ Usage:
     python tests/test_synonym_quick.py
 """
 
-import sys
-import os
 import json
+import os
+import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from models.llm_manager import LLMManager
-
 
 # Critical test cases
 CRITICAL_TESTS = [
@@ -142,7 +141,7 @@ def run_quick_test():
                 groups = result
             else:
                 groups = []
-        except:
+        except Exception:
             groups = []
 
         has_merge = len(groups) > 0

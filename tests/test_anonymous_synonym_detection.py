@@ -13,8 +13,8 @@ Test categories:
 - EDGE CASES: Empty data, ties, single items, etc.
 """
 
-import sys
 import os
+import sys
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
@@ -484,13 +484,13 @@ def test_should_merge_cases():
 
         # Validate test data
         for item in case["items"]:
-            assert "name" in item, f"Item missing 'name'"
+            assert "name" in item, "Item missing 'name'"
             assert "exercises" in item, f"Item {item['name']} missing 'exercises'"
             assert len(item["exercises"]) > 0 or case["name"] == "empty_exercises", (
                 f"Item {item['name']} has no exercises"
             )
 
-        print(f"  [DATA VALID]")
+        print("  [DATA VALID]")
 
 
 def test_should_not_merge_cases():
@@ -512,7 +512,7 @@ def test_should_not_merge_cases():
             )
             print(f'    - {item["name"]}: "{ex_preview}"')
 
-        print(f"  [DATA VALID]")
+        print("  [DATA VALID]")
 
 
 def test_edge_cases():
@@ -530,7 +530,7 @@ def test_edge_cases():
         if "post_merge_approach" in case:
             print(f"  Post-merge approach: {case['post_merge_approach']}")
 
-        print(f"  [DATA VALID]")
+        print("  [DATA VALID]")
 
 
 def test_multi_item_cases():
@@ -547,7 +547,7 @@ def test_multi_item_cases():
             print(f"  Expected separate items: {case['expected_separate']}")
         print(f"  Reason: {case['reason']}")
 
-        print(f"  [DATA VALID]")
+        print("  [DATA VALID]")
 
 
 def generate_anonymous_prompt(items: list[dict]) -> str:

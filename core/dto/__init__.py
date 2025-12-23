@@ -1,10 +1,10 @@
 """Data Transfer Objects for examina-core business logic."""
 
 from .mastery import (
+    ExerciseReviewData,
+    GapSeverity,
     MasteryLevel,
     MasteryTrend,
-    GapSeverity,
-    ExerciseReviewData,
     TopicMasteryInput,
     TopicMasteryResult,
 )

@@ -6,10 +6,10 @@ Unlike ExerciseSplitter which looks for exercise markers ("Esercizio N"),
 NoteSplitter detects document structure: headers, chapters, numbered sections.
 """
 
-import re
 import hashlib
-from typing import List, Optional, Tuple
+import re
 from dataclasses import dataclass
+from typing import List, Optional, Tuple
 
 from core.pdf_processor import PDFContent, PDFPage
 
