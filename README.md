@@ -20,9 +20,15 @@ examina-cli           - Local CLI (ChromaDB, vector search)
 | `core/analyzer.py` | Exercise analysis, knowledge extraction |
 | `core/tutor.py` | Knowledge item teaching (Learn mode) |
 | `core/review_engine.py` | Exercise generation & answer evaluation (Review mode) |
-| `core/sm2.py` | Spaced repetition algorithm |
+| `core/fsrs_scheduler.py` | FSRS spaced repetition algorithm |
+| `core/answer_evaluator.py` | Student answer evaluation |
 | `core/pdf_processor.py` | PDF text extraction |
-| `core/exercise_splitter.py` | Exercise detection |
+| `core/exercise_splitter.py` | Exercise detection and splitting |
+| `core/note_splitter.py` | Note/summary splitting |
+| `core/solution_separator.py` | Separate exercises from solutions |
+| `core/merger.py` | Merge duplicate knowledge items |
+| `core/features.py` | Feature extraction for ML |
+| `core/active_learning.py` | Active learning strategies |
 
 ## Installation
 
@@ -36,6 +42,7 @@ pip install git+https://github.com/madebymlai/examina.git
 from core.analyzer import ExerciseAnalyzer
 from core.tutor import Tutor
 from core.review_engine import ReviewEngine
+from core.fsrs_scheduler import FSRSScheduler, ReviewResult
 from models.llm_manager import LLMManager
 
 llm = LLMManager()
@@ -67,6 +74,14 @@ result = engine.evaluate_answer(
     student_answer="user's answer",
     exercise_type=exercise.exercise_type
 )
+
+# FSRS scheduling
+scheduler = FSRSScheduler()
+review_result = scheduler.review(
+    card_state=current_card_state,
+    rating=3,  # 1=Again, 2=Hard, 3=Good, 4=Easy
+)
+next_review_date = review_result.next_review_date
 ```
 
 ## LLM Providers

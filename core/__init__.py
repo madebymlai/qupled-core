@@ -16,7 +16,6 @@ from core.review_engine import (
     ReviewEngine,
     ReviewEvaluation,
     calculate_mastery,
-    score_to_quality,
 )
 from core.tutor import Tutor
 
@@ -32,6 +31,5 @@ __all__ = [
     "GeneratedExercise",
     "ReviewEvaluation",
     "ExerciseExample",
-    "score_to_quality",
     "calculate_mastery",
 ]

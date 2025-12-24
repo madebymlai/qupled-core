@@ -3,7 +3,6 @@
 This module provides:
 - Exercise generation based on knowledge items + linked exercises
 - Answer evaluation with partial credit
-- Score to SM2 quality mapping
 
 Used by examina-cloud for Review Mode v2.
 """
@@ -57,32 +56,6 @@ class ReviewEvaluation:
     is_correct: bool  # True if score >= 0.7
     feedback: str
     correct_answer: str
-
-
-def score_to_quality(score: float) -> int:
-    """Map LLM evaluation score to SM2 quality rating.
-
-    Pass = quality >= 3 = score >= 70%
-    Fail = quality < 3 = score < 70% -> interval resets to 1
-
-    Args:
-        score: Score from 0.0 to 1.0
-
-    Returns:
-        SM2 quality rating from 0 to 5
-    """
-    if score >= 0.9:
-        return 5  # Excellent - interval grows fast
-    elif score >= 0.8:
-        return 4  # Good - interval grows
-    elif score >= 0.7:
-        return 3  # Pass - interval grows (minimum to pass)
-    elif score >= 0.5:
-        return 2  # Close but fail - reset
-    elif score >= 0.3:
-        return 1  # Wrong - reset
-    else:
-        return 0  # Blackout - reset
 
 
 def calculate_mastery(average_score: float, review_count: int) -> float:

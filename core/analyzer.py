@@ -186,7 +186,7 @@ Respond in JSON format:
   "difficulty": "easy|medium|hard",
   "confidence": 0.0-1.0,
   "knowledge_item": {{
-    "name": "snake_case_name",  // e.g., "base_conversion_binary", "fsm_design"
+    "name": "snake_case_name",
     "learning_approach": "{learning_approaches_str}"
   }}
 }}
@@ -197,7 +197,7 @@ Respond in JSON format:
 - Name the **CONCEPT** being tested, **not the task performed**
 - Think: "What textbook chapter covers this?"
 - Name should make sense outside this exercise context
-- **snake_case**, e.g., "matrix_multiplication"
+- **snake_case** format
 - If **multiple concepts**, pick the **primary one**
 
 **LEARNING APPROACH**:
