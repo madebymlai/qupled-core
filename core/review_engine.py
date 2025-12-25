@@ -171,7 +171,9 @@ Return JSON:
 }}"""
 
         try:
-            response = self._llm.generate(prompt, model=self._reasoner_model, system=system)
+            response = self._llm.generate(
+                prompt, model=self._reasoner_model, system=system, max_tokens=2048
+            )
             response_text = response.text if hasattr(response, "text") else str(response)
             return self._parse_exercise_response(response_text, knowledge_item_name)
         except Exception as e:
