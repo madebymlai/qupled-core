@@ -326,8 +326,8 @@ def classify_items(
         if not group or len(group["items"]) < 2:
             continue
 
-        # Get canonical name (use display_name for LLM readability)
-        item_names = [item.get("display_name", item["name"]) for item in group["items"]]
+        # Get canonical name (keep snake_case for storage/dedup)
+        item_names = [item["name"] for item in group["items"]]
         group["name"] = get_canonical_name(item_names, llm)
 
         # Regenerate description
