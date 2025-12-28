@@ -385,7 +385,7 @@ EXERCISE:
 \"\"\"
 
 Return JSON:
-{{"end_marker": "last 40-60 chars verbatim", "has_sub_questions": true/false}}"""
+{{"end_marker": "last 40-60 chars verbatim of exercise", "has_sub_questions": true/false}}"""
 
     try:
         llm_response = await asyncio.to_thread(llm_manager.generate, prompt, temperature=0.0)
