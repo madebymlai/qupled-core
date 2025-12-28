@@ -30,6 +30,13 @@ def normalize_category(name: str) -> str:
     return normalized
 
 
+def snake_to_title(text: str | None) -> str | None:
+    """Convert snake_case to Title Case for display."""
+    if not text:
+        return text
+    return text.replace("_", " ").title()
+
+
 def assign_category(
     item: dict,
     existing_categories: list[str],
@@ -271,9 +278,9 @@ def classify_items(
     ]
     group_by_id = {g["id"]: g for g in groups}
 
-    # Get existing categories - Title Case for display, snake_case for matching
-    display_categories = list(set(g["category"] for g in groups if g.get("category")))
-    existing_categories = [normalize_category(c) for c in display_categories]
+    # Get existing categories - snake_case for matching, convert to Title Case for display
+    existing_categories = list(set(g["category"] for g in groups if g.get("category")))
+    display_categories = [snake_to_title(c) for c in existing_categories]
 
     # LLM classify function for active learning fallback
     def llm_classify_fn(item: dict, candidate_groups: list[dict]) -> dict:
@@ -289,8 +296,8 @@ def classify_items(
             if item_category not in existing_categories:
                 existing_categories.append(item_category)
 
-        # Step 2: Filter groups to same category (normalize for comparison)
-        same_category_groups = [g for g in groups if normalize_category(g.get("category") or "") == item_category]
+        # Step 2: Filter groups to same category
+        same_category_groups = [g for g in groups if g.get("category") == item_category]
 
         # Step 3: Classify within category (using active learning if available)
         if same_category_groups:
