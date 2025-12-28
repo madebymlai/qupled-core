@@ -99,6 +99,11 @@ class FSRSScheduler:
         now = datetime.now(timezone.utc)
         scheduled_card, _ = self.fsrs.review_card(card, fsrs_rating, now)
 
+        # Adjust difficulty: make "Good" ratings decrease difficulty meaningfully
+        # FSRS only decreases by -0.01 for Good, we want -0.5 total (halfway to Easy's -1.7)
+        if rating == 3:  # Good
+            scheduled_card.difficulty = max(1.0, scheduled_card.difficulty - 0.5)
+
         # Calculate interval
         if scheduled_card.due:
             interval_days = max(1, (scheduled_card.due - now).days)
