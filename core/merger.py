@@ -55,8 +55,8 @@ Item: {item.get('description', item.get('display_name', item.get('name', '')))}
 Pick the best fitting broad sub-topic, or suggest NEW if none fit.
 NEW must be broad (1-2 words), not a course name.
 
-Return JSON: {{"category": "sub-topic name (lowercase)", "is_new": false}}
-Or: {{"category": "new sub-topic name (lowercase)", "is_new": true}}"""
+Return JSON: {{"category": "sub_topic_name", "is_new": false}}
+Or: {{"category": "new_sub_topic_name", "is_new": true}}"""
 
     try:
         response = llm.generate(
@@ -94,7 +94,7 @@ Item: {item.get('description', item.get('display_name', item.get('name', '')))}
 
 Return a broad sub-topic (1-2 words), NOT the course or subject name.
 
-Return JSON: {{"category": "sub-topic name (lowercase)"}}"""
+Return JSON: {{"category": "sub_topic_name"}}"""
 
     try:
         response = llm.generate(
