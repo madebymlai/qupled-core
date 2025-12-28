@@ -177,7 +177,6 @@ class TestResult:
     exercises: int = 0
     sub_questions: int = 0
     parents: int = 0
-    with_solutions: int = 0
     error: Optional[str] = None
     warnings: list = field(default_factory=list)
     duration: float = 0.0
@@ -350,12 +349,10 @@ class PipelineTester:
             # Count results
             parents = [e for e in exercises if not e.is_sub_question]
             subs = [e for e in exercises if e.is_sub_question]
-            with_sol = [e for e in exercises if e.solution]
 
             result.exercises = len(exercises)
             result.parents = len(parents)
             result.sub_questions = len(subs)
-            result.with_solutions = len(with_sol)
             result.status = "PASS"
 
             # Warnings
@@ -378,7 +375,6 @@ class PipelineTester:
                         "number": ex.exercise_number,
                         "is_sub": ex.is_sub_question,
                         "parent": ex.parent_exercise_number,
-                        "has_solution": bool(ex.solution),
                         "text_preview": self._truncate(ex.text, 100),
                         "text_full": ex.text,  # Full text for analyzer
                         "context": getattr(ex, "exercise_context", "") or "",
@@ -1317,7 +1313,6 @@ class TestRunner:
                 "total": result.exercises,
                 "parents": result.parents,
                 "subs": result.sub_questions,
-                "with_solutions": result.with_solutions,
             }
 
             errors = []
@@ -1471,8 +1466,6 @@ class TestRunner:
         if result.exercises > 0:
             print(f"  Exercises: {result.exercises}")
             print(f"  Sub-questions: {result.sub_questions}")
-            if result.with_solutions > 0:
-                print(f"  With solutions: {result.with_solutions}")
 
         if result.status == "PASS":
             print(f"  Status: {green('PASS')}")

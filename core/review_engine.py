@@ -240,8 +240,6 @@ Return JSON:
                 text = f"Example {i}:\n{ex.text}"
             if ex.image_context:
                 text += f"\n[IMAGE CONTEXT: {ex.image_context}]"
-            if ex.solution:
-                text += f"\nSolution: {ex.solution}"
             formatted.append(text)
 
         return "\n\n".join(formatted)

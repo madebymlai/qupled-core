@@ -84,9 +84,6 @@ class Exercise:
     has_latex: bool
     latex_content: Optional[str]
     source_pdf: str
-    # Solution fields (populated via LLM-provided solution_pattern)
-    solution: Optional[str] = None
-    solution_page: Optional[int] = None
     # Sub-question support (added for unified knowledge model)
     parent_exercise_number: Optional[str] = None  # "2" if this is "2a"
     sub_question_marker: Optional[str] = None  # "a", "b", "c", "i", "ii", etc.
@@ -195,7 +192,6 @@ class MarkerPattern:
     """
 
     exercise_pattern: str  # Regex for exercise markers (e.g., "Esercizio\\s+(\\d+)")
-    solution_pattern: Optional[str] = None  # Keyword or regex for solutions (e.g., "Soluzione")
 
 
 @dataclass
