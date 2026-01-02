@@ -259,7 +259,7 @@ def generate_item_description(
     system = "You are a textbook editor."
 
     prompt = f"""What **TRANSFERABLE** skill is being tested?
-Keep topic terminology that **IDENTIFIES** the exercise, ignore scenario details, start with a verb.
+Keep topic terminology that **IDENTIFIES** the exercise, ignore scenario details, start with an imperative verb.
 
 {chr(10).join(f"- {t}" for t in exercises_text)}
 
