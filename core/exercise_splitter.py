@@ -9,12 +9,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
-from core.scanner import (
-    PDFContent,
-    PDFProcessor,
-    extract_exercises,
-    render_page_to_image,
-)
+from core.pdf import PDFContent
+from core.scanner import extract_exercises, get_pdf_page_count, render_page_to_image
 
 if TYPE_CHECKING:
     from models.llm_manager import LLMManager
@@ -130,7 +126,7 @@ class ExerciseSplitter:
 
     def __init__(self):
         """Initialize exercise splitter."""
-        self._pdf_processor = PDFProcessor()
+        pass
 
     def extract(
         self,
@@ -168,7 +164,7 @@ class ExerciseSplitter:
             total_pages = 1
         else:
             # PDF: render all pages
-            total_pages = self._pdf_processor.get_pdf_page_count(file_path)
+            total_pages = get_pdf_page_count(file_path)
             page_images = []
             for page_num in range(1, total_pages + 1):
                 img_bytes = render_page_to_image(file_path, page_num, dpi=150)

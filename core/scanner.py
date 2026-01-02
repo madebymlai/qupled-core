@@ -1,20 +1,14 @@
 """
-PDF processing for Qupled.
-Extracts text, images, and LaTeX from exam PDFs.
-Supports Mathpix and Vision LLM for math-heavy and scanned PDFs.
+VLM-based exercise extraction for Qupled.
+Uses Vision Language Models to extract exercises from exam PDFs/images.
+
+Two-pass pipeline:
+1. VLM (Qwen): OCR + exercise structure detection
+2. DeepSeek: Context extraction for parent/standalone exercises
 """
 
-import re
-from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
-
-try:
-    import fitz  # PyMuPDF
-
-    PYMUPDF_AVAILABLE = True
-except ImportError:
-    PYMUPDF_AVAILABLE = False
+from typing import Any, Dict, List, Optional
 
 try:
     from PIL import Image  # noqa: F401
@@ -30,27 +24,24 @@ try:
 except ImportError:
     PDF2IMAGE_AVAILABLE = False
 
-# Vision LLM support
-VISION_AVAILABLE = False
-try:
-    from models.llm_manager import LLMManager
+from core.pdf import PDFProcessor
 
-    VISION_AVAILABLE = True
-except ImportError:
-    pass
+__all__ = [
+    "extract_exercises",
+    "render_page_to_image",
+    "get_pdf_page_count",
+    "VLMExtractionError",
+]
 
-# Mathpix OCR support
-MATHPIX_AVAILABLE = False
-try:
-    from config import Config
-    if Config.MATHPIX_APP_ID and Config.MATHPIX_APP_KEY:
-        MATHPIX_AVAILABLE = True
-except ImportError:
-    pass
+
+def get_pdf_page_count(pdf_path: Path) -> int:
+    """Get the number of pages in a PDF."""
+    return PDFProcessor().get_pdf_page_count(pdf_path)
 
 
 class VLMExtractionError(Exception):
     """Raised when VLM API call fails for exercise extraction."""
+
     pass
 
 
@@ -130,448 +121,6 @@ Return JSON:
 {{"context_summary": "concise exercise summary in English" or null}}"""
 
 
-@dataclass
-class PDFPage:
-    """Represents a single page from a PDF."""
-
-    page_number: int
-    text: str
-    images: List[bytes]
-    has_latex: bool
-    latex_content: Optional[str] = None
-
-
-@dataclass
-class PDFContent:
-    """Complete PDF content extraction."""
-
-    file_path: Path
-    total_pages: int
-    pages: List[PDFPage]
-    metadata: Dict[str, Any]
-
-
-class PDFProcessor:
-    """Processes PDF files to extract text, images, and formulas."""
-
-    def __init__(self):
-        """Initialize PDF processor."""
-        if not PYMUPDF_AVAILABLE:
-            raise ImportError("PyMuPDF is required. Install: pip install pymupdf")
-
-    def process_pdf(self, pdf_path: Path) -> PDFContent:
-        """Process a PDF file and extract all content.
-
-        Args:
-            pdf_path: Path to PDF file
-
-        Returns:
-            PDFContent with extracted information
-        """
-        if not pdf_path.exists():
-            raise FileNotFoundError(f"PDF not found: {pdf_path}")
-
-        return self._process_with_pymupdf(pdf_path)
-
-    def _process_with_pymupdf(self, pdf_path: Path) -> PDFContent:
-        """Process PDF using PyMuPDF (fitz).
-
-        Args:
-            pdf_path: Path to PDF file
-
-        Returns:
-            PDFContent with extracted information
-        """
-        doc = fitz.open(pdf_path)
-        pages = []
-
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-
-            # Extract text
-            text = page.get_text()
-
-            # Extract images
-            images = []
-            image_list = page.get_images()
-            for img_index, img in enumerate(image_list):
-                try:
-                    xref = img[0]
-                    base_image = doc.extract_image(xref)
-                    image_bytes = base_image["image"]
-                    images.append(image_bytes)
-                except Exception:
-                    # Skip problematic images
-                    continue
-
-            # Check for LaTeX (simple heuristic)
-            has_latex, latex_content = self._detect_latex(text)
-
-            pages.append(
-                PDFPage(
-                    page_number=page_num + 1,
-                    text=text,
-                    images=images,
-                    has_latex=has_latex,
-                    latex_content=latex_content,
-                )
-            )
-
-        # Extract metadata
-        metadata = doc.metadata or {}
-
-        doc.close()
-
-        return PDFContent(
-            file_path=pdf_path, total_pages=len(pages), pages=pages, metadata=metadata
-        )
-
-    def _detect_latex(self, text: str) -> Tuple[bool, Optional[str]]:
-        """Detect LaTeX formulas in text.
-
-        Args:
-            text: Text to analyze
-
-        Returns:
-            Tuple of (has_latex: bool, latex_content: str or None)
-        """
-        # Common LaTeX patterns
-        latex_patterns = [
-            r"\$.*?\$",  # Inline math $...$
-            r"\$\$.*?\$\$",  # Display math $$...$$
-            r"\\begin\{equation\}.*?\\end\{equation\}",
-            r"\\begin\{align\}.*?\\end\{align\}",
-            r"\\begin\{math\}.*?\\end\{math\}",
-            r"\\frac\{.*?\}\{.*?\}",  # Fractions
-            r"\\sum",
-            r"\\int",
-            r"\\prod",  # Math operators
-            r"\\alpha",
-            r"\\beta",
-            r"\\gamma",  # Greek letters
-        ]
-
-        latex_content = []
-        has_latex = False
-
-        for pattern in latex_patterns:
-            matches = re.findall(pattern, text, re.DOTALL)
-            if matches:
-                has_latex = True
-                latex_content.extend(matches)
-
-        if has_latex:
-            return True, "\n".join(latex_content[:10])  # Limit to first 10 matches
-        return False, None
-
-    def extract_text_from_page(self, pdf_path: Path, page_number: int) -> str:
-        """Extract text from a specific page.
-
-        Args:
-            pdf_path: Path to PDF file
-            page_number: Page number (1-indexed)
-
-        Returns:
-            Extracted text
-        """
-        doc = fitz.open(pdf_path)
-        page = doc[page_number - 1]
-        text = page.get_text()
-        doc.close()
-        return text
-
-    def extract_images_from_page(self, pdf_path: Path, page_number: int) -> List[bytes]:
-        """Extract images from a specific page.
-
-        Args:
-            pdf_path: Path to PDF file
-            page_number: Page number (1-indexed)
-
-        Returns:
-            List of image bytes
-        """
-        images = []
-        doc = fitz.open(pdf_path)
-        page = doc[page_number - 1]
-
-        image_list = page.get_images()
-        for img in image_list:
-            try:
-                xref = img[0]
-                base_image = doc.extract_image(xref)
-                image_bytes = base_image["image"]
-                images.append(image_bytes)
-            except Exception:
-                continue
-
-        doc.close()
-        return images
-
-    def get_pdf_page_count(self, pdf_path: Path) -> int:
-        """Get the number of pages in a PDF.
-
-        Args:
-            pdf_path: Path to PDF file
-
-        Returns:
-            Number of pages
-        """
-        doc = fitz.open(pdf_path)
-        count = len(doc)
-        doc.close()
-        return count
-
-    def is_scanned_pdf(self, pdf_path: Path, sample_pages: int = 3) -> bool:
-        """Detect if PDF is scanned (image-based) or digital (text-based).
-
-        Args:
-            pdf_path: Path to PDF file
-            sample_pages: Number of pages to sample
-
-        Returns:
-            True if PDF appears to be scanned (needs OCR)
-        """
-        total_pages = self.get_pdf_page_count(pdf_path)
-        pages_to_check = min(sample_pages, total_pages)
-
-        text_chars = 0
-        for page_num in range(1, pages_to_check + 1):
-            text = self.extract_text_from_page(pdf_path, page_num)
-            text_chars += len(text.strip())
-
-        # If very little text extracted, likely scanned
-        avg_chars_per_page = text_chars / pages_to_check if pages_to_check > 0 else 0
-        return avg_chars_per_page < 100  # Threshold: less than 100 chars/page = scanned
-
-    def process_pdf_with_mathpix(self, pdf_path: Path) -> PDFContent:
-        """Process PDF using Mathpix OCR for high-quality text + LaTeX extraction.
-
-        Mathpix is specialized for math OCR and produces clean LaTeX output.
-
-        Args:
-            pdf_path: Path to PDF file
-
-        Returns:
-            PDFContent with Mathpix-extracted text
-
-        Raises:
-            ImportError: If Mathpix not configured
-            FileNotFoundError: If PDF not found
-        """
-        if not MATHPIX_AVAILABLE:
-            raise ImportError(
-                "Mathpix not configured. Set MATHPIX_APP_ID and MATHPIX_APP_KEY."
-            )
-
-        if not pdf_path.exists():
-            raise FileNotFoundError(f"PDF not found: {pdf_path}")
-
-        import time
-
-        import requests
-
-        # Read PDF file
-        with open(pdf_path, "rb") as f:
-            pdf_bytes = f.read()
-
-        # Send to Mathpix API
-        url = "https://api.mathpix.com/v3/pdf"
-        headers = {
-            "app_id": Config.MATHPIX_APP_ID,
-            "app_key": Config.MATHPIX_APP_KEY,
-        }
-
-        # Upload PDF and start conversion
-        response = requests.post(
-            url,
-            headers=headers,
-            files={"file": (pdf_path.name, pdf_bytes, "application/pdf")},
-            data={
-                "options_json": '{"math_inline_delimiters": ["$", "$"], "math_display_delimiters": ["$$", "$$"]}'
-            },
-            timeout=60,
-        )
-        response.raise_for_status()
-        result = response.json()
-        pdf_id = result.get("pdf_id")
-
-        if not pdf_id:
-            raise RuntimeError(f"Mathpix upload failed: {result}")
-
-        # Poll for completion
-        status_url = f"https://api.mathpix.com/v3/pdf/{pdf_id}"
-        max_wait = 300  # 5 minutes max
-        poll_interval = 2
-        waited = 0
-
-        while waited < max_wait:
-            status_resp = requests.get(status_url, headers=headers, timeout=30)
-            status_resp.raise_for_status()
-            status = status_resp.json()
-
-            if status.get("status") == "completed":
-                break
-            elif status.get("status") == "error":
-                raise RuntimeError(f"Mathpix processing error: {status}")
-
-            time.sleep(poll_interval)
-            waited += poll_interval
-
-        if waited >= max_wait:
-            raise TimeoutError("Mathpix processing timed out")
-
-        # Get the extracted text (mmd format = markdown with math)
-        text_url = f"https://api.mathpix.com/v3/pdf/{pdf_id}.mmd"
-        text_resp = requests.get(text_url, headers=headers, timeout=30)
-        text_resp.raise_for_status()
-        full_text = text_resp.text
-
-        # Split by page markers if present, otherwise treat as single page
-        # Mathpix uses \newpage or page markers
-        page_texts = full_text.split("\\newpage") if "\\newpage" in full_text else [full_text]
-
-        pages = []
-        for page_num, page_text in enumerate(page_texts, start=1):
-            page_text = page_text.strip()
-            if not page_text:
-                continue
-
-            # Check for LaTeX patterns
-            has_latex, latex_content = self._detect_latex(page_text)
-
-            # Extract embedded images using pymupdf
-            images = self.extract_images_from_page(pdf_path, page_num) if page_num <= self.get_pdf_page_count(pdf_path) else []
-
-            pages.append(
-                PDFPage(
-                    page_number=page_num,
-                    text=page_text,
-                    images=images,
-                    has_latex=has_latex,
-                    latex_content=latex_content,
-                )
-            )
-
-        # Get metadata using pymupdf
-        doc = fitz.open(pdf_path)
-        metadata = doc.metadata or {}
-        total_pages = len(doc)
-        doc.close()
-
-        # If Mathpix returned fewer pages, pad with empty pages
-        while len(pages) < total_pages:
-            pages.append(
-                PDFPage(
-                    page_number=len(pages) + 1,
-                    text="",
-                    images=[],
-                    has_latex=False,
-                    latex_content=[],
-                )
-            )
-
-        return PDFContent(
-            file_path=pdf_path, total_pages=total_pages, pages=pages, metadata=metadata
-        )
-
-    def process_image_with_mathpix(self, image_path: Path) -> str:
-        """Process a single image (PNG/JPG) using Mathpix OCR.
-
-        Uses Mathpix /v3/text endpoint for high-quality math OCR from images.
-
-        Args:
-            image_path: Path to image file (PNG, JPG, JPEG)
-
-        Returns:
-            Extracted text with LaTeX formatting
-
-        Raises:
-            ImportError: If Mathpix not configured
-            FileNotFoundError: If image not found
-            ValueError: If unsupported image format
-        """
-        if not MATHPIX_AVAILABLE:
-            raise ImportError(
-                "Mathpix not configured. Set MATHPIX_APP_ID and MATHPIX_APP_KEY."
-            )
-
-        if not image_path.exists():
-            raise FileNotFoundError(f"Image not found: {image_path}")
-
-        # Validate file extension
-        suffix = image_path.suffix.lower()
-        if suffix not in {".png", ".jpg", ".jpeg"}:
-            raise ValueError(f"Unsupported image format: {suffix}. Use PNG or JPG.")
-
-        import base64
-
-        import requests
-
-        # Read and encode image
-        with open(image_path, "rb") as f:
-            image_bytes = f.read()
-
-        # Determine content type
-        content_type = "image/png" if suffix == ".png" else "image/jpeg"
-        image_b64 = base64.b64encode(image_bytes).decode("utf-8")
-        data_uri = f"data:{content_type};base64,{image_b64}"
-
-        # Send to Mathpix /v3/text API
-        url = "https://api.mathpix.com/v3/text"
-        headers = {
-            "app_id": Config.MATHPIX_APP_ID,
-            "app_key": Config.MATHPIX_APP_KEY,
-            "Content-type": "application/json",
-        }
-
-        payload = {
-            "src": data_uri,
-            "formats": ["text", "latex_styled"],
-            "math_inline_delimiters": ["$", "$"],
-            "math_display_delimiters": ["$$", "$$"],
-        }
-
-        response = requests.post(url, headers=headers, json=payload, timeout=60)
-        response.raise_for_status()
-        result = response.json()
-
-        # Prefer latex_styled if available, otherwise use text
-        text = result.get("latex_styled") or result.get("text", "")
-
-        return text
-
-    def process_file_with_mathpix(self, file_path: Path) -> str:
-        """Process any supported file (PDF or image) using Mathpix.
-
-        Routes to appropriate Mathpix endpoint based on file type:
-        - PDF: Uses /v3/pdf (async polling)
-        - Images: Uses /v3/text (sync)
-
-        Args:
-            file_path: Path to file (PDF, PNG, JPG)
-
-        Returns:
-            Extracted text with LaTeX formatting
-
-        Raises:
-            ImportError: If Mathpix not configured
-            FileNotFoundError: If file not found
-            ValueError: If unsupported file format
-        """
-        suffix = file_path.suffix.lower()
-
-        if suffix == ".pdf":
-            # Use PDF endpoint - returns PDFContent, extract text from pages
-            content = self.process_pdf_with_mathpix(file_path)
-            return "\n\n".join(page.text for page in content.pages if page.text)
-        elif suffix in {".png", ".jpg", ".jpeg"}:
-            # Use image endpoint
-            return self.process_image_with_mathpix(file_path)
-        else:
-            raise ValueError(
-                f"Unsupported file format: {suffix}. Supported: PDF, PNG, JPG."
-            )
-
 def render_page_to_image(pdf_path: Path, page_num: int, dpi: int = 150) -> bytes:
     """Render a single PDF page to PNG image bytes.
 
@@ -582,11 +131,6 @@ def render_page_to_image(pdf_path: Path, page_num: int, dpi: int = 150) -> bytes
 
     Returns:
         PNG image bytes
-
-    Raises:
-        ImportError: If pdf2image not installed
-        FileNotFoundError: If PDF not found
-        ValueError: If page_num out of range
     """
     if not PDF2IMAGE_AVAILABLE:
         raise ImportError("pdf2image not available. Install: pip install pdf2image")
@@ -616,27 +160,19 @@ def _get_context_summaries(
     standalone_exercises: List[Dict[str, Any]],
     logger,
 ) -> Dict[str, Optional[str]]:
-    """Pass 2: Get context summaries from DeepSeek for parents and standalone exercises.
-
-    Args:
-        parent_data: Dict of parent_num -> {text, image_context}
-        standalone_exercises: List of standalone exercise dicts
-        logger: Logger instance
-
-    Returns:
-        Dict of exercise_number -> context_summary (or None)
-    """
+    """Pass 2: Get context summaries from DeepSeek for parents and standalone exercises."""
     import json
     import re
 
     import requests
+
+    from config import Config
 
     api_key = Config.OPENROUTER_API_KEY
     if not api_key:
         logger.warning("OPENROUTER_API_KEY not configured, skipping context extraction")
         return {}
 
-    # Use DeepSeek for context extraction
     model = "deepseek/deepseek-chat-v3-0324"
 
     results = {}
@@ -712,16 +248,15 @@ def _call_deepseek_for_context(
 
 def extract_exercises(
     images: bytes | Path | List[bytes],
-    llm_manager: "LLMManager" = None,
 ) -> List[Dict[str, Any]]:
     """Extract exercises from exam page(s) using VLM.
 
-    This is the unified extraction function that does OCR, exercise splitting,
-    and context extraction in a single VLM call.
+    Two-pass pipeline:
+    1. VLM: OCR + exercise structure detection
+    2. DeepSeek: Context extraction for parent/standalone
 
     Args:
         images: Single image (bytes or Path) or list of page images (bytes)
-        llm_manager: LLMManager instance (defaults to OpenRouter with VLM model)
 
     Returns:
         List of exercise dicts with fields:
@@ -742,26 +277,24 @@ def extract_exercises(
         >>> exercises = extract_exercises(page_images)
     """
     import base64
-    import io
     import json
     import logging
 
     import requests
 
+    from config import Config
+
     logger = logging.getLogger(__name__)
 
     # Normalize input to list of bytes
     if isinstance(images, Path):
-        # Single file path - read it
         if not images.exists():
             raise VLMExtractionError(f"File not found: {images}")
         with open(images, "rb") as f:
             image_list = [f.read()]
     elif isinstance(images, bytes):
-        # Single image bytes
         image_list = [images]
     elif isinstance(images, list):
-        # List of image bytes
         image_list = images
     else:
         raise VLMExtractionError(f"Invalid images type: {type(images)}")
@@ -824,7 +357,6 @@ def extract_exercises(
     # Parse JSON from response (may be wrapped in markdown code block)
     text = text.strip()
     if text.startswith("```"):
-        # Remove markdown code block
         lines = text.split("\n")
         text = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
         text = text.strip()
@@ -837,7 +369,7 @@ def extract_exercises(
 
     exercises = data.get("exercises", [])
 
-    # Parse all exercises (VLM now outputs text for all)
+    # Parse all exercises
     all_exercises = []
     for ex in exercises:
         if not isinstance(ex, dict):
@@ -855,7 +387,6 @@ def extract_exercises(
     logger.info(f"VLM Pass 1: extracted {len(all_exercises)} exercises from {len(image_list)} page(s)")
 
     # Identify parents (exercises that have sub-questions)
-    # Use rsplit to find immediate parent: "3.1.1" → "3.1", "3.1" → "3"
     exercise_nums = {ex["exercise_number"] for ex in all_exercises}
     parent_nums = set()
     for ex_num in exercise_nums:
@@ -865,19 +396,17 @@ def extract_exercises(
                 parent_nums.add(parent_num)
 
     # Pass 2: Get context from DeepSeek for parents and standalone
-    parent_data = {}  # parent_num -> {text, image_context, context_summary}
+    parent_data = {}
     standalone_exercises = []
 
     for ex in all_exercises:
         ex_num = ex["exercise_number"]
         if ex_num in parent_nums:
-            # Parent exercise - store for context extraction
             parent_data[ex_num] = {
                 "text": ex["text"],
                 "image_context": ex.get("image_context"),
             }
         elif "." not in ex_num:
-            # Standalone exercise (no subs)
             standalone_exercises.append(ex)
 
     # Call DeepSeek for context (parents + standalone)
@@ -915,17 +444,9 @@ def extract_exercises(
 
 
 def _resize_image_if_needed(image_bytes: bytes, max_size: int = 2048) -> bytes:
-    """Resize image if either dimension exceeds max_size.
-
-    Args:
-        image_bytes: Original image bytes
-        max_size: Maximum dimension (pixels)
-
-    Returns:
-        Resized image bytes (or original if no resize needed)
-    """
+    """Resize image if either dimension exceeds max_size."""
     if not PIL_AVAILABLE:
-        return image_bytes  # Can't resize without PIL
+        return image_bytes
 
     import io
 
@@ -935,9 +456,8 @@ def _resize_image_if_needed(image_bytes: bytes, max_size: int = 2048) -> bytes:
     width, height = img.size
 
     if width <= max_size and height <= max_size:
-        return image_bytes  # No resize needed
+        return image_bytes
 
-    # Calculate new size maintaining aspect ratio
     if width > height:
         new_width = max_size
         new_height = int(height * max_size / width)
@@ -947,7 +467,6 @@ def _resize_image_if_needed(image_bytes: bytes, max_size: int = 2048) -> bytes:
 
     img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
-    # Save to bytes
     buf = io.BytesIO()
     img.save(buf, format="PNG")
     return buf.getvalue()
