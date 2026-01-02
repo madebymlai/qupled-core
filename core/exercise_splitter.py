@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
 
 from core.pdf import PDFContent
-from core.scanner import extract_exercises, get_pdf_page_count, render_page_to_image
+from core.exercise_scanner import extract_exercises, get_pdf_page_count, render_page_to_image
 
 if TYPE_CHECKING:
     from models.llm_manager import LLMManager
