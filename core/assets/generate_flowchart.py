@@ -170,9 +170,10 @@ def generate_flowchart():
     table_y = 680
     table_left = 30
     table_right = 970
-    table_mid = 485
+    table_mid = 500  # Centered between table_left and table_right
     row_height = 24
     title_height = 26
+    info_height = 85
     header_height = 28
 
     # Title row - KEY DISTINCTIONS
@@ -189,8 +190,49 @@ def generate_flowchart():
         font=font_bold,
     )
 
+    # "Exercise parts can look like:" info section
+    info_y = table_y + title_height
+    draw.rectangle(
+        [table_left, info_y, table_right, info_y + info_height],
+        fill="#FFFEF0",
+        outline="#888888",
+        width=1,
+    )
+    draw.text(
+        (width // 2 - 100, info_y + 5),
+        "Exercise parts can look like:",
+        fill="#555555",
+        font=font_bold,
+    )
+    # Vertical centered list of bullets
+    bullet_x = width // 2 - 150  # Centered (accounting for text width)
+    draw.text(
+        (bullet_x, info_y + 22),
+        "• Marked: a), b), c), 1., 2., i), ii), -",
+        fill="black",
+        font=font_small,
+    )
+    draw.text(
+        (bullet_x, info_y + 36),
+        "• Unmarked: separate tasks asking different things",
+        fill="black",
+        font=font_small,
+    )
+    draw.text(
+        (bullet_x, info_y + 50),
+        '• Inline: "(a)...(b)..." or "Explain X... Calculate Y..."',
+        fill="black",
+        font=font_small,
+    )
+    draw.text(
+        (bullet_x, info_y + 64),
+        "• Nested: 1a, 1b or 1.1, 1.2... or on separate lines",
+        fill="black",
+        font=font_small,
+    )
+
     # Column headers
-    col_header_y = table_y + title_height
+    col_header_y = info_y + info_height
     draw.rectangle(
         [table_left, col_header_y, table_right, col_header_y + header_height],
         fill="#E8E8E8",
@@ -216,27 +258,21 @@ def generate_flowchart():
         width=1,
     )
 
-    # Update table_y for rows to start after both title and header
+    # Update table_y for rows to start after info section and header
     table_y = col_header_y
 
-    # Table rows
+    # Table rows (reduced - decision criteria only)
     rows_left = [
         "SEPARATE TASKS requiring SEPARATE ANSWERS",
         "Each tests a DIFFERENT skill",
-        "Asks to DO: Find, Calculate, Prove, Explain, Determine, Draw...",
-        "Can be marked: a), b), c), 1., 2., i), ii), -, etc.",
-        "Can be unmarked: separate tasks asking different things",
-        'Can be inline: "(a) ... (b) ..." or "Explain X... Calculate Y..."',
-        "Can be nested: 1a, 1b or 1.1, 1.2... or on separate lines",
+        "Asks to DO: Find, Calculate, Prove, Explain...",
+        "",
     ]
     rows_right = [
         "GIVES information (setup, definitions, given data)",
         "Same skill, different inputs/cases → ONE answer",
         "Multiple choice options (A/B/C/D) - ONE exercise",
-        "All parts contribute to ONE answer (ex. cases for shared table)",
-        "",
-        "",
-        "",
+        "All parts contribute to ONE answer",
     ]
 
     for i, (left, right) in enumerate(zip(rows_left, rows_right)):

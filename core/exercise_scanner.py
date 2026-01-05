@@ -78,33 +78,38 @@ Follow the FLOWCHART (first image) to classify each section. The exam pages foll
 
 KEY DISTINCTIONS:
 
-| SUB-QUESTION (split these)                                        | NOT a sub-question (keep together)                              |
-|-------------------------------------------------------------------|-----------------------------------------------------------------|
-| SEPARATE TASKS requiring SEPARATE ANSWERS                         | GIVES information (setup, definitions)                          |
-| Each tests a DIFFERENT skill                                      | Same skill, different inputs/cases → ONE answer                 |
-| Asks to DO: Find, Calculate, Prove, Explain...                    | Multiple choice options (A/B/C/D)                               |
-| Can be marked: a), b), c), 1., 2., i), ii), -, etc.               | All parts contribute to ONE answer (ex. cases for shared table) |
-| Can be unmarked: separate tasks asking different things           |                                                                 |
-| Can be inline: "(a) ... (b) ..." or "Explain X... Calculate Y..." |                                                                 |
-| Can be nested: 1a, 1b or 1.1, 1.2... or on separate lines         |                                                                 |
+Exercise parts can look like:
+• Marked: a), b), c), 1., 2., i), ii), -
+• Unmarked: separate tasks asking different things
+• Inline: "(a) ... (b) ..." or "Explain X... Calculate Y..."
+• Nested: 1a, 1b or 1.1, 1.2... or on separate lines
+
+| SUB-QUESTION (split these)                    | NOT a sub-question (keep together)                |
+|-----------------------------------------------|---------------------------------------------------|
+| SEPARATE TASKS requiring SEPARATE ANSWERS     | GIVES information (setup, definitions, given data)|
+| Each tests a DIFFERENT skill                  | Same skill, different inputs/cases → ONE answer   |
+| Asks to DO: Find, Calculate, Prove, Explain...| Multiple choice options (A/B/C/D) - ONE exercise  |
+|                                               | All parts contribute to ONE answer                |
 
 OUTPUT RULES:
 - Parent text = FULL exercise block (intro + sub-questions + any text after)
-- exercise_number: ALWAYS hierarchical format:
+- exercise_number: ALWAYS number with hierarchical format (MAX 2 levels):
   - Top-level: 1, 2, 3...
   - Sub-questions: 1.1, 1.2, 1.3... (convert a→1, b→2, c→3, i→1, ii→2)
+  - NEVER use 3+ levels like 1.1.1 - if nested (e.g., "1a has parts i, ii"), use 1.1, 1.2, 1.3
   - Examples: "1a" → "1.1", "2b" → "2.2", "3(ii)" → "3.2"
 - page_number: 1-indexed
 - image_context: describe visual elements, or null
+- reason: concise choice reason
 - Use LaTeX: $inline$ or $$block$$
 
 Return ONLY valid JSON:
 {
   "exercises": [
-    {"exercise_number": "1", "text": "<parent with full setup>", "image_context": "<description or null>", "page_number": 1},
-    {"exercise_number": "1.1", "text": "<sub-question task>", "page_number": 1},
-    {"exercise_number": "1.2", "text": "<sub-question task>", "page_number": 1},
-    {"exercise_number": "2", "text": "<standalone exercise>", "image_context": "<description or null>", "page_number": 2}
+    {"exercise_number": "1", "text": "<parent with full setup>", "image_context": "<description or null>", "page_number": 1, "reason": "<concise choice reason>"},
+    {"exercise_number": "1.1", "text": "<sub-question task>", "page_number": 1, "reason": "<concise choice reason>"},
+    {"exercise_number": "1.2", "text": "<sub-question task>", "page_number": 1, "reason": "<concise choice reason>"},
+    {"exercise_number": "2", "text": "<standalone exercise>", "image_context": "<description or null>", "page_number": 2, "reason": "<concise choice reason>"}
   ]
 }"""
 
@@ -491,20 +496,21 @@ def extract_exercises(
         text = "\n".join(lines[1:-1]) if lines[-1] == "```" else "\n".join(lines[1:])
         text = text.strip()
 
+    # Extract JSON object from text (model may add explanatory text)
+    json_match = re.search(r'\{[\s\S]*\}', text)
+    if not json_match:
+        logger.error(f"No JSON found in VLM response: {text[:500]}...")
+        raise VLMExtractionError("No JSON object found in response")
+
+    json_str = json_match.group()
+    # Fix invalid backslash escapes (e.g., LaTeX \mathbb)
+    json_str = re.sub(r'(?<!\\)\\(?!["\\/bfnrtu\\])', r'\\\\', json_str)
+
     try:
-        data = json.loads(text)
-    except json.JSONDecodeError:
-        # Try to extract JSON object from text (model may add explanatory text)
-        json_match = re.search(r'\{[\s\S]*\}', text)
-        if json_match:
-            try:
-                data = json.loads(json_match.group())
-            except json.JSONDecodeError as e:
-                logger.error(f"Invalid JSON from VLM: {text[:500]}...")
-                raise VLMExtractionError(f"Invalid JSON response: {e}")
-        else:
-            logger.error(f"No JSON found in VLM response: {text[:500]}...")
-            raise VLMExtractionError("No JSON object found in response")
+        data = json.loads(json_str)
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON from VLM: {text[:500]}...")
+        raise VLMExtractionError(f"Invalid JSON response: {e}")
 
     exercises = data.get("exercises", [])
 
