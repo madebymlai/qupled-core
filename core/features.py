@@ -2,35 +2,139 @@
 Feature extraction for active learning classifier.
 
 Extracts numerical features from item pairs for ML classification.
-Key feature: embedding_similarity using sentence transformers.
+Key feature: embedding_similarity using Qwen3-Embedding-8B via OpenRouter.
 """
 
+import os
 from dataclasses import dataclass
 from functools import lru_cache
 
+import httpx
 import numpy as np
 
-# Lazy-loaded embedding model
-_embedding_model = None
+# OpenRouter configuration
+MODEL_NAME = "qwen/qwen3-embedding-8b"
+EMBEDDING_DIM = 4096
+OPENROUTER_EMBEDDINGS_URL = "https://openrouter.ai/api/v1/embeddings"
+API_TIMEOUT = 60
 
 
-def get_embedding_model():
-    """Lazy load sentence transformer model."""
-    global _embedding_model
-    if _embedding_model is None:
-        from sentence_transformers import SentenceTransformer
-
-        _embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-    return _embedding_model
+def _get_api_key() -> str:
+    """Get OpenRouter API key from environment."""
+    key = os.environ.get("OPENROUTER_API_KEY", "")
+    if not key:
+        raise ValueError("OPENROUTER_API_KEY environment variable not set")
+    return key
 
 
-@lru_cache(maxsize=1024)
+def _call_openrouter_embeddings(texts: list[str]) -> list[list[float]]:
+    """
+    Call OpenRouter embeddings API.
+
+    Args:
+        texts: List of texts to embed
+
+    Returns:
+        List of embedding vectors (each 4096 floats)
+    """
+    api_key = _get_api_key()
+
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+
+    payload = {
+        "model": MODEL_NAME,
+        "input": texts,
+    }
+
+    with httpx.Client(timeout=API_TIMEOUT) as client:
+        response = client.post(
+            OPENROUTER_EMBEDDINGS_URL,
+            headers=headers,
+            json=payload,
+        )
+        response.raise_for_status()
+        data = response.json()
+
+    # Extract embeddings in order
+    embeddings_data = sorted(data["data"], key=lambda x: x["index"])
+    return [item["embedding"] for item in embeddings_data]
+
+
+# Cache for embeddings (text -> embedding)
+_embedding_cache: dict[str, np.ndarray] = {}
+
+
 def compute_embedding(text: str) -> np.ndarray:
-    """Compute sentence embedding for text. Cached to avoid recomputation."""
+    """
+    Compute embedding for text. Cached to avoid API calls for repeated texts.
+
+    Args:
+        text: Text to embed
+
+    Returns:
+        Embedding as numpy array (4096 floats)
+    """
     if not text or not text.strip():
-        return np.zeros(384)  # MiniLM embedding size
-    model = get_embedding_model()
-    return model.encode(text, convert_to_numpy=True)
+        return np.zeros(EMBEDDING_DIM)
+
+    # Check cache
+    if text in _embedding_cache:
+        return _embedding_cache[text]
+
+    # Call API
+    try:
+        embeddings = _call_openrouter_embeddings([text])
+        embedding = np.array(embeddings[0])
+        _embedding_cache[text] = embedding
+        return embedding
+    except Exception:
+        # Return zeros on API failure (feature extraction continues)
+        return np.zeros(EMBEDDING_DIM)
+
+
+def compute_embeddings_batch(texts: list[str]) -> list[np.ndarray]:
+    """
+    Compute embeddings for multiple texts in a single API call.
+
+    Args:
+        texts: List of texts to embed
+
+    Returns:
+        List of embeddings as numpy arrays
+    """
+    if not texts:
+        return []
+
+    # Filter out empty texts and track indices
+    non_empty_texts = []
+    non_empty_indices = []
+    results: list[np.ndarray] = [np.zeros(EMBEDDING_DIM)] * len(texts)
+
+    for i, text in enumerate(texts):
+        if text and text.strip():
+            # Check cache first
+            if text in _embedding_cache:
+                results[i] = _embedding_cache[text]
+            else:
+                non_empty_texts.append(text)
+                non_empty_indices.append(i)
+
+    # Call API for uncached texts
+    if non_empty_texts:
+        try:
+            embeddings = _call_openrouter_embeddings(non_empty_texts)
+            for idx, embedding in zip(non_empty_indices, embeddings):
+                arr = np.array(embedding)
+                results[idx] = arr
+                _embedding_cache[texts[idx]] = arr
+        except Exception:
+            # Return zeros for failed texts
+            pass
+
+    return results
 
 
 def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:

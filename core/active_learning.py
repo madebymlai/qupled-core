@@ -2,11 +2,7 @@
 Active learning classifier for knowledge item grouping.
 
 Learns from past LLM decisions to reduce future LLM calls by 70-90%.
-Uses Query by Committee (QBC) for uncertainty estimation.
-
-Supports two backends:
-- CatBoost (default, recommended): Better for small tabular data, isotonic calibration
-- RandomForest (fallback): Used when CatBoost is not installed
+Uses Query by Committee (QBC) for uncertainty estimation with CatBoost.
 
 Training is designed to be triggered externally (e.g., via Celery background task)
 for non-blocking operation at scale.
@@ -18,18 +14,9 @@ from datetime import datetime
 from threading import Lock
 
 import numpy as np
-from sklearn.ensemble import RandomForestClassifier
+from catboost import CatBoostClassifier
 
-# Optional CatBoost import with fallback
-try:
-    from catboost import CatBoostClassifier
-
-    CATBOOST_AVAILABLE = True
-except ImportError:
-    CATBOOST_AVAILABLE = False
-    CatBoostClassifier = None
-
-from core.features import PairFeatures, extract_features, should_add_to_training
+from core.features import PairFeatures, should_add_to_training
 from core.transitive import TransitiveInference
 
 logger = logging.getLogger(__name__)
@@ -43,95 +30,19 @@ class TrainingRecord:
     label: int  # 1 = match, 0 = no match
 
 
-class ActiveLearner:
-    """
-    Query-by-Committee active learner for pair classification.
-
-    Uses ensemble of RandomForest classifiers.
-    Uncertainty = disagreement between committee members.
-    """
-
-    def __init__(self, n_estimators: int = 3):
-        self.committee = [
-            RandomForestClassifier(n_estimators=50, random_state=i, n_jobs=1)
-            for i in range(n_estimators)
-        ]
-        self.X_train: list[np.ndarray] = []
-        self.y_train: list[int] = []
-        self.is_fitted = False
-
-    def fit(self, X: np.ndarray, y: np.ndarray) -> None:
-        """Fit all committee members."""
-        if len(X) < 2:
-            return
-
-        # Need at least one of each class
-        unique_classes = np.unique(y)
-        if len(unique_classes) < 2:
-            return
-
-        for clf in self.committee:
-            clf.fit(X, y)
-        self.X_train = list(X)
-        self.y_train = list(y)
-        self.is_fitted = True
-
-    def predict_proba(self, X: np.ndarray) -> np.ndarray:
-        """Get average probability from committee."""
-        if not self.is_fitted:
-            return np.full((len(X), 2), 0.5)
-
-        probas = np.array([clf.predict_proba(X) for clf in self.committee])
-        return probas.mean(axis=0)
-
-    def uncertainty(self, X: np.ndarray) -> np.ndarray:
-        """Compute uncertainty via committee disagreement."""
-        if not self.is_fitted:
-            return np.ones(len(X))
-
-        # Get predictions from each committee member
-        predictions = np.array([clf.predict(X) for clf in self.committee])
-
-        # Disagreement = entropy of committee votes
-        vote_counts = predictions.sum(axis=0)  # Count positive votes
-        p_positive = vote_counts / len(self.committee)
-
-        # Entropy (avoiding log(0))
-        epsilon = 1e-10
-        p_pos = np.clip(p_positive, epsilon, 1 - epsilon)
-        entropy = -p_pos * np.log2(p_pos) - (1 - p_pos) * np.log2(1 - p_pos)
-
-        return entropy
-
-    def teach(self, X: np.ndarray, y: np.ndarray) -> None:
-        """Add new labeled data and retrain."""
-        self.X_train.extend(X)
-        self.y_train.extend(y)
-
-        X_all = np.array(self.X_train)
-        y_all = np.array(self.y_train)
-
-        self.fit(X_all, y_all)
-
-
 class CatBoostActiveLearner:
     """
     Query-by-Committee active learner using CatBoost classifiers.
 
     Uses ensemble of CatBoost classifiers with native probability predictions.
     CatBoost uses ordered boosting which provides well-calibrated probabilities
-    out of the box, so sklearn calibration is not needed.
+    out of the box.
 
     Uncertainty = standard deviation of predicted probabilities across committee.
     Optimized for small datasets (< 1K samples) with 7 features.
     """
 
     def __init__(self, n_estimators: int = 3):
-        if not CATBOOST_AVAILABLE:
-            raise ImportError(
-                "CatBoost is not installed. Install with: pip install catboost>=1.2.0"
-            )
-
         self.n_estimators = n_estimators
         self.committee: list = []
         self.X_train: list[np.ndarray] = []
@@ -191,8 +102,6 @@ class CatBoostActiveLearner:
             y: Labels
             val_fraction: Fraction of data to use for validation (default 20%)
         """
-        from sklearn.model_selection import train_test_split
-
         if len(X) < 10:
             # Too small for validation split, use regular fit
             self.fit(X, y)
@@ -213,10 +122,20 @@ class CatBoostActiveLearner:
             self.fit(X, y)
             return
 
-        # Split for early stopping validation
-        X_train, X_val, y_train, y_val = train_test_split(
-            X, y, test_size=val_fraction, stratify=y, random_state=42
-        )
+        # Split for early stopping validation (stratified)
+        # Group indices by class for stratified split
+        rng = np.random.default_rng(42)
+        train_idx, val_idx = [], []
+
+        for cls in np.unique(y):
+            cls_idx = np.where(y == cls)[0]
+            rng.shuffle(cls_idx)
+            n_val = max(1, int(len(cls_idx) * val_fraction))
+            val_idx.extend(cls_idx[:n_val])
+            train_idx.extend(cls_idx[n_val:])
+
+        X_train, X_val = X[train_idx], X[val_idx]
+        y_train, y_val = y[train_idx], y[val_idx]
 
         # Override params for early stopping
         early_stop_params = self._catboost_params.copy()
@@ -301,29 +220,17 @@ class CatBoostActiveLearner:
         self.fit(X_all, y_all)
 
 
-def create_active_learner(
-    n_estimators: int = 3, prefer_catboost: bool = True
-) -> "ActiveLearner | CatBoostActiveLearner":
+def create_active_learner(n_estimators: int = 3) -> CatBoostActiveLearner:
     """
-    Factory function to create the best available active learner.
+    Factory function to create active learner.
 
     Args:
         n_estimators: Number of models in the committee
-        prefer_catboost: If True, use CatBoost when available; if False, always use RandomForest
 
     Returns:
-        CatBoostActiveLearner if catboost is available and preferred, else ActiveLearner
+        CatBoostActiveLearner instance
     """
-    if prefer_catboost and CATBOOST_AVAILABLE:
-        logger.info("Using CatBoost active learner")
-        return CatBoostActiveLearner(n_estimators=n_estimators)
-    else:
-        if prefer_catboost and not CATBOOST_AVAILABLE:
-            logger.warning(
-                "CatBoost not available, falling back to RandomForest. "
-                "Install catboost for better performance: pip install catboost>=1.2.0"
-            )
-        return ActiveLearner(n_estimators=n_estimators)
+    return CatBoostActiveLearner(n_estimators=n_estimators)
 
 
 @dataclass
@@ -378,7 +285,7 @@ class ActiveClassifier:
     Training data is qupled-wide (features are anonymous).
     Transitive graph is per-session (item relationships).
 
-    By default, uses CatBoost if available, otherwise falls back to RandomForest.
+    Uses CatBoost for the committee ensemble.
     Training is designed to be triggered externally (e.g., via Celery background task)
     for non-blocking operation at scale.
     """
@@ -387,7 +294,7 @@ class ActiveClassifier:
     low_confidence: float = 0.15  # Below this -> use prediction (negative)
     min_training_samples: int = 20  # Minimum samples before using predictions
 
-    learner: "ActiveLearner | CatBoostActiveLearner" = field(
+    learner: CatBoostActiveLearner = field(
         default_factory=lambda: create_active_learner(n_estimators=3)
     )
     transitive: TransitiveInference = field(default_factory=TransitiveInference)
@@ -582,7 +489,7 @@ class ActiveClassifier:
             )
 
         # Pre-compute embedding for new item
-        from core.features import compute_embedding
+        from core.features import compute_embedding, extract_features
 
         new_embedding = compute_embedding(new_item.get("description", ""))
 

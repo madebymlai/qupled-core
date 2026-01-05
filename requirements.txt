@@ -16,8 +16,7 @@ pyyaml>=6.0.1
 fsrs>=4.0.0  # FSRS algorithm (optimizer deps: torch, numpy, pandas already present)
 
 # Active Learning
-sentence-transformers>=2.2.0  # Embeddings for semantic similarity
-scikit-learn>=1.3.0           # RandomForest classifier
+httpx>=0.25.0                 # HTTP client for OpenRouter API
 numpy>=1.24.0                 # Array operations
 
 # Development
