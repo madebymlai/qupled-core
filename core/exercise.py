@@ -1,5 +1,5 @@
 """
-Exercise splitting for Qupled.
+Exercise extraction for Qupled.
 Uses VLM-based extraction for accurate exercise detection with visual context.
 """
 
@@ -7,13 +7,9 @@ import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import List, Optional
 
-from core.pdf import PDFContent
 from core.exercise_scanner import extract_exercises, get_pdf_page_count, render_page_to_image
-
-if TYPE_CHECKING:
-    from models.llm_manager import LLMManager
 
 
 @dataclass
@@ -121,11 +117,11 @@ def _generate_exercise_id(
     return f"{course_abbrev}_{ex_num_clean}_{short_hash}"
 
 
-class ExerciseSplitter:
-    """VLM-based exercise splitter for accurate extraction with visual context."""
+class ExerciseExtractor:
+    """VLM-based exercise extractor for accurate extraction with visual context."""
 
     def __init__(self):
-        """Initialize exercise splitter."""
+        """Initialize exercise extractor."""
         pass
 
     def extract(
@@ -211,45 +207,6 @@ class ExerciseSplitter:
 
         return exercises
 
-    def split_pdf_smart(
-        self,
-        pdf_content: PDFContent,
-        course_code: str,
-        llm_manager: "LLMManager" = None,
-        second_pass_llm: "LLMManager" = None,
-    ) -> List[Exercise]:
-        """Split PDF using VLM extraction (backward compatible interface).
-
-        This method maintains backward compatibility with the old 5-call pipeline.
-        Now uses VLM-based extraction internally.
-
-        Args:
-            pdf_content: PDFContent object (file_path used for rendering)
-            course_code: Course code for ID generation
-            llm_manager: Ignored (VLM doesn't need separate LLM)
-            second_pass_llm: Ignored (VLM handles context internally)
-
-        Returns:
-            List of Exercise objects
-        """
-        return self.extract(pdf_content.file_path, course_code)
-
-    def split_pdf_content(
-        self,
-        pdf_content: PDFContent,
-        course_code: str,
-    ) -> List[Exercise]:
-        """Split PDF content (backward compatible interface).
-
-        Args:
-            pdf_content: PDFContent object
-            course_code: Course code for ID generation
-
-        Returns:
-            List of Exercise objects
-        """
-        return self.extract(pdf_content.file_path, course_code)
-
     def validate_exercise(self, exercise: Exercise) -> bool:
         """Validate if an exercise has content.
 
@@ -268,3 +225,7 @@ class ExerciseSplitter:
         if len(text) < min_length:
             return False
         return True
+
+
+# Backward compatibility alias
+ExerciseSplitter = ExerciseExtractor

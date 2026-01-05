@@ -2,7 +2,6 @@
 Note splitting for Qupled.
 Splits lecture notes PDFs into topic sections based on headers/chapters.
 
-Unlike ExerciseSplitter which looks for exercise markers ("Esercizio N"),
 NoteSplitter detects document structure: headers, chapters, numbered sections.
 """
 
@@ -10,12 +9,9 @@ import hashlib
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from core.note_scanner import scan_notes
-
-if TYPE_CHECKING:
-    from core.pdf import PDFContent, PDFPage
 
 
 @dataclass
@@ -65,7 +61,6 @@ class NoteSplitter:
         # Capitolo/Chapter explicit markers
         (r"^(?:Capitolo|Chapter|Chapitre|Kapitel)\s+(\d+)[\.:]\s*(.+)?$", 1),
         # Italian-style headers (line ending with colon, 3-50 chars)
-        # e.g., "Sistema operativo:", "Tipologie di calcolatori:"
         (r"^([A-Z][a-zàèéìòùA-Z\s]{2,48}):[ \t]*$", 2),
         # Italian headers with articles (Il, La, etc.)
         (r"^((?:Il|La|Lo|I|Le|Gli|Un|Una|Uno)\s+[a-zàèéìòùA-Z][a-zàèéìòùA-Z\s]{2,45}):[ \t]*$", 2),
@@ -81,15 +76,11 @@ class NoteSplitter:
         ]
         self.section_counter = 0
 
-    def split_notes(
-        self, text: str, pages: Optional[List["PDFPage"]] = None, source_pdf: str = "notes.pdf"
-    ) -> List[NoteSection]:
-        """
-        Split note text into sections by detecting headers.
+    def split_notes(self, text: str, source_pdf: str = "notes.pdf") -> List[NoteSection]:
+        """Split note text into sections by detecting headers.
 
         Args:
             text: Full text content of the notes
-            pages: Optional list of PDFPage objects for page-level info
             source_pdf: Source PDF filename
 
         Returns:
@@ -103,19 +94,15 @@ class NoteSplitter:
 
         if not headers:
             # No headers found - treat entire document as single section
-            # Or fall back to page-based splitting
-            if pages and len(pages) > 1:
-                return self._split_by_pages(pages, source_pdf)
-            else:
-                return [
-                    self._create_section(
-                        title=None,
-                        content=text,
-                        page_number=1,
-                        source_pdf=source_pdf,
-                        section_level=1,
-                    )
-                ]
+            return [
+                self._create_section(
+                    title=None,
+                    content=text,
+                    page_number=1,
+                    source_pdf=source_pdf,
+                    section_level=1,
+                )
+            ]
 
         # Split text at headers
         for i, (pos, title, level) in enumerate(headers):
@@ -138,14 +125,11 @@ class NoteSplitter:
             if len(content) < self.MIN_SECTION_LENGTH:
                 continue
 
-            # Determine page number
-            page_number = self._get_page_number(pos, text, pages)
-
             sections.append(
                 self._create_section(
                     title=title,
                     content=content,
-                    page_number=page_number,
+                    page_number=1,  # VLM doesn't track page numbers
                     source_pdf=source_pdf,
                     section_level=level,
                 )
@@ -169,31 +153,10 @@ class NoteSplitter:
         full_text = scan_notes(pdf_path)
 
         # Split into sections
-        return self.split_notes(
-            text=full_text,
-            pages=None,  # VLM gives us raw text, no page objects
-            source_pdf=pdf_path.name,
-        )
-
-    def split_pdf_content(self, pdf_content: "PDFContent") -> List[NoteSection]:
-        """Split PDF content into sections (backward compat).
-
-        Args:
-            pdf_content: Extracted PDF content
-
-        Returns:
-            List of NoteSection objects
-        """
-        full_text = "\n".join(page.text for page in pdf_content.pages)
-        return self.split_notes(
-            text=full_text,
-            pages=pdf_content.pages,
-            source_pdf=pdf_content.file_path.name if pdf_content.file_path else "notes.pdf",
-        )
+        return self.split_notes(text=full_text, source_pdf=pdf_path.name)
 
     def _find_headers(self, text: str) -> List[Tuple[int, str, int]]:
-        """
-        Find all headers in the text.
+        """Find all headers in the text.
 
         Returns:
             List of (position, title, level) tuples, sorted by position
@@ -244,58 +207,6 @@ class NoteSplitter:
         title = " ".join(title.split())
 
         return title.strip()
-
-    def _get_page_number(
-        self, text_position: int, full_text: str, pages: Optional[List["PDFPage"]]
-    ) -> int:
-        """Determine page number from text position."""
-        if not pages:
-            return 1
-
-        # Count characters to find which page this position is on
-        char_count = 0
-        for page in pages:
-            page_len = len(page.text) + 1  # +1 for newline between pages
-            if char_count + page_len > text_position:
-                return page.page_number
-            char_count += page_len
-
-        return pages[-1].page_number if pages else 1
-
-    def _split_by_pages(self, pages: List["PDFPage"], source_pdf: str) -> List[NoteSection]:
-        """
-        Fallback: split by pages when no headers found.
-        Groups consecutive pages with similar content.
-        """
-        sections = []
-
-        for page in pages:
-            if len(page.text.strip()) < self.MIN_SECTION_LENGTH:
-                continue
-
-            # Try to extract a title from the first line
-            lines = page.text.strip().split("\n")
-            title = None
-            content = page.text
-
-            if lines:
-                first_line = lines[0].strip()
-                # If first line looks like a title (short, possibly capitalized)
-                if len(first_line) < 100 and len(first_line) > 5:
-                    title = first_line
-                    content = "\n".join(lines[1:]).strip()
-
-            sections.append(
-                self._create_section(
-                    title=title,
-                    content=content,
-                    page_number=page.page_number,
-                    source_pdf=source_pdf,
-                    section_level=2,
-                )
-            )
-
-        return sections
 
     def _create_section(
         self,

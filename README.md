@@ -24,10 +24,10 @@ qupled-cli           - Local CLI (ChromaDB, vector search)
 | `core/review_engine.py` | Exercise generation & answer evaluation (Review mode) |
 | `core/fsrs_scheduler.py` | FSRS spaced repetition algorithm |
 | `core/answer_evaluator.py` | Student answer evaluation |
-| `core/pdf_processor.py` | PDF text extraction |
-| `core/exercise_splitter.py` | Exercise detection and splitting |
-| `core/note_splitter.py` | Note/summary splitting |
-| `core/solution_separator.py` | Separate exercises from solutions |
+| `core/exercise_scanner.py` | VLM-based exercise OCR |
+| `core/exercise.py` | Exercise dataclass and extraction |
+| `core/note_scanner.py` | VLM-based notes OCR |
+| `core/note_splitter.py` | Notes section splitting |
 | `core/merger.py` | Merge duplicate knowledge items |
 | `core/features.py` | Feature extraction for ML |
 | `core/active_learning.py` | Active learning strategies |

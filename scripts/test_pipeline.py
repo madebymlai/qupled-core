@@ -58,9 +58,9 @@ except ImportError:
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.analyzer import ExerciseAnalyzer, generate_item_description
-from core.exercise_splitter import ExerciseSplitter
+from core.exercise import ExerciseExtractor
+from core.exercise_scanner import get_pdf_page_count
 from core.merger import classify_items, get_canonical_name
-from core.scanner import PDFProcessor
 from models.llm_manager import LLMManager
 
 # Optional: Active learning imports (may not be installed)
@@ -228,9 +228,8 @@ class PipelineTester:
         self.use_active_learning = use_active_learning
         self.show_features = show_features
         self.training_path = training_path
-        self.processor = PDFProcessor()
         self.llm = None
-        self.splitter = None
+        self.extractor = None
         self.analyzer = None
         self.active_classifier = None
         self._interrupted = False
@@ -239,7 +238,7 @@ class PipelineTester:
         """Lazy init LLM (expensive)."""
         if self.llm is None:
             self.llm = LLMManager(provider="deepseek", quiet=not self.debug)
-            self.splitter = ExerciseSplitter()
+            self.extractor = ExerciseExtractor()
 
     def _init_active_learning(self):
         """Lazy init active learning classifier with optional warm start."""
@@ -300,19 +299,17 @@ class PipelineTester:
         return similarities[:10]  # Top 10
 
     def test_parse(self, pdf_path: Path) -> TestResult:
-        """Stage 1: Test PDF parsing."""
+        """Stage 1: Test PDF can be opened and has pages."""
         result = TestResult(pdf_path=str(pdf_path))
         start = time.time()
 
         try:
-            pdf_content = self.processor.process_pdf(pdf_path)
+            pages = get_pdf_page_count(pdf_path)
 
             # Structural assertions
-            assert pdf_content.total_pages > 0, "PDF has no pages"
-            full_text = "".join(p.text for p in pdf_content.pages)
-            assert len(full_text) > 100, "PDF text too short"
+            assert pages > 0, "PDF has no pages"
 
-            result.pages = pdf_content.total_pages
+            result.pages = pages
             result.status = "PASS"
 
         except AssertionError as e:
@@ -335,12 +332,12 @@ class PipelineTester:
         try:
             self._init_llm()
 
-            # Parse
-            pdf_content = self.processor.process_pdf(pdf_path)
-            result.pages = pdf_content.total_pages
+            # Get page count
+            from core.exercise_scanner import get_pdf_page_count
+            result.pages = get_pdf_page_count(pdf_path)
 
-            # Split
-            exercises = self.splitter.split_pdf_smart(pdf_content, course_name, self.llm)
+            # Extract exercises
+            exercises = self.extractor.extract(pdf_path, course_name)
 
             # Structural assertions
             assert len(exercises) >= 1, "No exercises found"
